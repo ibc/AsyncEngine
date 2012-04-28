@@ -12,8 +12,6 @@ module AsyncEngine
   @handles = {}
 
   def self.start
-    @handles = {}
-
     yield  if block_given?
 
     if self._c_start

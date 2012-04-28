@@ -1,13 +1,81 @@
-#include "asyncengine.h"
+#include "asyncengine_ruby.h"
 #include "ae_timers.h"
 
 
-VALUE AsyncEngine_c_add_timer(VALUE self, VALUE timeout, VALUE interval, VALUE callback)
+typedef struct {
+  int periodic;
+  uv_timer_t *_uv_handle;
+  VALUE rb_handle_id;
+} struct_AsyncEngine_timer_handle;
+
+
+void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
 {
-  long handle_number = AsyncEngine_next_handle();
-  uv_timer_t* handle = (uv_timer_t*)malloc(sizeof(uv_timer_t));
+  struct_AsyncEngine_timer_handle* data = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
+
+  // Run callback.
+  rb_funcall(AsyncEngine_get_handle(data->rb_handle_id), rb_intern("call"), 0, 0);
+
+  // Free the timer if it is not periodic.
+  if (data->periodic == 0) {
+    // Let the GC work.
+    //rb_gc_register_address(&(data->callback));
+    AsyncEngine_remove_handle(data->rb_handle_id);
+    // Free memory.
+    xfree(data);
+    xfree(_uv_handle);
+  }
+}
+
+
+VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE callback)
+{
+  uv_timer_t* _uv_handle = ALLOC(uv_timer_t);
+  struct_AsyncEngine_timer_handle* data = ALLOC(struct_AsyncEngine_timer_handle);
+  long delay, interval;
+
+  delay = NUM2LONG(rb_delay);
+  if (NIL_P(rb_interval)) {
+    interval = 0;
+    data->periodic = 0;
+  }
+  else {
+    interval = NUM2LONG(rb_interval);
+    data->periodic = 1;
+  }
+
+  //data->callback = callback;
+  data->_uv_handle = _uv_handle;
 
   // Save the callback from being GC'd.
-  rb_gc_register_address(&callback);
+  //rb_gc_unregister_address(&callback);
+  data->rb_handle_id = AsyncEngine_store_handle(callback);
+
+  // Initialize.
+  uv_timer_init(uv_default_loop(), _uv_handle);
+  _uv_handle->data = data;
+
+  uv_timer_start(_uv_handle, AsyncEngine_timer_callback, delay, interval);
+
+  return Data_Wrap_Struct(AsyncEngine_c_get_cAsyncEngineCPointer(), NULL, NULL, data);
+}
+
+
+VALUE AsyncEngineTimer_cancel(VALUE self)
+{
+  // Load data.
+  struct_AsyncEngine_timer_handle* data;
+  Data_Get_Struct(rb_iv_get(self, "@_timer_data"), struct_AsyncEngine_timer_handle, data);
+
+  // Stop timer.
+  uv_timer_stop(data->_uv_handle);
+
+  // Let the GC work.
+  //rb_gc_register_address(&(data->callback));
+  AsyncEngine_remove_handle(data->rb_handle_id);
+  // Free memory.
+  xfree(data);
+  //xfree(_uv_handle); // TODO: No hace falta, al menos en nodeRb.
   
+  return Qtrue;
 }

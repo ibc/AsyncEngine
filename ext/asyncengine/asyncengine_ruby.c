@@ -1,13 +1,17 @@
-#include "asyncengine.h"
+#include "asyncengine_ruby.h"
 #include "ae_timers.h"
 #include <signal.h>
 
 
-// C variables.
-long handle_number = 0;
+// C variable holding current handle number.
+static long handle_id = 0;
 
-// Ruby modules/classes.
+// AsyncEngine Ruby modules and classes.
 static VALUE mAsyncEngine;
+static VALUE cAsyncEngineTimer;
+
+// Rucy class for saving C data within a Ruby object.
+static VALUE cAsyncEngineCPointer;
 
 // Ruby attributes.
 static ID att_handles;
@@ -18,9 +22,9 @@ static ID id_method_call;
 
 
 
-inline long AsyncEngine_next_handle(void)
+long AsyncEngine_next_handle_id()
 {
-  return ++handle_number;
+  ++handle_id;
 }
 
 
@@ -34,13 +38,28 @@ static void signal_handler(int signal_number)
 }
 
 
-VALUE AsyncEngine_c_add_handle(VALUE self, VALUE handle)
+VALUE AsyncEngine_c_get_mAsyncEngine() { return mAsyncEngine; }
+VALUE AsyncEngine_c_get_cAsyncEngineCPointer() { return cAsyncEngineCPointer; }
+
+
+VALUE AsyncEngine_store_handle(VALUE handle)
 {
-  VALUE rb_handle_number = LONG2FIX(++handle_number);
+  VALUE rb_handle_id = LONG2FIX(++handle_id);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_number, handle);
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id, handle);
+  return rb_handle_id;
+}
 
-  return rb_handle_number;
+
+VALUE AsyncEngine_get_handle(VALUE rb_handle_id)
+{
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+}
+
+
+void AsyncEngine_remove_handle(VALUE rb_handle_id)
+{
+  rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
 
@@ -72,16 +91,22 @@ VALUE AsyncEngine_c_start(VALUE self)
 }
 
 
+
+
 void Init_asyncengine_ext()
 {
   mAsyncEngine = rb_define_module("AsyncEngine");
+  cAsyncEngineCPointer = rb_define_class_under(mAsyncEngine, "CPointer", rb_cObject);
+
   rb_define_module_function(mAsyncEngine, "_c_start", AsyncEngine_c_start, 0);
-  rb_define_module_function(mAsyncEngine, "_c_add_handle", AsyncEngine_c_add_handle, 1);
   rb_define_module_function(mAsyncEngine, "trap_signal", AsyncEngine_trap_signal, 1);
 
   /* Timers */
+  cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
   rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 3);
+  rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
 
+  /* Attribute and method names */
   att_handles = rb_intern("@handles");
   att_trapped_signals = rb_intern("@trapped_signals");
 
