@@ -4,7 +4,7 @@ require "fileutils"
 
 
 def sys cmd
-  puts "system command:  #{cmd}"
+  puts "system command in #{File.expand_path(File.dirname(__FILE__))}:  #{cmd}"
   unless ret = xsystem(cmd)
     raise "system command `#{cmd}' failed, please report to https://github.com/ibc/AsyncEngine/issues"
   end

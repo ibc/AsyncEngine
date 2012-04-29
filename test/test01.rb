@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env ruby1.9.1
 
 $LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../", "lib"))
 
@@ -6,34 +6,39 @@ require "asyncengine"
 
 
 
-#trap(:TERM)  { puts "*** TERM trapped => ignore" }
-#trap(:INT)   { puts "*** INT trapped => exit" ; exit }
+#trap(:INT)  { puts "*** INT trapped => ignore" }
+#trap(:INT)  { puts "*** INT trapped => exit" ; exit }
 
 
 puts "PID = #{$$}"
 
-t = Thread.current
-#Thread.new { loop { printf "." ; sleep 0.005 } }
-Thread.new { sleep 5; puts "YA" ; t.kill }
+at_exit { puts "NOTICE: exiting..." }
+
+#Thread.new { sleep 5 ; puts "YA" }
+
+#Thread.new { loop { puts "---t1---" ; sleep 0.001 } }
+#Thread.new { loop { puts "---t2---" ; sleep 0.001 } }
+
+#t = Thread.current ; Thread.new { sleep 5; puts "YA" ; t.kill }
 
 
 # AE.add_timer(0.1) { puts "1 TIMER !!!" }
 # AE.add_timer(0.12) { puts "3 TIMER !!!" }
 # 
 
-# t1 = AE::Timer.new(2) { puts "--- t1 should be stopped !!! ---" }
-# puts t1.inspect
-#  
-# AE.add_timer(1) do
-#   t2 = AE::Timer.new(2) { puts "--- t2 should be stopped !!! ---" }
-#   puts t2.inspect
-#   t1.cancel
-#   t2.cancel
-# end
+if true and false
+  t1 = AE::PeriodicTimer.new(2,0) { puts "--- t1 periodic timer should be stopped after some seconds !!! ---" }
+  puts t1.inspect
+  AE.add_timer(6) do
+    t2 = AE::Timer.new(2) { puts "--- t2 single timer should NOT be stopped !!! ---" }
+    puts t2.inspect
+    puts "--- canceling t1 ---"
+    t1.cancel
+  end
+end
 
-
-#AE.add_timer(4) { puts "--- TIMER 4 seconds !!!" }
-AE.add_periodic_timer(2) { puts "--- AE timer !!!" }
+#AE.add_periodic_timer(0.001) { puts "***AE timer 1***" }
+#AE.add_periodic_timer(0.001) { puts "***AE timer 2***" }
 
 
 if true and false
@@ -55,14 +60,13 @@ if true and false
 end
 
 
-#1000.times { AE.add_timer(0) { "- #{$count+=1}" } }
+cancel = true
+100.times { AE.add_periodic_timer(0.001) { a = AE::PeriodicTimer.new(1){ puts "Timer" } ; a.cancel if cancel } }
 
 
-# puts "*** AE.handles: #{(AE.instance_variable_get :@handles).inspect}"
-# sleep 0.4
 
 AE.start do
-  #AE.add_timer(1) { puts "*** AE.handles: #{(AE.instance_variable_get :@handles).inspect}" }
+  #AE.add_timer(1) { puts "hello" }
 end
 
-puts "FIN"
+puts "END"

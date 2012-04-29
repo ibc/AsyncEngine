@@ -3,12 +3,16 @@
 
 
 #include <ruby.h>
-#include <libuv/include/uv.h>  // No hace falta por el dir_config() en extconf.rb.
-//#include <uv.h>
+#include <libuv/include/uv.h>  // NOTE: Not needed if dir_config() line is enabled in extconf.rb.
+//#include <uv.h>              // so this line becomes enough.
 
 
-VALUE AsyncEngine_c_get_mAsyncEngine();
-VALUE AsyncEngine_c_get_cAsyncEngineCPointer();
+// Global variables (used in other files with "extern").
+VALUE mAsyncEngine;
+VALUE cAsyncEngineCData;
+ID id_method_call;
+
+// Public methods.
 VALUE AsyncEngine_store_handle(VALUE);
 VALUE AsyncEngine_get_handle(VALUE);
 void AsyncEngine_remove_handle(VALUE);

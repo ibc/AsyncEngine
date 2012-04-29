@@ -31,7 +31,8 @@ task :test => AE_LIB_SO
 # easily delete generated files
 CLEAN.include("#{AE_EXTEN_DIR}/*{.o,.log,.so,.a}")
 CLEAN.include("#{AE_EXTEN_DIR}/Makefile")
-CLEAN.include("#{AE_EXTEN_DIR}/libuv/**/*{.o,.a}")
+#CLEAN.include("#{AE_EXTEN_DIR}/libuv/**/*{.o,.a}")
+CLOBBER.include("#{AE_EXTEN_DIR}/libuv/**/*{.o,.a}")
 CLOBBER.include(AE_LIB_SO)
 
 # the same as before
