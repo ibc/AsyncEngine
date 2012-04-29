@@ -9,17 +9,26 @@ typedef struct {
 } struct_AsyncEngine_timer_handle;
 
 
+static
+void execute_callback_with_gvl(void *param)
+{
+  struct_AsyncEngine_timer_handle* data = (struct_AsyncEngine_timer_handle*)param;
+
+  rb_funcall(AsyncEngine_get_handle(data->rb_handle_id), rb_intern("call"), 0, 0);
+}
+
+
+static
 void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
 {
   struct_AsyncEngine_timer_handle* data = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
 
   // Run callback.
-  rb_funcall(AsyncEngine_get_handle(data->rb_handle_id), rb_intern("call"), 0, 0);
+  rb_thread_call_with_gvl(execute_callback_with_gvl, data);
 
   // Free the timer if it is not periodic.
   if (data->periodic == 0) {
     // Let the GC work.
-    //rb_gc_register_address(&(data->callback));
     AsyncEngine_remove_handle(data->rb_handle_id);
     // Free memory.
     xfree(data);
@@ -48,7 +57,6 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   data->_uv_handle = _uv_handle;
 
   // Save the callback from being GC'd.
-  //rb_gc_unregister_address(&callback);
   data->rb_handle_id = AsyncEngine_store_handle(callback);
 
   // Initialize.
@@ -65,17 +73,15 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 {
   // Load data.
   struct_AsyncEngine_timer_handle* data;
-  Data_Get_Struct(rb_iv_get(self, "@_timer_data"), struct_AsyncEngine_timer_handle, data);
+  Data_Get_Struct(rb_iv_get(self, "@_c_data"), struct_AsyncEngine_timer_handle, data);
 
   // Stop timer.
   uv_timer_stop(data->_uv_handle);
 
   // Let the GC work.
-  //rb_gc_register_address(&(data->callback));
   AsyncEngine_remove_handle(data->rb_handle_id);
   // Free memory.
   xfree(data);
-  //xfree(_uv_handle); // TODO: No hace falta, al menos en nodeRb.
   
   return Qtrue;
 }

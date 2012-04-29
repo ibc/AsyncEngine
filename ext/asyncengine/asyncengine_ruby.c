@@ -28,16 +28,6 @@ long AsyncEngine_next_handle_id()
 }
 
 
-static void signal_handler(int signal_number)
-{
-  VALUE trapped_signals = rb_ivar_get(mAsyncEngine, att_trapped_signals);
-  rb_funcall(rb_hash_lookup(trapped_signals, INT2FIX(signal_number)), id_method_call, 0, 0);
-  // TODO: Mejor usar rb_block_call(obj, id_each, 0, 0, min_ii, (VALUE)&result);
-  // aunque creo que no hay en 1.8
-  // NOTA: Que va, no es cierto que sea mas rapido ni nada.
-}
-
-
 VALUE AsyncEngine_c_get_mAsyncEngine() { return mAsyncEngine; }
 VALUE AsyncEngine_c_get_cAsyncEngineCPointer() { return cAsyncEngineCPointer; }
 
@@ -63,31 +53,38 @@ void AsyncEngine_remove_handle(VALUE rb_handle_id)
 }
 
 
-VALUE AsyncEngine_trap_signal(VALUE self, VALUE rb_signal_number)
+static
+VALUE run_uv_without_gvl(void* param)
 {
-  // TODO: Check http://linux.die.net/man/2/sigaction (recommended by http://linux.die.net/man/2/signal).
-  // TODO: En teoria devuelve EINVAL si el numero de signal pasado no existe, pero me da error porque
-  // no hay EINVAL en signal.h.
-  if (signal(FIX2INT(rb_signal_number), signal_handler) < 0)
+  if (! uv_run(uv_default_loop()))
+    return Qtrue;
+  else
     return Qfalse;
-  return Qtrue;
+}
+
+
+static void check_rb_ints_with_gvl(void *param) { rb_thread_check_ints(); }
+
+static
+void prepare_signals_cb(uv_prepare_t* handle, int status)
+{
+  printf("DBG: prepare_signals_cb()\n");
+  if (rb_thread_interrupted(rb_thread_current())) {
+    printf("DBG: prepare_signals_cb(): rb_thread_interrupted() => true;\n");
+    rb_thread_call_with_gvl(check_rb_ints_with_gvl, NULL);
+  }
 }
 
 
 
 VALUE AsyncEngine_c_start(VALUE self)
 {
-  //uv_ref(uv_default_loop());  // TODO: Es una ñapa temporal !!!
+  uv_prepare_t *_uv_prepare_signals = ALLOC(uv_prepare_t);
 
-  // Esto lo hacemos en Ruby.
-//   if (rb_block_given_p()) {
-//     rb_yield(Qnil);
-//   }
+  uv_prepare_init(uv_default_loop(), _uv_prepare_signals);
+  uv_prepare_start(_uv_prepare_signals, prepare_signals_cb);
 
-  if (! uv_run(uv_default_loop()))
-    return Qtrue;
-  else
-    return Qfalse;
+  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
 }
 
 
@@ -99,7 +96,6 @@ void Init_asyncengine_ext()
   cAsyncEngineCPointer = rb_define_class_under(mAsyncEngine, "CPointer", rb_cObject);
 
   rb_define_module_function(mAsyncEngine, "_c_start", AsyncEngine_c_start, 0);
-  rb_define_module_function(mAsyncEngine, "trap_signal", AsyncEngine_trap_signal, 1);
 
   /* Timers */
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
@@ -109,6 +105,5 @@ void Init_asyncengine_ext()
   /* Attribute and method names */
   att_handles = rb_intern("@handles");
   att_trapped_signals = rb_intern("@trapped_signals");
-
   id_method_call = rb_intern("call");
 }
