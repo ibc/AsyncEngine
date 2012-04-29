@@ -26,14 +26,15 @@ at_exit { puts "NOTICE: exiting..." }
 # AE.add_timer(0.12) { puts "3 TIMER !!!" }
 # 
 
-if true and false
-  t1 = AE::PeriodicTimer.new(2,0) { puts "--- t1 periodic timer should be stopped after some seconds !!! ---" }
+if true #and false
+  t1 = AE::PeriodicTimer.new(1,0) { puts "--- t1 periodic timer should be stopped after some seconds !!! ---" }
   puts t1.inspect
-  AE.add_timer(6) do
+  AE.add_timer(4) do
     t2 = AE::Timer.new(2) { puts "--- t2 single timer should NOT be stopped !!! ---" }
     puts t2.inspect
     puts "--- canceling t1 ---"
     t1.cancel
+    AE.add_timer(1) { puts "exiting..." ; exit }
   end
 end
 
@@ -60,9 +61,10 @@ if true and false
 end
 
 
-cancel = true
-100.times { AE.add_periodic_timer(0.001) { a = AE::PeriodicTimer.new(1){ puts "Timer" } ; a.cancel if cancel } }
-
+if true and false
+  cancel = true
+  100.times { AE.add_periodic_timer(0.001) { a = AE::PeriodicTimer.new(1){ puts "Timer" } ; a.cancel if cancel } }
+end
 
 
 AE.start do
