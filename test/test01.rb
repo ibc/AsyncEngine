@@ -55,7 +55,7 @@ if true and false
 end
 
 
-if true #and false
+if true and false
   cancel = false
   100.times { AE.add_periodic_timer(0.001) { a = AE::Timer.new(0.01){ printf "." } ; ( a.cancel ; a.cancel ) if cancel } }
 end
@@ -68,10 +68,10 @@ end
 
 
 if true and false
-  $interval = 0.20
+  $interval = 1
   pt1 = AE::PeriodicTimer.new($interval) do
-    if $interval > 3.8
-      puts "--- pt1: interval > 3.8, stopping timer"
+    if $interval > 4
+      puts "--- pt1: interval > 4, stopping timer"
       pt1.stop
     else
       puts "--- pt1: interval=#{$interval} , setting next interval in #{$interval * 2}"
@@ -99,20 +99,24 @@ end
 
 #loop do AE.start {} end
 
-#loop do AE.start { AE.add_timer(0) { puts "YA" } } end
+#loop do AE.start { AE.add_timer(0) { puts "YA" } } end ; exit
+
+#AE.start { AE.add_timer(0.5) { puts "YA" } } ; exit
+
+#AE.start { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 
 AE.start do
   puts "\nINFO: starting AsynEngine loop...\n" ; sleep 0.1
-  AE.add_periodic_timer(4, 0) do
-    if AsyncEngine.num_handles > 1
-      puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
+  check_timer = AE::PeriodicTimer.new(0.1, 0) do
+    if AsyncEngine.num_handles > 2
+      #puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
     else
-      puts "NOTICE: no more handles, exiting"
-      exit true
+      puts "NOTICE: no more handles, terminating loop..."
+      check_timer.stop
     end
   end
 end
 
 
-puts "END"
+puts "NOTICE: script terminates"

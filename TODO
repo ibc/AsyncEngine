@@ -2,31 +2,6 @@ TODO
 ****
 
 
-
-"Memory leak" in _uv_prepare_signals
-------------------------------------
-
-uv_prepare_t *_uv_prepare_signals is memory allocated (with ALLOC) but is never freed, how to do that? should I do that when uv_run ends? really useful?
-
-Basically, this leaks:
-
-  loop do AE.start {} end
-
-The following solution in AsyncEngine_c_start() avoids the leak:
-
-  ret = rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
-  uv_close((uv_handle_t *)_uv_prepare_signals, prepare_signals_close_cb);
-  xfree(_uv_prepare_signals);
-  return ret;
-
-but it causes a coredump in this case:
-
-  loop do AE.start { AE.add_timer(0) { puts "YA" } } end
-
-I'm trying with uv_close after before the xfree, but get an Abort.
-
-
-
 `write': deadlock; recursive locking (ThreadError)
 --------------------------------------------------
 
@@ -49,10 +24,3 @@ If during the loop I press *multiple* times Ctrl+C (so INT signal) I get this er
         from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:21:in `puts'
 
 NOTE: The same occurs in EventMachine !!!
-
-
-
-Periodic timer does not run if given interval is 0
---------------------------------------------------
-
-AE.add_periodic_timer(0.0001) causes 0 to be passed as interval and delay so a single execution occurs. 

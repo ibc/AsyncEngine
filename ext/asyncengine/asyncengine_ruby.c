@@ -23,12 +23,6 @@ ID id_method_call;
 
 
 
-long AsyncEngine_next_handle_id()
-{
-  ++handle_id;
-}
-
-
 
 VALUE AsyncEngine_store_handle(VALUE handle)
 {
@@ -47,27 +41,31 @@ VALUE AsyncEngine_get_handle(VALUE rb_handle_id)
 }
 
 
-void AsyncEngine_remove_handle(VALUE rb_handle_id)
+VALUE AsyncEngine_remove_handle(VALUE rb_handle_id)
 {
   AE_TRACE();
-  rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
 
 static
-void prepare_signals_cb(uv_prepare_t* handle, int status)
+void prepare_close_cb(uv_handle_t* handle)
 {
-  rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
+  AE_TRACE();
+  xfree(handle);
 }
 
 
-// static
-// void prepare_signals_close_cb(uv_handle_t* _uv_handle)
-// {
-//   AE_TRACE();
-//   printf("------- prepare_signals_close_cb \n");
-//   xfree(_uv_handle);
-// }
+static
+void prepare_cb(uv_prepare_t* handle, int status)
+{
+  // Check received interruptions in Ruby land.
+  rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
+
+  // If this uv_prepare is the only existing handle, then terminate the loop.
+  if (uv_loop_refcount(uv_default_loop()) == 1)
+    uv_close((uv_handle_t *)handle, prepare_close_cb);
+}
 
 
 static
@@ -84,20 +82,12 @@ VALUE run_uv_without_gvl(void* param)
 VALUE AsyncEngine_c_start(VALUE self)
 {
   AE_TRACE();
-  VALUE ret;
-  uv_prepare_t *_uv_prepare_signals = ALLOC(uv_prepare_t);
+  uv_prepare_t *_uv_prepare = ALLOC(uv_prepare_t);
 
-  uv_prepare_init(uv_default_loop(), _uv_prepare_signals);
-  uv_prepare_start(_uv_prepare_signals, prepare_signals_cb);
-  // Don't count the prepare handle.
-  uv_unref(uv_default_loop());
+  uv_prepare_init(uv_default_loop(), _uv_prepare);
+  uv_prepare_start(_uv_prepare, prepare_cb);
 
-  ret = rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
-
-  // TODO: See TODO file
-  //uv_close((uv_handle_t *)_uv_prepare_signals, prepare_signals_close_cb);
-  //xfree(_uv_prepare_signals);
-  return ret;
+  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
 }
 
 

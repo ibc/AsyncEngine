@@ -17,10 +17,10 @@ typedef struct {
 
 
 static
-void timer_close_cb(uv_handle_t* _uv_handle)
+void timer_close_cb(uv_handle_t* handle)
 {
   AE_TRACE();
-  xfree(_uv_handle);
+  xfree(handle);
 }
 
 
@@ -47,10 +47,10 @@ void execute_callback_with_gvl(VALUE rb_handle_id)
 
 
 static
-void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
+void AsyncEngine_timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
-  struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
+  struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)handle->data;
 
   // Run callback.
   rb_thread_call_with_gvl(execute_callback_with_gvl, cdata->rb_handle_id);
@@ -77,6 +77,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   }
   else {
     interval = NUM2LONG(rb_interval);
+    if (interval == 0)  interval = 1;
     cdata->periodic = 1;
   }
 
@@ -118,12 +119,16 @@ VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
 {
   AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata;
-
+  long interval;
+  
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
     return Qfalse;
 
   Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_AsyncEngine_timer_handle, cdata);
 
-  uv_timer_set_repeat(cdata->_uv_handle, NUM2LONG(rb_interval));
+  interval = NUM2LONG(rb_interval);
+  if (interval == 0)  interval = 1;
+  
+  uv_timer_set_repeat(cdata->_uv_handle, interval);
   return rb_interval;
 }
