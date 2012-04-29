@@ -106,11 +106,39 @@ end
 #AE.start { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 
+if true and false
+  AE.start do
+    AE.add_timer(0.5) do
+      begin
+        asd
+      rescue => e
+        puts "ERROR: exception rescueed: #{e.class} - #{e}"
+      end
+    end
+  end
+end
+
+
+if true #and false
+  AE.add_timer(0.001) do
+    i = 0
+    10.times { AE.next_tick { puts i+=1 } }
+    AE.next_tick { puts "A" }
+    AE.next_tick { puts "B" ; AE.next_tick { puts "E" } ; puts "C" }
+    AE.next_tick { puts "D" }
+  end
+  AE.run
+  exit
+end
+
+
+
+
 AE.start do
   puts "\nINFO: starting AsynEngine loop...\n" ; sleep 0.1
   check_timer = AE::PeriodicTimer.new(0.1, 0) do
     if AsyncEngine.num_handles > 2
-      #puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
+      puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
     else
       puts "NOTICE: no more handles, terminating loop..."
       check_timer.stop

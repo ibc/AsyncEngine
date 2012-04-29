@@ -1,5 +1,5 @@
 #include "asyncengine_ruby.h"
-#include "ae_timers.h"
+#include "ae_timer.h"
 
 
 // Global variables defined in asyncengine_ruby.c.
@@ -47,7 +47,7 @@ void execute_callback_with_gvl(VALUE rb_handle_id)
 
 
 static
-void AsyncEngine_timer_callback(uv_timer_t* handle, int status)
+void timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)handle->data;
@@ -88,7 +88,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   uv_timer_init(uv_default_loop(), _uv_handle);
   _uv_handle->data = cdata;
 
-  uv_timer_start(_uv_handle, AsyncEngine_timer_callback, delay, interval);
+  uv_timer_start(_uv_handle, timer_callback, delay, interval);
 
   return Data_Wrap_Struct(cAsyncEngineCData, NULL, NULL, cdata);
 }

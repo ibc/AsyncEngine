@@ -1,5 +1,6 @@
 #include "asyncengine_ruby.h"
-#include "ae_timers.h"
+#include "ae_timer.h"
+#include "ae_next_tick.h"
 #include <signal.h>
 
 
@@ -7,7 +8,7 @@
 static long handle_id = 0;
 
 // AsyncEngine Ruby modules and classes.
-static VALUE mAsyncEngine;
+VALUE mAsyncEngine;
 static VALUE cAsyncEngineTimer;
 
 // Ruby class for saving C data inside.
@@ -15,12 +16,13 @@ VALUE cAsyncEngineCData;
 
 // Ruby attributes.
 static ID att_handles;
+ID att_next_ticks;
 ID att_c_data;
 ID att_handle_terminated;
 
 // Ruby method names.
 ID id_method_call;
-
+ID id_method_execute_next_ticks;
 
 
 
@@ -107,17 +109,22 @@ void Init_asyncengine_ext()
 
   rb_define_module_function(mAsyncEngine, "_c_start", AsyncEngine_c_start, 0);
   rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
-  
+
   // Timers.
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
   rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 3);
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
   rb_define_alias(cAsyncEngineTimer, "stop", "cancel");
-  rb_define_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
+  rb_define_private_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
 
+  // Next tick.
+  rb_define_module_function(mAsyncEngine, "_c_next_tick", AsyncEngine_c_next_tick, 0);
+  
   // Attribute and method names.
   att_handles = rb_intern("@handles");
+  att_next_ticks = rb_intern("@next_ticks");
   att_c_data = rb_intern("@_c_data");
   att_handle_terminated = rb_intern("@handle_terminated");
   id_method_call = rb_intern("call");
+  id_method_execute_next_ticks = rb_intern("execute_next_ticks");
 }
