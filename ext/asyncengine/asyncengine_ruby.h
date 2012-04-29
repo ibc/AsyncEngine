@@ -8,11 +8,11 @@
 
 
 // Uncomment this line for enabling TRACE() function.
-//#define DEBUG
-#ifdef DEBUG
-#define TRACE()  fprintf(stderr, "TRACE: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
+//#define AE_DEBUG
+#ifdef AE_DEBUG
+#define AE_TRACE()  fprintf(stderr, "AE_TRACE: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
 #else
-#define TRACE()
+#define AE_TRACE()
 #endif
 
 // Global variables (used in other files with "extern").

@@ -12,7 +12,7 @@ typedef struct {
 static
 void execute_callback_with_gvl(void *param)
 {
-  TRACE();
+  AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)param;
 
   rb_funcall(AsyncEngine_get_handle(cdata->rb_handle_id), id_method_call, 0, 0);
@@ -22,7 +22,7 @@ void execute_callback_with_gvl(void *param)
 static
 void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
 {
-  TRACE();
+  AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
 
   // Run callback.
@@ -41,7 +41,7 @@ void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
 
 VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE callback)
 {
-  TRACE();
+  AE_TRACE();
   uv_timer_t* _uv_handle = ALLOC(uv_timer_t);
   struct_AsyncEngine_timer_handle* cdata = ALLOC(struct_AsyncEngine_timer_handle);
   long delay, interval;
@@ -73,7 +73,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
 
 VALUE AsyncEngineTimer_cancel(VALUE self)
 {
-  TRACE();
+  AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata;
   Data_Get_Struct(rb_iv_get(self, "@_c_data"), struct_AsyncEngine_timer_handle, cdata);
 
