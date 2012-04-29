@@ -15,11 +15,12 @@ puts "PID = #{$$}"
 at_exit { puts "NOTICE: exiting..." }
 
 
-#Thread.new { loop { puts "---t1---" ; sleep 0.001 } }
-#Thread.new { loop { puts "---t2---" ; sleep 0.001 } }
-
-#AE.add_periodic_timer(0.001) { puts "***AE timer 1***" }
-#AE.add_periodic_timer(0.001) { puts "***AE timer 2***" }
+if true and false
+  Thread.new { loop { puts "---t1---" ; sleep 0.001 } }
+  Thread.new { loop { puts "---t2---" ; sleep 0.001 } }
+  AE.add_periodic_timer(0.001) { puts "***AE timer 1***" }
+  AE.add_periodic_timer(0.001) { puts "***AE timer 2***" }
+end
 
 
 if true and false
@@ -54,9 +55,9 @@ if true and false
 end
 
 
-if true and false
+if true #and false
   cancel = false
-  100.times { AE.add_periodic_timer(0.001) { a = AE::Timer.new(1){  } ; a.cancel if cancel } }
+  100.times { AE.add_periodic_timer(0.001) { a = AE::Timer.new(0.01){ printf "." } ; ( a.cancel ; a.cancel ) if cancel } }
 end
 
 
@@ -66,11 +67,11 @@ end
 #AE.add_timer(2) { raise "raising an exception" }
 
 
-if true #and false
-  $interval = 0.5
+if true and false
+  $interval = 0.20
   pt1 = AE::PeriodicTimer.new($interval) do
-    if $interval == 8
-      puts "--- pt1: interval is 8, stopping timer"
+    if $interval > 3.8
+      puts "--- pt1: interval > 3.8, stopping timer"
       pt1.stop
     else
       puts "--- pt1: interval=#{$interval} , setting next interval in #{$interval * 2}"
@@ -80,8 +81,30 @@ if true #and false
 end
 
 
+if true and false
+  tt = AE::PeriodicTimer.new(1) { puts "LALALA" }
+  AE.add_timer(2) do
+    puts "--- cancel 1 returns #{tt.cancel}"
+    puts "--- cancel 2 returns #{tt.cancel}"
+    puts "--- set_interval 1 returns #{tt.set_interval 1.1}"
+    AE.add_timer(2) do
+      puts "--- cancel 3 returns #{tt.cancel}"
+      puts "--- cancel 4 returns #{tt.cancel}"
+      puts "--- set_interval 2 returns #{tt.set_interval 2.2}"
+    end
+  end
+end
+
+
+
+#loop do AE.start {} end
+
+#loop do AE.start { AE.add_timer(0) { puts "YA" } } end
+
+
 AE.start do
-  AE.add_periodic_timer(2) do
+  puts "\nINFO: starting AsynEngine loop...\n" ; sleep 0.1
+  AE.add_periodic_timer(4, 0) do
     if AsyncEngine.num_handles > 1
       puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
     else

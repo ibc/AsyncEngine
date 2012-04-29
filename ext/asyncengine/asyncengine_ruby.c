@@ -15,6 +15,8 @@ VALUE cAsyncEngineCData;
 
 // Ruby attributes.
 static ID att_handles;
+ID att_c_data;
+ID att_handle_terminated;
 
 // Ruby method names.
 ID id_method_call;
@@ -59,6 +61,15 @@ void prepare_signals_cb(uv_prepare_t* handle, int status)
 }
 
 
+// static
+// void prepare_signals_close_cb(uv_handle_t* _uv_handle)
+// {
+//   AE_TRACE();
+//   printf("------- prepare_signals_close_cb \n");
+//   xfree(_uv_handle);
+// }
+
+
 static
 VALUE run_uv_without_gvl(void* param)
 {
@@ -73,6 +84,7 @@ VALUE run_uv_without_gvl(void* param)
 VALUE AsyncEngine_c_start(VALUE self)
 {
   AE_TRACE();
+  VALUE ret;
   uv_prepare_t *_uv_prepare_signals = ALLOC(uv_prepare_t);
 
   uv_prepare_init(uv_default_loop(), _uv_prepare_signals);
@@ -80,7 +92,12 @@ VALUE AsyncEngine_c_start(VALUE self)
   // Don't count the prepare handle.
   uv_unref(uv_default_loop());
 
-  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
+  ret = rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
+
+  // TODO: See TODO file
+  //uv_close((uv_handle_t *)_uv_prepare_signals, prepare_signals_close_cb);
+  //xfree(_uv_prepare_signals);
+  return ret;
 }
 
 
@@ -110,5 +127,7 @@ void Init_asyncengine_ext()
 
   // Attribute and method names.
   att_handles = rb_intern("@handles");
+  att_c_data = rb_intern("@_c_data");
+  att_handle_terminated = rb_intern("@handle_terminated");
   id_method_call = rb_intern("call");
 }

@@ -2,6 +2,7 @@ TODO
 ****
 
 
+
 "Memory leak" in _uv_prepare_signals
 ------------------------------------
 
@@ -11,5 +12,47 @@ Basically, this leaks:
 
   loop do AE.start {} end
 
-Does it make sense to expect that to occur??
+The following solution in AsyncEngine_c_start() avoids the leak:
 
+  ret = rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
+  uv_close((uv_handle_t *)_uv_prepare_signals, prepare_signals_close_cb);
+  xfree(_uv_prepare_signals);
+  return ret;
+
+but it causes a coredump in this case:
+
+  loop do AE.start { AE.add_timer(0) { puts "YA" } } end
+
+I'm trying with uv_close after before the xfree, but get an Abort.
+
+
+
+`write': deadlock; recursive locking (ThreadError)
+--------------------------------------------------
+
+  trap(:INT)  { puts "*** INT trapped => ignore" }
+  AE.start do
+    Thread.new { loop { puts "---t1---" ; sleep 0.001 } }
+    Thread.new { loop { puts "---t2---" ; sleep 0.001 } }
+    AE.add_periodic_timer(0.001) { puts "***AE timer 1***" }
+    AE.add_periodic_timer(0.001) { puts "***AE timer 2***" }
+  end
+
+If during the loop I press *multiple* times Ctrl+C (so INT signal) I get this error:
+
+  /home/ibc/Proyectos/AsyncEngine/test/test01.rb:9:in `write': deadlock; recursive locking (ThreadError)
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:9:in `puts'
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:9:in `puts'
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:9:in `block in <top (required)>'
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:21:in `call'
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:21:in `write'
+        from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:21:in `puts'
+
+NOTE: The same occurs in EventMachine !!!
+
+
+
+Periodic timer does not run if given interval is 0
+--------------------------------------------------
+
+AE.add_periodic_timer(0.0001) causes 0 to be passed as interval and delay so a single execution occurs. 
