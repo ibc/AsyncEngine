@@ -1,3 +1,15 @@
 TODO
 ****
 
+
+"Memory leak" in _uv_prepare_signals
+------------------------------------
+
+uv_prepare_t *_uv_prepare_signals is memory allocated (with ALLOC) but is never freed, how to do that? should I do that when uv_run ends? really useful?
+
+Basically, this leaks:
+
+  loop do AE.start {} end
+
+Does it make sense to expect that to occur??
+

@@ -23,7 +23,7 @@ void timer_close_cb(uv_handle_t* _uv_handle)
 
 
 static
-void terminate(uv_timer_t* _uv_handle)
+void terminate_timer(uv_timer_t* _uv_handle)
 {
   AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
@@ -58,7 +58,7 @@ void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
 
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0)
-    terminate(_uv_handle);
+    terminate_timer(_uv_handle);
 }
 
 
@@ -104,7 +104,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   uv_timer_stop(cdata->_uv_handle);
 
   // Terminate the timer.
-  terminate(cdata->_uv_handle);
+  terminate_timer(cdata->_uv_handle);
 
   return Qtrue;
 }
