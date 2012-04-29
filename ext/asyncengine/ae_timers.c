@@ -2,11 +2,39 @@
 #include "ae_timers.h"
 
 
+// Global variables defined in asyncengine_ruby.c.
+extern VALUE cAsyncEngineCData;
+extern ID id_method_call;
+
+
 typedef struct {
   int periodic;
   uv_timer_t *_uv_handle;
   VALUE rb_handle_id;
 } struct_AsyncEngine_timer_handle;
+
+
+static
+void timer_close_cb(uv_handle_t* _uv_handle)
+{
+  AE_TRACE();
+  xfree(_uv_handle);
+}
+
+
+static
+void terminate(uv_timer_t* _uv_handle)
+{
+  AE_TRACE();
+  struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)_uv_handle->data;
+
+  // Let the GC work.
+  AsyncEngine_remove_handle(cdata->rb_handle_id);
+  // Free memory.
+  xfree(cdata);
+  // Close the timer so it's unreferenced by uv.
+  uv_close((uv_handle_t *)_uv_handle, timer_close_cb);
+}
 
 
 static
@@ -28,14 +56,9 @@ void AsyncEngine_timer_callback(uv_timer_t* _uv_handle, int status)
   // Run callback.
   rb_thread_call_with_gvl(execute_callback_with_gvl, cdata);
 
-  // Free the timer if it is not periodic.
-  if (cdata->periodic == 0) {
-    // Let the GC work.
-    AsyncEngine_remove_handle(cdata->rb_handle_id);
-    // Free memory.
-    xfree(cdata);
-    xfree(_uv_handle);
-  }
+  // Terminate the timer if it is not periodic.
+  if (cdata->periodic == 0)
+    terminate(_uv_handle);
 }
 
 
@@ -80,11 +103,19 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   // Stop timer.
   uv_timer_stop(cdata->_uv_handle);
 
-  // Let the GC work.
-  AsyncEngine_remove_handle(cdata->rb_handle_id);
-  // Free memory.
-  xfree(cdata->_uv_handle);
-  xfree(cdata);
+  // Terminate the timer.
+  terminate(cdata->_uv_handle);
 
   return Qtrue;
+}
+
+
+VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
+{
+  AE_TRACE();
+  struct_AsyncEngine_timer_handle* cdata;
+  Data_Get_Struct(rb_iv_get(self, "@_c_data"), struct_AsyncEngine_timer_handle, cdata);
+
+  uv_timer_set_repeat(cdata->_uv_handle, NUM2LONG(rb_interval));
+  return rb_interval;
 }

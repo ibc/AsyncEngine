@@ -15,10 +15,10 @@
 #define AE_TRACE()
 #endif
 
-// Global variables (used in other files with "extern").
-VALUE mAsyncEngine;
-VALUE cAsyncEngineCData;
-ID id_method_call;
+// Global variables (used also by other files).
+//VALUE mAsyncEngine;
+//VALUE cAsyncEngineCData;
+//ID id_method_call;
 
 // Public methods.
 VALUE AsyncEngine_store_handle(VALUE);

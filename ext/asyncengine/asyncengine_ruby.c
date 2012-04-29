@@ -7,17 +7,17 @@
 static long handle_id = 0;
 
 // AsyncEngine Ruby modules and classes.
-extern VALUE mAsyncEngine;
+static VALUE mAsyncEngine;
 static VALUE cAsyncEngineTimer;
 
 // Ruby class for saving C data inside.
-extern VALUE cAsyncEngineCData;
+VALUE cAsyncEngineCData;
 
 // Ruby attributes.
 static ID att_handles;
 
 // Ruby method names.
-extern ID id_method_call;
+ID id_method_call;
 
 
 
@@ -77,8 +77,16 @@ VALUE AsyncEngine_c_start(VALUE self)
 
   uv_prepare_init(uv_default_loop(), _uv_prepare_signals);
   uv_prepare_start(_uv_prepare_signals, prepare_signals_cb);
+  // Don't count the prepare handle.
+  uv_unref(uv_default_loop());
 
   return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
+}
+
+
+VALUE AsyncEngine_num_handles(VALUE self)
+{
+  return INT2FIX(uv_loop_refcount(uv_default_loop()));
 }
 
 
@@ -91,11 +99,14 @@ void Init_asyncengine_ext()
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
   rb_define_module_function(mAsyncEngine, "_c_start", AsyncEngine_c_start, 0);
-
+  rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
+  
   // Timers.
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
   rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 3);
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
+  rb_define_alias(cAsyncEngineTimer, "stop", "cancel");
+  rb_define_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
 
   // Attribute and method names.
   att_handles = rb_intern("@handles");

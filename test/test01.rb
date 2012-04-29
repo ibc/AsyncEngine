@@ -26,7 +26,7 @@ at_exit { puts "NOTICE: exiting..." }
 # AE.add_timer(0.12) { puts "3 TIMER !!!" }
 # 
 
-if true #and false
+if true and false
   t1 = AE::PeriodicTimer.new(1,0) { puts "--- t1 periodic timer should be stopped after some seconds !!! ---" }
   puts t1.inspect
   AE.add_timer(4) do
@@ -62,16 +62,31 @@ end
 
 
 if true and false
-  cancel = true
-  100.times { AE.add_periodic_timer(0.001) { a = AE::PeriodicTimer.new(1){ puts "Timer" } ; a.cancel if cancel } }
+  cancel = false
+  100.times { AE.add_periodic_timer(0.001) { a = AE::Timer.new(1){  } ; a.cancel if cancel } }
 end
 
+
+AE.add_timer(0.5) { puts "BUMMMP" } ; AE.add_timer(1) { puts "LAST" }
 
 #AE.add_timer(2) { raise "raising an exception" }
 
 
+
+# $interval = 0.5
+# pt1 = AE::PeriodicTimer.new($interval) do
+#   if $interval == 8
+#     puts "--- pt1: interval is 8, stopping timer"
+#     pt1.stop
+#   else
+#     puts "--- pt1: interval=#{$interval} , next action in #{$interval * 2}"
+#     pt1.interval = ($interval *= 2)
+#   end
+# end
+
+
 AE.start do
-  #AE.add_timer(1) { puts "hello" }
+  AE.add_periodic_timer(2) { puts "AE.num_handles = #{AsyncEngine.num_handles}" }
 end
 
 puts "END"

@@ -32,6 +32,11 @@ module AsyncEngine
         @_c_data = AsyncEngine._c_add_timer(interval, interval, callback || block)
       end
     end
+
+    def set_interval interval
+      _c_set_interval (interval*1000).to_i
+    end
+    alias :interval= :set_interval
   end
 
 end
