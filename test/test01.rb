@@ -67,6 +67,9 @@ if true and false
 end
 
 
+#AE.add_timer(2) { raise "raising an exception" }
+
+
 AE.start do
   #AE.add_timer(1) { puts "hello" }
 end

@@ -7,6 +7,14 @@
 //#include <uv.h>              // so this line becomes enough.
 
 
+// Uncomment this line for enabling TRACE() function.
+//#define DEBUG
+#ifdef DEBUG
+#define TRACE()  fprintf(stderr, "TRACE: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
+#else
+#define TRACE()
+#endif
+
 // Global variables (used in other files with "extern").
 VALUE mAsyncEngine;
 VALUE cAsyncEngineCData;

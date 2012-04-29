@@ -30,6 +30,7 @@ long AsyncEngine_next_handle_id()
 
 VALUE AsyncEngine_store_handle(VALUE handle)
 {
+  TRACE();
   VALUE rb_handle_id = LONG2FIX(++handle_id);
 
   rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id, handle);
@@ -39,12 +40,14 @@ VALUE AsyncEngine_store_handle(VALUE handle)
 
 VALUE AsyncEngine_get_handle(VALUE rb_handle_id)
 {
+  TRACE();
   return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
 
 void AsyncEngine_remove_handle(VALUE rb_handle_id)
 {
+  TRACE();
   rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
@@ -59,6 +62,7 @@ void prepare_signals_cb(uv_prepare_t* handle, int status)
 static
 VALUE run_uv_without_gvl(void* param)
 {
+  TRACE();
   if (! uv_run(uv_default_loop()))
     return Qtrue;
   else
@@ -68,6 +72,7 @@ VALUE run_uv_without_gvl(void* param)
 
 VALUE AsyncEngine_c_start(VALUE self)
 {
+  TRACE();
   uv_prepare_t *_uv_prepare_signals = ALLOC(uv_prepare_t);
 
   uv_prepare_init(uv_default_loop(), _uv_prepare_signals);
@@ -81,6 +86,7 @@ VALUE AsyncEngine_c_start(VALUE self)
 
 void Init_asyncengine_ext()
 {
+  TRACE();
   mAsyncEngine = rb_define_module("AsyncEngine");
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
