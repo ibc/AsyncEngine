@@ -7,7 +7,11 @@ module AsyncEngine
 
   def self.execute_next_ticks
     @next_ticks.each do |cb|
-      cb.call
+      begin
+        cb.call
+      rescue => e
+        AsyncEngine.send :handle_error, e
+      end
     end
     @next_ticks.clear
   end

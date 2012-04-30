@@ -4,8 +4,8 @@
 #include <signal.h>
 
 
-// C variable holding current handle number.
-static long handle_id = 0;
+// C variable holding current callback number.
+static long callback_id = 0;
 
 // AsyncEngine Ruby modules and classes.
 VALUE mAsyncEngine;
@@ -15,7 +15,7 @@ static VALUE cAsyncEngineTimer;
 VALUE cAsyncEngineCData;
 
 // Ruby attributes.
-static ID att_handles;
+static ID att_callbacks;
 ID att_next_ticks;
 ID att_c_data;
 ID att_handle_terminated;
@@ -26,27 +26,27 @@ ID id_method_execute_next_ticks;
 
 
 
-VALUE AsyncEngine_store_handle(VALUE handle)
+VALUE AsyncEngine_store_callback(VALUE callback)
 {
   AE_TRACE();
-  VALUE rb_handle_id = LONG2FIX(++handle_id);
+  VALUE rb_callback_id = LONG2FIX(++callback_id);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id, handle);
-  return rb_handle_id;
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_callbacks), rb_callback_id, callback);
+  return rb_callback_id;
 }
 
 
-VALUE AsyncEngine_get_handle(VALUE rb_handle_id)
+VALUE AsyncEngine_get_callback(VALUE rb_callback_id)
 {
   AE_TRACE();
-  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_callbacks), rb_callback_id);
 }
 
 
-VALUE AsyncEngine_remove_handle(VALUE rb_handle_id)
+VALUE AsyncEngine_remove_callback(VALUE rb_callback_id)
 {
   AE_TRACE();
-  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_callbacks), rb_callback_id);
 }
 
 
@@ -112,7 +112,7 @@ void Init_asyncengine_ext()
 
   // Timers.
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
-  rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 3);
+  rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 4);
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
   rb_define_alias(cAsyncEngineTimer, "stop", "cancel");
   rb_define_private_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
@@ -121,7 +121,7 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "_c_next_tick", AsyncEngine_c_next_tick, 0);
   
   // Attribute and method names.
-  att_handles = rb_intern("@handles");
+  att_callbacks = rb_intern("@callbacks");
   att_next_ticks = rb_intern("@next_ticks");
   att_c_data = rb_intern("@_c_data");
   att_handle_terminated = rb_intern("@handle_terminated");

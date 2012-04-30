@@ -30,6 +30,7 @@ void execute_callback_with_gvl()
 static
 void next_tick_cb(uv_idle_t* handle, int status)
 {
+  AE_TRACE();
   uv_idle_stop(handle);
   uv_close((uv_handle_t *)handle, idle_close_cb);
   pending_next_ticks = 0;
@@ -39,6 +40,7 @@ void next_tick_cb(uv_idle_t* handle, int status)
 
 VALUE AsyncEngine_c_next_tick(VALUE self)
 {
+  AE_TRACE();
   if (pending_next_ticks == 0) {
     uv_idle_t* _uv_handle = ALLOC(uv_idle_t);
     uv_idle_init(uv_default_loop(), _uv_handle);

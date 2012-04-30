@@ -17,9 +17,9 @@
 
 
 // Public methods.
-VALUE AsyncEngine_store_handle(VALUE);
-VALUE AsyncEngine_get_handle(VALUE);
-VALUE AsyncEngine_remove_handle(VALUE);
+VALUE AsyncEngine_store_callback(VALUE);
+VALUE AsyncEngine_get_callback(VALUE);
+VALUE AsyncEngine_remove_callback(VALUE);
 
 
 #endif  /* #ifndef ASYNCENGINE_RUBY_H */

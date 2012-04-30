@@ -5,7 +5,6 @@ $LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../", "
 require "asyncengine"
 
 
-
 #trap(:INT)  { puts "*** INT trapped => ignore" }
 #trap(:INT)  { puts "*** INT trapped => exit" ; exit }
 
@@ -61,10 +60,14 @@ if true and false
 end
 
 
-#AE.add_timer(0.5) { puts "BUMMMP" } ; AE.add_timer(1) { puts "LAST" }
+#AE.add_timer(0.5) { puts "BUMMMP" } ; AE.add_timer(1) { puts "LAST" } ; AE.start ; exit
 
 
-#AE.add_timer(2) { raise "raising an exception" }
+#AE.error_handler {|e| puts "ERROR: exception rescued: #{e.class} - #{e}" }
+#AE.next_tick { raise "raising an exception !!!" } ; AE.start ; exit
+
+
+#AE.add_timer(0.5) { raise "raising an exception !!!" } ; AE.start ; exit
 
 
 if true and false
@@ -119,7 +122,7 @@ if true and false
 end
 
 
-if true #and false
+if true and false
   AE.add_timer(0.001) do
     i = 0
     10.times { AE.next_tick { puts i+=1 } }
@@ -132,6 +135,17 @@ if true #and false
 end
 
 
+
+if true #and false
+  AE.add_periodic_timer(0.001) do
+  t = AE::Timer.new(0.2) { puts "first timer expires !!!" }
+  AE.add_timer(2) do
+    puts "second timer canceling first one... which is already ended !!!"
+    puts t.cancel
+  end
+  end
+  AE.start ; exit
+end
 
 
 AE.start do

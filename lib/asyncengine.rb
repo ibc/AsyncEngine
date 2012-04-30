@@ -10,7 +10,7 @@ require "asyncengine/next_tick.rb"
 
 module AsyncEngine
 
-  @handles = {}
+  @callbacks = {}
   @next_ticks = []
 
   def self.start
@@ -25,9 +25,26 @@ module AsyncEngine
     end
   end
 
+  def self.error_handler callback=nil, &block
+    if callback || block
+      @error_handler = (callback || block)
+    elsif instance_variable_defined? :@error_handler
+      remove_instance_variable :@error_handler
+    end
+  end
+
+  def self.handle_error e
+    if @error_handler
+      @error_handler.call e
+    else
+      raise e
+    end
+  end
+
   class << self
     alias :run :start
     private :_c_start
+    private :handle_error
   end
 
 end

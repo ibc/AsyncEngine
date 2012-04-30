@@ -12,7 +12,9 @@ extern ID id_method_call;
 typedef struct {
   uv_timer_t *_uv_handle;
   int periodic;
-  VALUE rb_handle_id;
+  VALUE rb_callback_id;
+  int has_rb_instance;
+  VALUE rb_instance;  // Points to the owner AE::Timer or AE::PeriodicTimer (if so).
 } struct_AsyncEngine_timer_handle;
 
 
@@ -30,7 +32,7 @@ void deallocate(struct_AsyncEngine_timer_handle* cdata)
   AE_TRACE();
 
   // Let the GC work.
-  AsyncEngine_remove_handle(cdata->rb_handle_id);
+  AsyncEngine_remove_callback(cdata->rb_callback_id);
   // Close the timer so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, timer_close_cb);
   // Free memory.
@@ -39,10 +41,25 @@ void deallocate(struct_AsyncEngine_timer_handle* cdata)
 
 
 static
-void execute_callback_with_gvl(VALUE rb_handle_id)
+VALUE wrapper_rb_funcall(VALUE callback)
+{
+  rb_funcall(callback, id_method_call, 0, 0);
+  return Qnil;
+}
+
+
+static
+int execute_callback_with_gvl(VALUE rb_callback_id)
 {
   AE_TRACE();
-  rb_funcall(AsyncEngine_get_handle(rb_handle_id), id_method_call, 0, 0);
+  //rb_funcall(AsyncEngine_get_handle(rb_callback_id), id_method_call, 0, 0);
+
+  VALUE callback = AsyncEngine_get_callback(rb_callback_id);
+  int exception = 0;
+
+  rb_protect(wrapper_rb_funcall, callback, &exception);
+
+  return exception;
 }
 
 
@@ -51,17 +68,26 @@ void timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
   struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)handle->data;
+  int exception;
 
   // Run callback.
-  rb_thread_call_with_gvl(execute_callback_with_gvl, cdata->rb_handle_id);
+  exception = rb_thread_call_with_gvl(execute_callback_with_gvl, cdata->rb_callback_id);
 
   // Terminate the timer if it is not periodic.
-  if (cdata->periodic == 0)
+  if (cdata->periodic == 0) {
+    // If the timer has a ruby AE::Timer instance then set its attribute
+    // @handle_terminated to true.
+    if (cdata->has_rb_instance == 1)
+      rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
     deallocate(cdata);
+  }
+
+  if (exception)
+    rb_thread_call_with_gvl(rb_jump_tag, exception);
 }
 
 
-VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE callback)
+VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE callback, VALUE instance)
 {
   AE_TRACE();
   uv_timer_t* _uv_handle = ALLOC(uv_timer_t);
@@ -82,7 +108,14 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   }
 
   // Save the callback from being GC'd.
-  cdata->rb_handle_id = AsyncEngine_store_handle(callback);
+  cdata->rb_callback_id = AsyncEngine_store_callback(callback);
+
+  if (NIL_P(instance))
+    cdata->has_rb_instance = 0;
+  else {
+    cdata->has_rb_instance = 1;
+    cdata->rb_instance = instance;
+  }
 
   // Initialize.
   uv_timer_init(uv_default_loop(), _uv_handle);
