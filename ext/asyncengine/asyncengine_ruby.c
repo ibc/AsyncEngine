@@ -1,7 +1,6 @@
 #include "asyncengine_ruby.h"
 #include "ae_timer.h"
 #include "ae_next_tick.h"
-#include <signal.h>
 
 
 // C variable holding current callback number.
@@ -61,6 +60,8 @@ void prepare_close_cb(uv_handle_t* handle)
 static
 void prepare_cb(uv_prepare_t* handle, int status)
 {
+  AE_TRACE();
+
   // Check received interruptions in Ruby land.
   rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
 
