@@ -60,21 +60,16 @@ if true and false
 end
 
 
-#AE.add_timer(0.5) { puts "BUMMMP" } ; AE.add_timer(1) { puts "LAST" } ; AE.start ; exit
+AE.error_handler {|e| puts "ERROR: exception rescued: #{e.class} - #{e}" }
+AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
+AE.next_tick { raise "next_tick: raising an exception !!!" }
 
 
-#AE.error_handler {|e| puts "ERROR: exception rescued: #{e.class} - #{e}" }
-#AE.next_tick { raise "raising an exception !!!" } ; AE.start ; exit
-
-
-#AE.add_timer(0.5) { raise "raising an exception !!!" } ; AE.start ; exit
-
-
-if true and false
-  $interval = 1
+if true #and false
+  $interval = 0.1
   pt1 = AE::PeriodicTimer.new($interval) do
-    if $interval > 4
-      puts "--- pt1: interval > 4, stopping timer"
+    if $interval > 1
+      puts "--- pt1: interval > 1, stopping timer"
       pt1.stop
     else
       puts "--- pt1: interval=#{$interval} , setting next interval in #{$interval * 2}"
@@ -84,13 +79,13 @@ if true and false
 end
 
 
-if true and false
-  tt = AE::PeriodicTimer.new(1) { puts "LALALA" }
-  AE.add_timer(2) do
+if true #and false
+  tt = AE::PeriodicTimer.new(0.1) { puts "LALALA" }
+  AE.add_timer(0.2) do
     puts "--- cancel 1 returns #{tt.cancel}"
     puts "--- cancel 2 returns #{tt.cancel}"
     puts "--- set_interval 1 returns #{tt.set_interval 1.1}"
-    AE.add_timer(2) do
+    AE.add_timer(0.3) do
       puts "--- cancel 3 returns #{tt.cancel}"
       puts "--- cancel 4 returns #{tt.cancel}"
       puts "--- set_interval 2 returns #{tt.set_interval 2.2}"
@@ -122,7 +117,7 @@ if true and false
 end
 
 
-if true and false
+if true #and false
   AE.add_timer(0.001) do
     i = 0
     10.times { AE.next_tick { puts i+=1 } }
@@ -130,13 +125,11 @@ if true and false
     AE.next_tick { puts "B" ; AE.next_tick { puts "E" } ; puts "C" }
     AE.next_tick { puts "D" }
   end
-  AE.run
-  exit
 end
 
 
 
-if true #and false
+if true and false
   AE.add_periodic_timer(0.001) do
   t = AE::Timer.new(0.2) { puts "first timer expires !!!" }
   AE.add_timer(2) do
@@ -148,13 +141,14 @@ if true #and false
 end
 
 
+
 AE.start do
   puts "\nINFO: starting AsynEngine loop...\n" ; sleep 0.1
-  check_timer = AE::PeriodicTimer.new(0.1, 0) do
-    if AsyncEngine.num_handles > 2
+  check_timer = AE::PeriodicTimer.new(0.2, 0) do
+    if AsyncEngine.num_handles > 1
       puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
     else
-      puts "NOTICE: no more handles, terminating loop..."
+      puts "NOTICE: AE.num_handles = #{AsyncEngine.num_handles}, terminating loop..."
       check_timer.stop
     end
   end

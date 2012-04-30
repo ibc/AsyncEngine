@@ -2,6 +2,7 @@ TODO
 ****
 
 
+
 `write': deadlock; recursive locking (ThreadError)
 --------------------------------------------------
 
@@ -24,3 +25,21 @@ If during the loop I press *multiple* times Ctrl+C (so INT signal) I get this er
         from /home/ibc/Proyectos/AsyncEngine/test/test01.rb:21:in `puts'
 
 NOTE: The same occurs in EventMachine !!!
+
+
+
+SIGPIPE received
+----------------
+
+From libev documentation:
+
+http://doc.dvgu.ru/devel/ev.html#the_special_problem_of_sigpipe
+-----
+The special problem of SIGPIPE
+
+While not really specific to libev, it is easy to forget about SIGPIPE: when reading from a pipe whose other end has been closed, your program gets send a SIGPIPE, which, by default, aborts your program. For most programs this is sensible behaviour, for daemons, this is usually undesirable.
+
+So when you encounter spurious, unexplained daemon exits, make sure you ignore SIGPIPE (and maybe make sure you log the exit status of your daemon somewhere, as that would have given you a big clue).
+-----
+
+So maybe AsyncEngine should trap and ignore SIGPIPE from the beginning.

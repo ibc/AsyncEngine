@@ -1,16 +1,16 @@
 module AsyncEngine
 
-  def self.add_timer delay, callback=nil, &block
-    _c_add_timer((delay*1000).to_i, nil, callback || block, nil)
+  def self.add_timer delay, block1=nil, &block2
+    _c_add_timer((delay*1000).to_i, nil, block1 || block2, nil)
     true
   end
 
-  def self.add_periodic_timer interval, delay=nil, callback=nil, &block
+  def self.add_periodic_timer interval, delay=nil, block1=nil, &block2
     if delay
-      @_c_data = _c_add_timer((delay*1000).to_i, (interval*1000).to_i, callback || block, nil)
+      @_c_data = _c_add_timer((delay*1000).to_i, (interval*1000).to_i, block1 || block2, nil)
     else
       interval = (interval*1000).to_i
-      @_c_data = _c_add_timer(interval, interval, callback || block, nil)
+      @_c_data = _c_add_timer(interval, interval, block1 || block2, nil)
     end
     true
   end
@@ -21,19 +21,19 @@ module AsyncEngine
 
 
   class Timer
-    def initialize delay, callback=nil, &block
-      @_c_data = AsyncEngine.send(:_c_add_timer, (delay*1000).to_i, nil, callback || block, self)
+    def initialize delay, block1=nil, &block2
+      @_c_data = AsyncEngine.send(:_c_add_timer, (delay*1000).to_i, nil, block1 || block2, self)
     end
   end
 
 
   class PeriodicTimer < Timer
-    def initialize interval, delay=nil, callback=nil, &block
+    def initialize interval, delay=nil, block1=nil, &block2
       if delay
-        @_c_data = AsyncEngine.send(:_c_add_timer, (delay*1000).to_i, (interval*1000).to_i, callback || block, self)
+        @_c_data = AsyncEngine.send(:_c_add_timer, (delay*1000).to_i, (interval*1000).to_i, block1 || block2, self)
       else
         interval = (interval*1000).to_i
-        @_c_data = AsyncEngine.send(:_c_add_timer, interval, interval, callback || block, self)
+        @_c_data = AsyncEngine.send(:_c_add_timer, interval, interval, block1 || block2, self)
       end
     end
 

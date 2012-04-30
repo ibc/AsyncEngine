@@ -1,19 +1,19 @@
 module AsyncEngine
 
-  def self.next_tick callback=nil, &block
-    @next_ticks << (callback || block)
+  def self.next_tick block1=nil, &block2
+    @_next_ticks << (block1 || block2)
     _c_next_tick
   end
 
   def self.execute_next_ticks
-    @next_ticks.each do |cb|
+    ticks, @_next_ticks = @_next_ticks, []
+    ticks.each do |cb|
       begin
         cb.call
       rescue => e
         AsyncEngine.send :handle_error, e
       end
     end
-    @next_ticks.clear
   end
 
   class << self

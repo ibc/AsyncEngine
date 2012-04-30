@@ -1,65 +1,66 @@
 #include "asyncengine_ruby.h"
+#include "ae_handle_common.h"
 #include "ae_timer.h"
 
 
-// Global variables defined in asyncengine_ruby.c.
-extern VALUE cAsyncEngineCData;
-extern ID att_c_data;
-extern ID att_handle_terminated;
-extern ID id_method_call;
+static VALUE cAsyncEngineTimer;
 
 
 typedef struct {
   uv_timer_t *_uv_handle;
   int periodic;
-  VALUE rb_callback_id;
+  VALUE rb_block_id;
   int has_rb_instance;
-  VALUE rb_instance;  // Points to the owner AE::Timer or AE::PeriodicTimer (if so).
-} struct_AsyncEngine_timer_handle;
+  VALUE rb_instance;  // Points to the owner AE::Timer (if there is).
+} struct_ae_timer_cdata;
 
 
-static
-void timer_close_cb(uv_handle_t* handle)
+void init_ae_timer()
 {
-  AE_TRACE();
-  xfree(handle);
+  cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
+  rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 4);
+  rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
+  rb_define_alias(cAsyncEngineTimer, "stop", "cancel");
+  rb_define_private_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
 }
 
 
 static
-void deallocate(struct_AsyncEngine_timer_handle* cdata)
+void deallocate(struct_ae_timer_cdata* cdata)
 {
   AE_TRACE();
 
   // Let the GC work.
-  AsyncEngine_remove_callback(cdata->rb_callback_id);
+  AsyncEngine_remove_block(cdata->rb_block_id);
   // Close the timer so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, timer_close_cb);
+  uv_close((uv_handle_t *)cdata->_uv_handle, handle_close_callback_1);
   // Free memory.
   xfree(cdata);
 }
 
 
 static
-VALUE wrapper_rb_funcall(VALUE callback)
-{
-  rb_funcall(callback, id_method_call, 0, 0);
-  return Qnil;
-}
-
-
-static
-int execute_callback_with_gvl(VALUE rb_callback_id)
+void execute_timer_with_gvl(uv_timer_t* handle)
 {
   AE_TRACE();
-  //rb_funcall(AsyncEngine_get_handle(rb_callback_id), id_method_call, 0, 0);
 
-  VALUE callback = AsyncEngine_get_callback(rb_callback_id);
-  int exception = 0;
+  struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)handle->data;
+  VALUE block = AsyncEngine_get_block(cdata->rb_block_id);
+  int exception;
 
-  rb_protect(wrapper_rb_funcall, callback, &exception);
+  exception = ae_protect_block_call_0(block);
 
-  return exception;
+  // Terminate the timer if it is not periodic.
+  if (cdata->periodic == 0) {
+    // If the timer has a ruby AE::Timer instance then set its attribute
+    // @_handle_terminated to true.
+    if (cdata->has_rb_instance == 1)
+      rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
+    deallocate(cdata);
+  }
+
+  if (exception)
+    AsyncEngine_handle_exception();
 }
 
 
@@ -67,31 +68,15 @@ static
 void timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
-  struct_AsyncEngine_timer_handle* cdata = (struct_AsyncEngine_timer_handle*)handle->data;
-  int exception;
-
-  // Run callback.
-  exception = rb_thread_call_with_gvl(execute_callback_with_gvl, cdata->rb_callback_id);
-
-  // Terminate the timer if it is not periodic.
-  if (cdata->periodic == 0) {
-    // If the timer has a ruby AE::Timer instance then set its attribute
-    // @handle_terminated to true.
-    if (cdata->has_rb_instance == 1)
-      rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
-    deallocate(cdata);
-  }
-
-  if (exception)
-    rb_thread_call_with_gvl(rb_jump_tag, exception);
+  rb_thread_call_with_gvl(execute_timer_with_gvl, handle);
 }
 
 
-VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE callback, VALUE instance)
+VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block, VALUE instance)
 {
   AE_TRACE();
   uv_timer_t* _uv_handle = ALLOC(uv_timer_t);
-  struct_AsyncEngine_timer_handle* cdata = ALLOC(struct_AsyncEngine_timer_handle);
+  struct_ae_timer_cdata* cdata = ALLOC(struct_ae_timer_cdata);
   long delay, interval;
 
   cdata->_uv_handle = _uv_handle;
@@ -107,8 +92,8 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
     cdata->periodic = 1;
   }
 
-  // Save the callback from being GC'd.
-  cdata->rb_callback_id = AsyncEngine_store_callback(callback);
+  // Save the block from being GC'd.
+  cdata->rb_block_id = AsyncEngine_store_block(block);
 
   if (NIL_P(instance))
     cdata->has_rb_instance = 0;
@@ -130,13 +115,13 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
 VALUE AsyncEngineTimer_cancel(VALUE self)
 {
   AE_TRACE();
-  struct_AsyncEngine_timer_handle* cdata;
+  struct_ae_timer_cdata* cdata;
 
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
     return Qfalse;
   rb_ivar_set(self, att_handle_terminated, Qtrue);
 
-  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_AsyncEngine_timer_handle, cdata);
+  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_ae_timer_cdata, cdata);
 
   // Stop timer.
   uv_timer_stop(cdata->_uv_handle);
@@ -151,13 +136,13 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
 {
   AE_TRACE();
-  struct_AsyncEngine_timer_handle* cdata;
+  struct_ae_timer_cdata* cdata;
   long interval;
   
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
     return Qfalse;
 
-  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_AsyncEngine_timer_handle, cdata);
+  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_ae_timer_cdata, cdata);
 
   interval = NUM2LONG(rb_interval);
   if (interval == 0)  interval = 1;

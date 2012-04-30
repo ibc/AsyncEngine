@@ -2,6 +2,8 @@
 #define AE_NEXT_TICK_H
 
 
+void init_ae_next_tick();
+
 VALUE AsyncEngine_c_next_tick(VALUE self);
 
 

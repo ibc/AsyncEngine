@@ -10,15 +10,20 @@ require "asyncengine/next_tick.rb"
 
 module AsyncEngine
 
-  @callbacks = {}
-  @next_ticks = []
+  @_is_running = false
+  @_blocks = {}
+  @_next_ticks = []
 
   def self.start
+    raise AsyncEngine::Error, "AsyncEngine already running"  if @_is_running
+    @_is_running = true
+
     yield  if block_given?
 
     if _c_start
       # This method does not terminate (it blocks) until all the handles
-      # end. If so it returns true.
+      # end. If so it returns true. Also set again @_is_running to false.
+      @_is_running = false
       return true
     else
       raise AsyncEngine::Error, "failed to start"
@@ -27,15 +32,15 @@ module AsyncEngine
 
   def self.error_handler callback=nil, &block
     if callback || block
-      @error_handler = (callback || block)
-    elsif instance_variable_defined? :@error_handler
-      remove_instance_variable :@error_handler
+      @_error_handler = (callback || block)
+    elsif instance_variable_defined? :@_error_handler
+      remove_instance_variable :@_error_handler
     end
   end
 
   def self.handle_error e
-    if @error_handler
-      @error_handler.call e
+    if @_error_handler
+      @_error_handler.call e
     else
       raise e
     end
