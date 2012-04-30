@@ -32,7 +32,7 @@ void next_tick_callback(uv_idle_t* handle, int status)
 {
   AE_TRACE();
   uv_idle_stop(handle);
-  uv_close((uv_handle_t *)handle, handle_close_callback_1);
+  uv_close((uv_handle_t *)handle, ae_handle_close_callback_0);
   pending_next_ticks = 0;
   rb_thread_call_with_gvl(execute_next_tick_with_gvl, NULL);
 }

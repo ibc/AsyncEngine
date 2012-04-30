@@ -31,9 +31,9 @@ void deallocate(struct_ae_timer_cdata* cdata)
   AE_TRACE();
 
   // Let the GC work.
-  AsyncEngine_remove_block(cdata->rb_block_id);
+  ae_remove_block(cdata->rb_block_id);
   // Close the timer so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, handle_close_callback_1);
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_handle_close_callback_0);
   // Free memory.
   xfree(cdata);
 }
@@ -45,7 +45,7 @@ void execute_timer_with_gvl(uv_timer_t* handle)
   AE_TRACE();
 
   struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)handle->data;
-  VALUE block = AsyncEngine_get_block(cdata->rb_block_id);
+  VALUE block = ae_get_block(cdata->rb_block_id);
   int exception;
 
   exception = ae_protect_block_call_0(block);
@@ -60,7 +60,7 @@ void execute_timer_with_gvl(uv_timer_t* handle)
   }
 
   if (exception)
-    AsyncEngine_handle_exception();
+    ae_handle_exception();
 }
 
 
@@ -93,7 +93,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   }
 
   // Save the block from being GC'd.
-  cdata->rb_block_id = AsyncEngine_store_block(block);
+  cdata->rb_block_id = ae_store_block(block);
 
   if (NIL_P(instance))
     cdata->has_rb_instance = 0;

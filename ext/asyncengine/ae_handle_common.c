@@ -35,7 +35,7 @@ void init_ae_handle_common()
 
 
 
-VALUE AsyncEngine_store_block(VALUE block)
+VALUE ae_store_block(VALUE block)
 {
   AE_TRACE();
   VALUE rb_block_id = LONG2FIX(++block_id);
@@ -45,21 +45,21 @@ VALUE AsyncEngine_store_block(VALUE block)
 }
 
 
-VALUE AsyncEngine_get_block(VALUE rb_block_id)
+VALUE ae_get_block(VALUE rb_block_id)
 {
   AE_TRACE();
   return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
 }
 
 
-VALUE AsyncEngine_remove_block(VALUE rb_block_id)
+VALUE ae_remove_block(VALUE rb_block_id)
 {
   AE_TRACE();
   return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
 }
 
 
-void AsyncEngine_handle_exception()
+void ae_handle_exception()
 {
   AE_TRACE();
 
@@ -70,7 +70,7 @@ void AsyncEngine_handle_exception()
 }
 
 
-void handle_close_callback_1(uv_handle_t* handle)
+void ae_handle_close_callback_0(uv_handle_t* handle)
 {
   AE_TRACE();
   xfree(handle);

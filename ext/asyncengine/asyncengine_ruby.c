@@ -5,15 +5,7 @@
 
 
 static
-void prepare_close_cb(uv_handle_t* handle)
-{
-  AE_TRACE();
-  xfree(handle);
-}
-
-
-static
-void prepare_cb(uv_prepare_t* handle, int status)
+void prepare_callback(uv_prepare_t* handle, int status)
 {
   AE_TRACE();
 
@@ -22,7 +14,7 @@ void prepare_cb(uv_prepare_t* handle, int status)
 
   // If this uv_prepare is the only existing handle, then terminate the loop.
   if (uv_loop_refcount(uv_default_loop()) == 1)
-    uv_close((uv_handle_t *)handle, prepare_close_cb);
+    uv_close((uv_handle_t *)handle, ae_handle_close_callback_0);
 }
 
 
@@ -45,14 +37,14 @@ VALUE AsyncEngine_c_start(VALUE self)
   uv_prepare_t *_uv_prepare = ALLOC(uv_prepare_t);
 
   uv_prepare_init(uv_default_loop(), _uv_prepare);
-  uv_prepare_start(_uv_prepare, prepare_cb);
+  uv_prepare_start(_uv_prepare, prepare_callback);
 
   return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
 }
 
 
 /*
- * Returns the number of handlers in the UV loop.
+ * Returns the number of handlers in the loop.
  * NOTE: The returned number is the real number of handles minus 1 (the prepare handle).
  */
 VALUE AsyncEngine_num_handles(VALUE self)
