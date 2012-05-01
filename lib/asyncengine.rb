@@ -14,42 +14,45 @@ module AsyncEngine
   @_blocks = {}
   @_next_ticks = []
 
-  def self.start
+  def self.run
     raise AsyncEngine::Error, "AsyncEngine already running"  if @_is_running
     @_is_running = true
 
     yield  if block_given?
 
-    if _c_start
-      # This method does not terminate (it blocks) until all the handles
-      # end. If so it returns true. Also set again @_is_running to false.
+    if _c_run
+      # _c_run does not terminate (it blocks) until all the handles end.
+      # If so, let's set again @_is_running to false and return true.
       @_is_running = false
       return true
     else
-      raise AsyncEngine::Error, "failed to start"
+      raise AsyncEngine::Error, "AsyncEngine failed to run"
     end
   end
 
-  def self.error_handler callback=nil, &block
-    if callback || block
-      @_error_handler = (callback || block)
-    elsif instance_variable_defined? :@_error_handler
-      remove_instance_variable :@_error_handler
+  def self.running?
+    @_is_running
+  end
+
+  def self.exception_manager block1=nil, &block2
+    if block1 || block2
+      @_exception_manager = (block1 || block2)
+    elsif instance_variable_defined? :@_exception_manager
+      remove_instance_variable :@_exception_manager
     end
   end
 
-  def self.handle_error e
-    if @_error_handler
-      @_error_handler.call e
+  def self.manage_exception e
+    if @_exception_manager
+      @_exception_manager.call e
     else
       raise e
     end
   end
 
   class << self
-    alias :run :start
-    private :_c_start
-    private :handle_error
+    private :_c_run
+    private :manage_exception
   end
 
 end

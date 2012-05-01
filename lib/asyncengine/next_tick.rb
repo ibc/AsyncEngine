@@ -11,7 +11,7 @@ module AsyncEngine
       begin
         cb.call
       rescue => e
-        AsyncEngine.send :handle_error, e
+        AsyncEngine.send :manage_exception, e
       end
     end
   end

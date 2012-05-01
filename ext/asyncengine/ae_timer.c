@@ -60,7 +60,7 @@ void execute_timer_with_gvl(uv_timer_t* handle)
   }
 
   if (exception)
-    ae_handle_exception();
+    ae_manage_exception();
 }
 
 

@@ -18,7 +18,7 @@ ID att_handle_terminated;
 
 // Ruby method names.
 ID id_method_call;
-ID id_handle_error;
+ID id_manage_exception;
 
 
 void init_ae_handle_common()
@@ -30,7 +30,7 @@ void init_ae_handle_common()
   att_handle_terminated = rb_intern("@_handle_terminated");
 
   id_method_call = rb_intern("call");
-  id_handle_error = rb_intern("handle_error");
+  id_manage_exception = rb_intern("manage_exception");
 }
 
 
@@ -59,12 +59,12 @@ VALUE ae_remove_block(VALUE rb_block_id)
 }
 
 
-void ae_handle_exception()
+void ae_manage_exception()
 {
   AE_TRACE();
 
   // rb_errinfo() gives the current exception object in this thread.
-  rb_funcall(mAsyncEngine, id_handle_error, 1, rb_errinfo());
+  rb_funcall(mAsyncEngine, id_manage_exception, 1, rb_errinfo());
   // Dissable the current thread exception.
   rb_set_errinfo(Qnil);
 }

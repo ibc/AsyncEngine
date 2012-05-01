@@ -60,7 +60,7 @@ if true and false
 end
 
 
-AE.error_handler {|e| puts "ERROR: exception rescued: #{e.class} - #{e}" }
+AE.exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
 AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
 AE.next_tick { raise "next_tick: raising an exception !!!" }
 
@@ -95,17 +95,17 @@ end
 
 
 
-#loop do AE.start {} end
+#loop do AE.run {} end
 
-#loop do AE.start { AE.add_timer(0) { puts "YA" } } end ; exit
+#loop do AE.run { AE.add_timer(0) { puts "YA" } } end ; exit
 
-#AE.start { AE.add_timer(0.5) { puts "YA" } } ; exit
+#AE.run { AE.add_timer(0.5) { puts "YA" } } ; exit
 
-#AE.start { AE.add_periodic_timer(0) { puts "---" } } ; exit
+#AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 
 if true and false
-  AE.start do
+  AE.run do
     AE.add_timer(0.5) do
       begin
         asd
@@ -137,12 +137,12 @@ if true and false
     puts t.cancel
   end
   end
-  AE.start ; exit
+  AE.run ; exit
 end
 
 
 
-AE.start do
+AE.run do
   puts "\nINFO: starting AsynEngine loop...\n" ; sleep 0.1
   check_timer = AE::PeriodicTimer.new(0.2, 0) do
     if AsyncEngine.num_handles > 1
@@ -153,6 +153,3 @@ AE.start do
     end
   end
 end
-
-
-puts "NOTICE: script terminates"

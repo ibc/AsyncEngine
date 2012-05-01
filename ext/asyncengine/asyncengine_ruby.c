@@ -31,7 +31,7 @@ VALUE run_uv_without_gvl(void* param)
 }
 
 
-VALUE AsyncEngine_c_start(VALUE self)
+VALUE AsyncEngine_c_run(VALUE self)
 {
   AE_TRACE();
   uv_prepare_t *_uv_prepare = ALLOC(uv_prepare_t);
@@ -61,7 +61,7 @@ void Init_asyncengine_ext()
 
   mAsyncEngine = rb_define_module("AsyncEngine");
 
-  rb_define_module_function(mAsyncEngine, "_c_start", AsyncEngine_c_start, 0);
+  rb_define_module_function(mAsyncEngine, "_c_run", AsyncEngine_c_run, 0);
   rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
 
   init_ae_handle_common();
