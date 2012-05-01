@@ -13,7 +13,7 @@ VALUE cAsyncEngineCData;
 
 // Ruby attributes.
 static ID att_blocks;
-ID att_c_data;
+ID att_cdata;
 ID att_handle_terminated;
 
 // Ruby method names.
@@ -26,7 +26,7 @@ void init_ae_handle_common()
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
   att_blocks = rb_intern("@_blocks");
-  att_c_data = rb_intern("@_c_data");
+  att_cdata = rb_intern("@_cdata");
   att_handle_terminated = rb_intern("@_handle_terminated");
 
   id_method_call = rb_intern("call");

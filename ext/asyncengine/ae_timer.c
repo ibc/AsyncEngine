@@ -121,7 +121,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
     return Qfalse;
   rb_ivar_set(self, att_handle_terminated, Qtrue);
 
-  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_ae_timer_cdata, cdata);
+  Data_Get_Struct(rb_ivar_get(self, att_cdata), struct_ae_timer_cdata, cdata);
 
   // Stop timer.
   uv_timer_stop(cdata->_uv_handle);
@@ -142,7 +142,7 @@ VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
     return Qfalse;
 
-  Data_Get_Struct(rb_ivar_get(self, att_c_data), struct_ae_timer_cdata, cdata);
+  Data_Get_Struct(rb_ivar_get(self, att_cdata), struct_ae_timer_cdata, cdata);
 
   interval = NUM2LONG(rb_interval);
   if (interval == 0)  interval = 1;
