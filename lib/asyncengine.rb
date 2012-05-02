@@ -12,6 +12,7 @@ require "asyncengine/udp.rb"
 module AsyncEngine
 
   @_is_running = false
+  @_exception_manager = nil
   @_blocks = {}
   @_next_ticks = []
 
@@ -36,10 +37,11 @@ module AsyncEngine
   end
 
   def self.exception_manager block1=nil, &block2
-    if block1 || block2
-      @_exception_manager = (block1 || block2)
-    elsif instance_variable_defined? :@_exception_manager
-      remove_instance_variable :@_exception_manager
+    if (block = block1 || block2)
+      raise AsyncEngine::Error, "no block provided"  unless block.respond_to? :call
+      @_exception_manager = block
+    else
+      @_exception_manager = nil
     end
   end
 
