@@ -2,6 +2,7 @@
 #include "ae_handle_common.h"
 #include "ae_timer.h"
 #include "ae_next_tick.h"
+#include "ae_udp.h"
 
 
 static
@@ -67,4 +68,5 @@ void Init_asyncengine_ext()
   init_ae_handle_common();
   init_ae_timer();
   init_ae_next_tick();
+  init_ae_udp();
 }

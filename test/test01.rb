@@ -9,6 +9,11 @@ require "asyncengine"
 #trap(:INT)  { puts "*** INT trapped => exit" ; exit }
 
 
+
+#loop do AE.run { AE.ip4("1.2.003.4.3.4.5", 9999999) } end ; exit
+
+
+
 puts "PID = #{$$}"
 
 at_exit { puts "NOTICE: exiting..." }
@@ -93,9 +98,7 @@ end
 
 #loop do AE.run {} end
 
-#loop do AE.run { AE.add_timer(0) { puts "YA" } } end ; exit
-
-#AE.run { AE.add_timer(0.5) { puts "YA" } } ; exit
+#loop do AE.run { AE.add_timer(0) { puts "YA" } } end
 
 #AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
@@ -125,7 +128,7 @@ end
 
 
 
-if true #and false
+if true and false
   AE.add_periodic_timer(0.001) do
     t = AE::Timer.new(0.2) { puts "first timer expires !!!" }
     AE.add_timer(0.5) do
@@ -141,9 +144,10 @@ end
 
 
 AE.exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
-#AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
-#AE.next_tick { require "QWEQWE"; raise "next_tick: raising an exception !!!" }
-
+AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
+AE.next_tick { raise "next_tick: raising an exception !!!" }
+#AE.add_timer(0.5) { require "lalala-in-add_timer" }
+#AE.next_tick { require "lalala-in-next_tick" }
 
 
 
@@ -153,7 +157,8 @@ AE.run do
     if AsyncEngine.num_handles > 1
       puts "DBG: AE.num_handles = #{AsyncEngine.num_handles}"
     else
-      puts "NOTICE: AE.num_handles = #{AsyncEngine.num_handles}, terminating loop..."
+      #puts "NOTICE: AE.num_handles = #{AsyncEngine.num_handles}, terminating loop..."
+      puts "NOTICE: no more alive handles, terminating loop..."
       check_timer.stop
     end
   end

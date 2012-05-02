@@ -6,6 +6,7 @@ require "asyncengine/version.rb"
 require "asyncengine/errors.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/next_tick.rb"
+require "asyncengine/udp.rb"
 
 
 module AsyncEngine
