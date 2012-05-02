@@ -9,12 +9,10 @@ ID id_method_call;
 
 void init_ae_handle_common();
 
-VALUE ae_store_callback(VALUE);
-VALUE ae_get_callback(VALUE);
-VALUE ae_remove_callback(VALUE);
-
-void ae_manage_exception();
-
+VALUE ae_store_block(VALUE);
+VALUE ae_get_block(VALUE);
+VALUE ae_remove_block(VALUE);
+void ae_manage_exception(int);
 void ae_handle_close_callback_0(uv_handle_t*);
 int ae_protect_block_call_0(VALUE);
 

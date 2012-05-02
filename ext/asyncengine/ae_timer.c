@@ -46,9 +46,9 @@ void execute_timer_with_gvl(uv_timer_t* handle)
 
   struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)handle->data;
   VALUE block = ae_get_block(cdata->rb_block_id);
-  int exception;
+  int exception_tag;
 
-  exception = ae_protect_block_call_0(block);
+  exception_tag = ae_protect_block_call_0(block);
 
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0) {
@@ -59,8 +59,8 @@ void execute_timer_with_gvl(uv_timer_t* handle)
     deallocate(cdata);
   }
 
-  if (exception)
-    ae_manage_exception();
+  if (exception_tag)
+    ae_manage_exception(exception_tag);
 }
 
 

@@ -34,7 +34,6 @@ void init_ae_handle_common()
 }
 
 
-
 VALUE ae_store_block(VALUE block)
 {
   AE_TRACE();
@@ -59,14 +58,22 @@ VALUE ae_remove_block(VALUE rb_block_id)
 }
 
 
-void ae_manage_exception()
+void ae_manage_exception(int exception_tag)
 {
   AE_TRACE();
 
   // rb_errinfo() gives the current exception object in this thread.
-  rb_funcall(mAsyncEngine, id_manage_exception, 1, rb_errinfo());
-  // Dissable the current thread exception.
-  rb_set_errinfo(Qnil);
+  VALUE exception = rb_errinfo();
+
+  // Just check the exception in the user provided AE.exception_manager block if
+  // it is a StandardError. Otherwise raise it and terminate.
+  if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue) {
+    rb_funcall(mAsyncEngine, id_manage_exception, 1, exception);
+    // Dissable the current thread exception.
+    rb_set_errinfo(Qnil);
+  }
+  else
+    rb_jump_tag(exception_tag);
 }
 
 

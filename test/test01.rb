@@ -60,10 +60,6 @@ if true and false
 end
 
 
-AE.exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
-AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
-AE.next_tick { raise "next_tick: raising an exception !!!" }
-
 
 if true #and false
   $interval = 0.1
@@ -129,16 +125,25 @@ end
 
 
 
-if true and false
+if true #and false
   AE.add_periodic_timer(0.001) do
-  t = AE::Timer.new(0.2) { puts "first timer expires !!!" }
-  AE.add_timer(2) do
-    puts "second timer canceling first one... which is already ended !!!"
-    puts t.cancel
+    t = AE::Timer.new(0.2) { puts "first timer expires !!!" }
+    AE.add_timer(0.5) do
+      puts "second timer canceling first one... which is already ended !!!"
+      puts t.cancel
+    end
   end
-  end
-  AE.run ; exit
 end
+
+
+
+#AE.add_periodic_timer(5){ exit }
+
+
+AE.exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
+#AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
+#AE.next_tick { require "QWEQWE"; raise "next_tick: raising an exception !!!" }
+
 
 
 
@@ -153,3 +158,5 @@ AE.run do
     end
   end
 end
+
+AE.run { AE.next_tick { puts "last loop => end" } }
