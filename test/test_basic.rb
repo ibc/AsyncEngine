@@ -44,10 +44,15 @@ class TestBasic < AETest
   end
 
   def test_03_num_handles
+    assert_equal 0, AE.num_handles
+
     AE.run do
+      assert_equal 0, AE.num_handles
       AE.add_timer(0.001) { assert_equal 2, AE.num_handles }
       pt1 = AE::PeriodicTimer.new(0.002) { assert_equal 1, AE.num_handles ; pt1.stop ; assert_equal 0, AE.num_handles }
     end
+
+    assert_equal 0, AE.num_handles
   end
 
 end
