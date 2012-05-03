@@ -17,6 +17,8 @@ typedef struct {
 
 void init_ae_timer()
 {
+  AE_TRACE();
+
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
   rb_define_module_function(mAsyncEngine, "_c_add_timer", AsyncEngine_c_add_timer, 4);
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
@@ -68,6 +70,7 @@ static
 void timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
+
   rb_thread_call_with_gvl(execute_timer_with_gvl, handle);
 }
 
@@ -75,6 +78,7 @@ void timer_callback(uv_timer_t* handle, int status)
 VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block, VALUE instance)
 {
   AE_TRACE();
+
   uv_timer_t* _uv_handle = ALLOC(uv_timer_t);
   struct_ae_timer_cdata* cdata = ALLOC(struct_ae_timer_cdata);
   long delay, interval;
@@ -115,6 +119,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
 VALUE AsyncEngineTimer_cancel(VALUE self)
 {
   AE_TRACE();
+
   struct_ae_timer_cdata* cdata;
 
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
@@ -136,6 +141,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
 {
   AE_TRACE();
+
   struct_ae_timer_cdata* cdata;
   long interval;
   

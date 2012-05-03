@@ -18,8 +18,5 @@
 
 VALUE mAsyncEngine;
 
-// A permanent uv idle for next_tick.
-uv_idle_t* ae_next_tick_uv_idle;
-
 
 #endif  /* #ifndef ASYNCENGINE_RUBY_H */

@@ -1,13 +1,16 @@
 #!/usr/bin/env ruby1.9.1
 
-$LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../", "lib"))
+$LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../../", "lib"))
 
 require "asyncengine"
 
 
+puts "PID = #{$$}\n\n"
+at_exit { puts "NOTICE: exiting..." }
+
+
 #trap(:INT)  { puts "*** INT trapped => ignore" }
 #trap(:INT)  { puts "*** INT trapped => exit" ; exit }
-
 
 
 #AE.run { } ; puts "YA" ; exit
@@ -17,6 +20,8 @@ require "asyncengine"
 #loop do AE.run { AE.add_timer(0) { puts "YA" } } end
 
 #AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
+
+#loop do AE.run { AE.next_tick { } } end
 
 
 if true and false
@@ -30,17 +35,11 @@ if true and false
 end
 
 
-
-puts "PID = #{$$}"
-
-at_exit { puts "NOTICE: exiting..." }
-
-
-if true #and false
-  #Thread.new { loop { puts "  -t1-" ; sleep 0.001 } }
-  #Thread.new { loop { puts "  -t2-" ; sleep 0.001 } }
-  #AE.add_periodic_timer(0.001) { puts "  - ***AE timer 1***" }
-  #AE.add_periodic_timer(0.001) { puts "  - ***AE timer 2***" }
+if true and false
+  Thread.new { loop { puts "  -t1-" ; sleep 0.001 } }
+  Thread.new { loop { puts "  -t2-" ; sleep 0.001 } }
+  AE.add_periodic_timer(0.001) { puts "  - ***AE timer 1***" }
+  AE.add_periodic_timer(0.001) { puts "  - ***AE timer 2***" }
 end
 
 

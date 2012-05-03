@@ -20,6 +20,16 @@ module AsyncEngine
     raise AsyncEngine::Error, "AsyncEngine already running"  if @_is_running
     @_is_running = true
 
+    @_thread = Thread.current
+
+    # SIGPIPE is received by a program when reading from a pipe whose other
+    # end has been closed, so it's good to trap and ignore it:
+    #   http://doc.dvgu.ru/devel/ev.html#the_special_problem_of_sigpipe
+    #
+    # However this is not needed since both UV and Ruby ignore by default
+    # SIGPIPE signal.
+    trap(:PIPE) {}
+
     yield  if block_given?
 
     if _c_run
@@ -28,6 +38,7 @@ module AsyncEngine
       @_is_running = false
       return true
     else
+      @_is_running = false
       raise AsyncEngine::Error, "AsyncEngine failed to run"
     end
   end

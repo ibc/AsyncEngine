@@ -3,11 +3,17 @@
 #include "ae_next_tick.h"
 
 
+static uv_idle_t* ae_next_tick_uv_idle;
+
 static ID id_method_execute_next_ticks;
 
 
 void init_ae_next_tick()
 {
+  AE_TRACE();
+
+  /* Load the AE next tick idle handle */
+  /* NOTE: This handle is never freed until the process exists. */
   ae_next_tick_uv_idle = ALLOC(uv_idle_t);
   uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle);
   uv_unref(uv_default_loop());
@@ -22,6 +28,7 @@ static
 void execute_next_tick_with_gvl()
 {
   AE_TRACE();
+
   rb_funcall(mAsyncEngine, id_method_execute_next_ticks, 0, 0);
 }
 

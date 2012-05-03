@@ -23,6 +23,8 @@ ID id_manage_exception;
 
 void init_ae_handle_common()
 {
+  AE_TRACE();
+
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
   att_blocks = rb_intern("@_blocks");
@@ -37,6 +39,7 @@ void init_ae_handle_common()
 VALUE ae_store_block(VALUE block)
 {
   AE_TRACE();
+
   VALUE rb_block_id = LONG2FIX(++block_id);
 
   rb_hash_aset(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id, block);
@@ -47,6 +50,7 @@ VALUE ae_store_block(VALUE block)
 VALUE ae_get_block(VALUE rb_block_id)
 {
   AE_TRACE();
+
   return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
 }
 
@@ -54,6 +58,7 @@ VALUE ae_get_block(VALUE rb_block_id)
 VALUE ae_remove_block(VALUE rb_block_id)
 {
   AE_TRACE();
+
   return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
 }
 
@@ -80,12 +85,15 @@ void ae_manage_exception(int exception_tag)
 void ae_handle_close_callback_0(uv_handle_t* handle)
 {
   AE_TRACE();
+
   xfree(handle);
 }
 
 
 static VALUE wrapper_rb_funcall_0(VALUE block)
 {
+  AE_TRACE();
+
   rb_funcall(block, id_method_call, 0, 0);
   return Qnil;
 }
@@ -93,6 +101,8 @@ static VALUE wrapper_rb_funcall_0(VALUE block)
 
 int ae_protect_block_call_0(VALUE block)
 {
+  AE_TRACE();
+
   int exception = 0;
 
   rb_protect(wrapper_rb_funcall_0, block, &exception);

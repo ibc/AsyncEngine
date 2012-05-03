@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 require "eventmachine"
-$LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../", "lib"))
+$LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../../", "lib"))
 require "asyncengine"
 
 
