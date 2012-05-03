@@ -36,6 +36,11 @@ $CFLAGS = RbConfig::CONFIG["CFLAGS"] = " #{cflags} "
 $LDFLAGS = RbConfig::CONFIG["LDFLAGS"] = " #{ldflags} "
 
 libuv_dir = File.expand_path(File.dirname(__FILE__), "libuv/")
+
+unless File.directory?(libuv_dir)
+  sys "./get_libuv.sh"
+end
+
 Dir.chdir(libuv_dir) do
   sys "CFLAGS='#{cflags}' make"
   FileUtils.mv "uv.a", "../libuv.a"
