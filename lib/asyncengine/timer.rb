@@ -24,6 +24,10 @@ module AsyncEngine
     def initialize delay, block1=nil, &block2
       @_cdata = AsyncEngine.send(:_c_add_timer, (delay*1000).to_i, nil, block1 || block2, self)
     end
+
+    def active?
+      @_handle_terminated ? false : true
+    end
   end
 
 

@@ -12,8 +12,11 @@ require "asyncengine"
 
 #AE.run { } ; puts "YA" ; exit
 
+#loop do AE.run {} end
+
 #loop do AE.run { AE.add_timer(0) { puts "YA" } } end
 
+#AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 
 if true and false
@@ -33,11 +36,11 @@ puts "PID = #{$$}"
 at_exit { puts "NOTICE: exiting..." }
 
 
-if true and false
-  Thread.new { loop { puts "  -t1-" ; sleep 0.001 } }
-  Thread.new { loop { puts "  -t2-" ; sleep 0.001 } }
-  AE.add_periodic_timer(0.001) { puts "  - ***AE timer 1***" }
-  AE.add_periodic_timer(0.001) { puts "  - ***AE timer 2***" }
+if true #and false
+  #Thread.new { loop { puts "  -t1-" ; sleep 0.001 } }
+  #Thread.new { loop { puts "  -t2-" ; sleep 0.001 } }
+  #AE.add_periodic_timer(0.001) { puts "  - ***AE timer 1***" }
+  #AE.add_periodic_timer(0.001) { puts "  - ***AE timer 2***" }
 end
 
 
@@ -107,14 +110,6 @@ if true #and false
     end
   end
 end
-
-
-
-#loop do AE.run {} end
-
-#loop do AE.run { AE.add_timer(0) { puts "YA" } } end
-
-#AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 
 if true and false
