@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 $LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../../", "lib"))
 
 require "asyncengine"
