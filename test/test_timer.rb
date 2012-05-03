@@ -16,7 +16,7 @@ class TestTimer < AETest
     assert_true t1_executed
   end
 
-  def test_02_timer_is_cancelled
+  def test_02_timer_is_canceled
     t1_executed = false
     pt1_executed = false
 
