@@ -5,6 +5,9 @@
 #include "ae_udp.h"
 
 
+static uv_prepare_t *av_uv_prepare;
+
+
 static
 void prepare_callback(uv_prepare_t* handle, int status)
 {
@@ -12,10 +15,6 @@ void prepare_callback(uv_prepare_t* handle, int status)
 
   // Check received interruptions in Ruby land.
   rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
-
-  // If this uv_prepare is the only existing handle, then terminate the loop.
-  if (uv_loop_refcount(uv_default_loop()) == 1)
-    uv_close((uv_handle_t *)handle, ae_handle_close_callback_0);
 }
 
 
@@ -23,8 +22,17 @@ static
 VALUE run_uv_without_gvl(void* param)
 {
   AE_TRACE();
+  int ret;
 
-  if (! uv_run(uv_default_loop())) {
+  ret = uv_run(uv_default_loop());
+
+  // Referece again av_uv_prepare and av_uv_idle_next_tick so they can be properly closed.
+  uv_ref(uv_default_loop());
+  uv_close((uv_handle_t *)av_uv_prepare, ae_handle_close_callback_0);
+  //uv_ref(uv_default_loop());
+  //uv_close((uv_handle_t *)ae_next_tick_uv_idle, ae_handle_close_callback_0);
+
+  if (! ret) {
     return Qtrue;
   }
   else
@@ -35,10 +43,11 @@ VALUE run_uv_without_gvl(void* param)
 VALUE AsyncEngine_c_run(VALUE self)
 {
   AE_TRACE();
-  uv_prepare_t *_uv_prepare = ALLOC(uv_prepare_t);
+  av_uv_prepare = ALLOC(uv_prepare_t);
 
-  uv_prepare_init(uv_default_loop(), _uv_prepare);
-  uv_prepare_start(_uv_prepare, prepare_callback);
+  uv_prepare_init(uv_default_loop(), av_uv_prepare);
+  uv_prepare_start(av_uv_prepare, prepare_callback);
+  uv_unref(uv_default_loop());
 
   return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
 }
@@ -46,7 +55,7 @@ VALUE AsyncEngine_c_run(VALUE self)
 
 /*
  * Returns the number of handlers in the loop.
- * NOTE: The returned number is the real number of handles minus 1 (the prepare handle).
+ * NOTE: The returned number is the real number of handles minus 1 (the av_uv_prepare handle).
  */
 VALUE AsyncEngine_num_handles(VALUE self)
 {
