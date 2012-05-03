@@ -39,6 +39,26 @@ class TestTimer < AETest
 
     pt1 = AE::PeriodicTimer.new(0.01) { pt1_ticks += 1 }
     AE.add_timer(0.045) { assert_true pt1.cancel }
+
+    AE.run
+
+    assert_equal 4, pt1_ticks
+  end
+
+  def test_04_periodic_timer_interval_is_increased
+    pt1_ticks = 0
+    pt1_interval = 0.001
+
+    pt1 = AE::PeriodicTimer.new(pt1_interval) do
+      # This should stop after 0.015 seconds.
+      pt1.stop if (pt1_ticks += 1) == 4
+      pt1.set_interval (pt1_interval *= 2)
+    end
+    pt1.set_interval (pt1_interval *= 2)
+
+    # So check that pt1 is stopped after 0.016 seconds (it should).
+    AE.add_timer(0.016) { assert_false pt1.active? }
+
     AE.run
 
     assert_equal 4, pt1_ticks
