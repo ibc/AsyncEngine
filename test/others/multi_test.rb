@@ -25,6 +25,23 @@ at_exit { puts "NOTICE: exiting..." }
 
 
 if true and false
+  t = AE::Timer.new(0.1) { puts "  - I'm timer" }
+  t.restart(2) { puts "  - NEW BLOCK !!!" }
+  AE.add_timer(1) { puts t.active? ; t.restart { puts "  - END" } ; puts t.active? }
+  AE.run
+  exit
+end
+
+
+if true and false
+  pt = AE::PeriodicTimer.new(0.001) {}
+  100.times do AE.add_periodic_timer(0.001) { pt.restart {} } end
+  AE.run
+  exit
+end
+
+
+if true and false
   AE.run do
     AE.test_send_udp4("1.2.3.4", 9999, "111")
     AE.test_send_udp4("1.2.3.4", 9999, "222")

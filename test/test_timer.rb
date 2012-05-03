@@ -64,6 +64,50 @@ class TestTimer < AETest
     assert_equal 4, pt1_ticks
   end
 
+  def test_05_timer_restarted
+    str1 = ""
+    str2 = ""
+
+    t1 = AE::Timer.new(0.001) { str1 << "0" }
+    t1.restart { str1 << "1" }  # So "0" will never be written.
+    AE.next_tick { t1.restart }  # Restarts with last block so writes "1".
+    AE.add_timer(0.010) { t1.restart { str1 << "2" } }  # Restarts with same block so writes "1".
+
+    t2 = AE::Timer.new(0.001, Proc.new { str2 << "0" })
+    t2.cancel
+    AE.add_timer(0.01) { t2.restart(0.002) }
+
+    AE.run
+
+    assert_equal "12", str1
+    assert_equal "0", str2
+
+  end
+
+  def test_05_periodic_timer_restarted
+    pt1_ticks = 0
+    str = ""
+
+    pt1 = AE::PeriodicTimer.new(0.001) do
+      str << "0"
+      pt1.restart(0.002) do
+        str << "1"
+        pt1.stop
+        AE.next_tick do
+          pt1.restart(0.001) { str << "NO" }
+          pt1.restart(nil, 0.002) do
+            str << "2"
+            pt1.stop
+          end
+        end
+      end
+    end
+
+    AE.run
+
+    assert_equal "012", str
+  end
+
 end
 
 
