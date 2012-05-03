@@ -20,6 +20,8 @@ Gem::Specification.new do |spec|
     lib/**/**
     ext/asyncengine/{*.c,*.h,*.rb}
     ext/asyncengine/libuv/**/**/**/**/**/**/**/**/**
+    test/{ae_test_helper.rb}
+    test/{test_*.rb}
   }.join(",")
   spec.files = Dir.glob "{#{files}}"
   spec.require_paths = ["lib"]
