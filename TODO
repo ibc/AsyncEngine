@@ -2,7 +2,6 @@ TODO
 ****
 
 
-
 `write': deadlock; recursive locking (ThreadError)
 --------------------------------------------------
 

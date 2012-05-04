@@ -9,6 +9,7 @@ puts "PID = #{$$}\n\n"
 at_exit { puts "NOTICE: exiting..." }
 
 
+
 #trap(:INT)  { puts "*** INT trapped => ignore" }
 #trap(:INT)  { puts "*** INT trapped => exit" ; exit }
 
@@ -22,6 +23,17 @@ at_exit { puts "NOTICE: exiting..." }
 #AE.run { AE.add_periodic_timer(0) { puts "---" } } ; exit
 
 #loop do AE.run { AE.next_tick { } } end
+
+
+if true and false
+  pt = AE::PeriodicTimer.new(0.5,2) { puts "1 - periodic timer fires" }
+  AE.add_timer(4) {  pt.restart { puts "2 - periodic timer fires" } }
+  AE.add_timer(8) { pt.restart(1) { puts "3 - periodic timer fires" } }
+  AE.add_timer(12) { pt.restart(4,2) { puts "4 - periodic timer fires" } }
+
+  AE.run
+  exit
+end
 
 
 if true and false
