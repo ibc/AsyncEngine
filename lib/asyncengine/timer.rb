@@ -59,12 +59,10 @@ module AsyncEngine
     # But if delay is not given, then it copies it from the new interval (if given).
     def restart interval=nil, delay=nil, block1=nil, &block2
       @_interval = (interval*1000).to_i  if interval
-      @_delay = if delay
-        (delay*1000).to_i
+      if delay
+        @_delay = (delay*1000).to_i
       elsif interval
-        @_interval
-      else
-        @_delay
+        @_delay = @_interval
       end
       @_block = block1 || block2 || @_block
 
