@@ -6,7 +6,7 @@ class TestTimer < AETest
   def test_01_timer_fires
     t1_executed = false
 
-    t1 = AE::Timer.new(0.01) { t1_executed = true ; assert_true t1.active? }
+    t1 = AE::Timer.new(0.01) { t1_executed = true ; assert_false t1.active? }
     assert_true t1.active?
     AE.add_timer(0.02) { assert_false t1.active? }
     AE.add_timer(0.03) { assert_false t1.cancel }

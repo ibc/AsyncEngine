@@ -25,6 +25,23 @@ at_exit { puts "NOTICE: exiting..." }
 #loop do AE.run { AE.next_tick { } } end
 
 
+if true #and false
+  puts "  >>1"
+  AE.run { t=AE::Timer.new(0.001) { t.cancel } }
+
+  puts "  >>2"
+  t = AE::Timer.new(0.001) { t.cancel } ; AE.run
+
+  puts "  >>3"
+  AE.run do
+    t=AE::Timer.new(0.001) { printf "." ; t.cancel ; t.restart }
+    AE.add_timer(0.3) { t.cancel }
+  end
+
+  puts "  >>END"
+end
+
+
 if true and false
   pt = AE::PeriodicTimer.new(0.5,2) { puts "1 - periodic timer fires" }
   AE.add_timer(4) {  pt.restart { puts "2 - periodic timer fires" } }

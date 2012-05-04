@@ -50,8 +50,6 @@ void execute_timer_with_gvl(uv_timer_t* handle)
   VALUE block = ae_get_block(cdata->rb_block_id);
   int exception_tag;
 
-  exception_tag = ae_protect_block_call_0(block);
-
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0) {
     // If the timer has a ruby AE::Timer instance then set its attribute
@@ -60,6 +58,8 @@ void execute_timer_with_gvl(uv_timer_t* handle)
       rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
     deallocate(cdata);
   }
+
+  exception_tag = ae_protect_block_call_0(block);
 
   if (exception_tag)
     ae_manage_exception(exception_tag);

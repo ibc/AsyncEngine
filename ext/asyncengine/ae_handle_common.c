@@ -90,7 +90,8 @@ void ae_handle_close_callback_0(uv_handle_t* handle)
 }
 
 
-static VALUE wrapper_rb_funcall_0(VALUE block)
+static
+VALUE wrapper_rb_funcall_0(VALUE block)
 {
   AE_TRACE();
 
