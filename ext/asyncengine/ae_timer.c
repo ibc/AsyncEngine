@@ -144,7 +144,7 @@ VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
 
   struct_ae_timer_cdata* cdata;
   long interval;
-  
+
   if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
     return Qfalse;
 
@@ -152,7 +152,7 @@ VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE rb_interval)
 
   interval = NUM2LONG(rb_interval);
   if (interval == 0)  interval = 1;
-  
+
   uv_timer_set_repeat(cdata->_uv_handle, interval);
   return rb_interval;
 }

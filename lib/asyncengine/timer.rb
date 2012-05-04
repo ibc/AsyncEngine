@@ -62,7 +62,10 @@ module AsyncEngine
       @_handle_terminated = nil
       @_cdata = AsyncEngine.send(:_c_add_timer, @_delay, @_interval, @_block, self)
     end
-    
+
+    # TODO: Doc.
+    # Changes the interval in which the periodic timer fires.
+    # If the timer was stopped this method takes no effect (and returns false).
     def set_interval interval
       _c_set_interval (interval*1000).to_i
     end
