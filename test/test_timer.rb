@@ -3,7 +3,7 @@ require "ae_test_helper"
 
 class TestTimer < AETest
 
-  def test_01_timer_expires
+  def test_01_timer_fires
     t1_executed = false
 
     t1 = AE::Timer.new(0.01) { t1_executed = true ; assert_true t1.active? }
@@ -16,7 +16,7 @@ class TestTimer < AETest
     assert_true t1_executed
   end
 
-  def test_02_timer_is_canceled
+  def test_02_timer_canceled
     t1_executed = false
     pt1_executed = false
 
@@ -34,7 +34,7 @@ class TestTimer < AETest
     assert_false pt1_executed
   end
 
-  def test_03_periodic_timer_is_canceled_after_4_repeats
+  def test_03_periodic_timer_canceled_after_4_repeats
     pt1_ticks = 0
 
     pt1 = AE::PeriodicTimer.new(0.01) { pt1_ticks += 1 }
@@ -45,7 +45,7 @@ class TestTimer < AETest
     assert_equal 4, pt1_ticks
   end
 
-  def test_04_periodic_timer_interval_is_increased
+  def test_04_periodic_timer_interval_increased
     pt1_ticks = 0
     pt1_interval = 0.001
 
@@ -84,7 +84,7 @@ class TestTimer < AETest
 
   end
 
-  def test_05_periodic_timer_restarted
+  def test_06_periodic_timer_restarted
     pt1_ticks = 0
     str = ""
 

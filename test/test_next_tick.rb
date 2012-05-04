@@ -3,7 +3,7 @@ require "ae_test_helper"
 
 class TestNextTick < AETest
 
-  def test_01_next_tick_runs_in_order
+  def test_01_next_tick_run_in_order
     str = ""
 
     AE.next_tick { str << "1" }

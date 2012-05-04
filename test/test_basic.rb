@@ -4,7 +4,7 @@ require "ae_test_helper"
 class TestBasic < AETest
 
   def test_01_AE_is_restartable
-   str = ""
+    str = ""
 
     assert_false AE.running?
     AE.run { assert_true AE.running? }
