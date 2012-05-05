@@ -82,7 +82,7 @@ void ae_manage_exception(int exception_tag)
 }
 
 
-void ae_handle_close_callback_0(uv_handle_t* handle)
+void ae_uv_handle_close_callback_0(uv_handle_t* handle)
 {
   AE_TRACE();
 

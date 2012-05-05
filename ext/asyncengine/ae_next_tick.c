@@ -25,7 +25,7 @@ void init_ae_next_tick()
 
 
 static
-void execute_next_tick_with_gvl()
+void execute_next_tick_callback_with_gvl()
 {
   AE_TRACE();
 
@@ -41,7 +41,7 @@ void next_tick_callback(uv_idle_t* handle, int status)
   uv_idle_stop(handle);
   uv_unref(uv_default_loop());
 
-  rb_thread_call_with_gvl(execute_next_tick_with_gvl, NULL);
+  rb_thread_call_with_gvl(execute_next_tick_callback_with_gvl, NULL);
 }
 
 

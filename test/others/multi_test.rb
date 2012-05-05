@@ -77,9 +77,7 @@ if true and false
     AE.test_send_udp4("1.2.3.4", 9999, "111")
     AE.test_send_udp4("1.2.3.4", 9999, "222")
     AE.test_send_udp4("1.2.3.4", 9999, "333")
-    AE.add_periodic_timer(1) { printf "." }
   end
-  exit
 end
 
 

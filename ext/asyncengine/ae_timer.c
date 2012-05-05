@@ -35,14 +35,14 @@ void deallocate(struct_ae_timer_cdata* cdata)
   // Let the GC work.
   ae_remove_block(cdata->rb_block_id);
   // Close the timer so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_handle_close_callback_0);
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
   // Free memory.
   xfree(cdata);
 }
 
 
 static
-void execute_timer_with_gvl(uv_timer_t* handle)
+void execute_timer_callback_with_gvl(uv_timer_t* handle)
 {
   AE_TRACE();
 
@@ -71,7 +71,7 @@ void timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
 
-  rb_thread_call_with_gvl(execute_timer_with_gvl, handle);
+  rb_thread_call_with_gvl(execute_timer_callback_with_gvl, handle);
 }
 
 

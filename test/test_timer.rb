@@ -108,6 +108,12 @@ class TestTimer < AETest
     assert_equal "012", str
   end
 
+  def test_07_timer_canceled_on_its_callback_does_not_crash
+    t1 = AE::Timer.new(0.001) { assert_false t1.cancel }
+
+    AE.run
+  end
+
 end
 
 
