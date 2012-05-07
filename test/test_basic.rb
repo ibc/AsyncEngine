@@ -34,13 +34,19 @@ class TestBasic < AETest
   end
 
   def test_02_exception_manager
-    AE.exception_manager {|e| assert e.is_a? ::StandardError }
+    AE.set_exception_manager {|e| assert e.is_a? ::StandardError }
 
-    AE.run { AE.next_tick { "oppps" } ; AE.add_timer(0.001) { "uhhhh" } }
-    AE.run { AE.next_tick { "ouchh" } ; AE.add_timer(0.001) { "LOL" } }
+    assert_true AE.instance_variable_get(:@_exception_manager).respond_to?(:call)
+
+    assert_nothing_raised do
+      AE.run { AE.next_tick { oppps } ; AE.add_timer(0.001) { uhhhh } }
+      AE.run { AE.next_tick { ouchh } ; AE.add_timer(0.001) { LOL } }
+    end
 
     # Dissable the exception manager again.
-    AE.exception_manager
+    AE.unset_exception_manager
+
+    assert_equal nil, AE.instance_variable_get(:@_exception_manager)
   end
 
   def test_03_num_handles

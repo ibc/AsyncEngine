@@ -47,13 +47,15 @@ module AsyncEngine
     @_is_running
   end
 
-  def self.exception_manager block1=nil, &block2
-    if (block = block1 || block2)
-      raise AsyncEngine::Error, "no block provided"  unless block.respond_to? :call
-      @_exception_manager = block
-    else
-      @_exception_manager = nil
-    end
+  def self.set_exception_manager block1=nil, &block2
+    block = block1 || block2
+    raise AsyncEngine::Error, "no block provided"  unless block.respond_to? :call
+
+    @_exception_manager = block
+  end
+
+  def self.unset_exception_manager
+    @_exception_manager = nil
   end
 
   def self.manage_exception e

@@ -28,7 +28,7 @@ void init_ae_timer()
 
 
 static
-void deallocate(struct_ae_timer_cdata* cdata)
+void deallocate_timer_handle(struct_ae_timer_cdata* cdata)
 {
   AE_TRACE();
 
@@ -56,7 +56,7 @@ void execute_timer_callback_with_gvl(uv_timer_t* handle)
     // @_handle_terminated to true.
     if (cdata->has_rb_instance == 1)
       rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
-    deallocate(cdata);
+    deallocate_timer_handle(cdata);
   }
 
   exception_tag = ae_protect_block_call_0(block);
@@ -132,7 +132,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   uv_timer_stop(cdata->_uv_handle);
 
   // Terminate the timer.
-  deallocate(cdata);
+  deallocate_timer_handle(cdata);
 
   return Qtrue;
 }

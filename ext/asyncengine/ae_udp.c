@@ -28,7 +28,7 @@ void deallocate_udp_handle(struct_ae_udp_cdata* cdata)
   AE_TRACE();
   printf("--- deallocate_udp_handle()\n");
 
-  // Let the GC work.
+  // Let the GC work. TODO: Debe quitarlo del hash de udp handles de AE (salvo que haya fallado al crearse !!!).
   //ae_remove_block(cdata->rb_block_id);
   // Close the timer so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
