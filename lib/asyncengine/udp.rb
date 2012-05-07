@@ -1,38 +1,63 @@
 module AsyncEngine
 
-  def self.open_udp_socket_ip4 bind_ip, bind_port, handler=AsyncEngine::UDPSocket, *args
-    raise AsyncEngine::Error, "handler must be AE::UDPSocket or a subclass" unless
-      handler <= AsyncEngine::UDPSocket
+  # TODO: local_ip en vez de bind_ip y tal?
+  def self.open_udp_socket_ip4 bind_ip, bind_port, udp_options={}, klass=AsyncEngine::UDPSocketDefaultClass, *args, &block
+    _open_udp_socket :ipv4, bind_ip, bind_port, udp_options, klass, *args, &block
+  end
 
-    sock = handler.allocate
-    sock.send :ae_init, :ipv4, bind_ip, bind_port
-    sock.on_init *args
+  def self._open_udp_socket ip_type, bind_ip, bind_port, udp_options, klass, *args
+    raise AsyncEngine::Error, "klass must include AsyncEngine::UDPSocket module" unless
+      klass.include? AsyncEngine::UDPSocket
+
+    # First allocate a handler instance.
+    sock = klass.allocate
+
+    # Set the UV handler.
+    unless (ret = sock.send :_c_init_udp_socket, ip_type, bind_ip, bind_port) == true
+      raise AsyncEngine.get_uv_error(ret)
+    end
+
+    # Initiate instance attributes.
+    sock.instance_variable_set :@_ip_type, ip_type
+    sock.instance_variable_set :@_bind_ip, bind_ip
+    sock.instance_variable_set :@_bind_port, bind_port
+
+    # Call the usual initialize() method as defined by the user.
+    sock.send :initialize, *args
+
+    # Run the given block.
     block_given? and yield sock
+
+    # TODO: Falta meterlo en un hash no?
+
+    # Return the klass instance.
     sock
   end
 
-
-  class UDPSocket
-    # Don't allow the user to init a class instance.
-    class << self
-      private :new
-    end
-
-    def ae_init ip_type, bind_ip=nil, bind_port=nil
-      @_ip_type = ip_type
-      @_bind_ip = bind_ip
-      @_bind_port = bind_port  # TODO: si es 0 será random y hay que saber cual es!
-    end
-    private :ae_init
-
-    def ip_type   ; @_ip_type   ; end
-    def bind_ip   ; @_bind_ip   ; end
-    def bind_port ; @_bind_port ; end
-
-    # This method should be rewriten by the user in the inherited class.
-    def on_init *args
-      puts "DBG: on_init() => args = #{args.inspect}"
-    end
+  class << self
+    private :_open_udp_socket
   end
+
+
+  module UDPSocket
+    def ip_type
+      @_ip_type
+    end
+
+    def bind_ip
+      @_bind_ip
+    end
+    alias :local_ip :bind_ip
+
+    def bind_port
+      @_bind_port
+    end
+    alias :local_port :bind_port
+  end  # module UDPSocket
+
+
+  class UDPSocketDefaultClass
+    include AsyncEngine::UDPSocket
+  end  # class UDPSocketDefaultClass
 
 end

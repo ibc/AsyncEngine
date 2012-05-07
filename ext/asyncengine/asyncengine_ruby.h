@@ -3,8 +3,6 @@
 
 
 #include <ruby.h>
-#include <libuv/include/uv.h>  // NOTE: Not needed if dir_config() line is enabled in extconf.rb.
-//#include <uv.h>              // so this line becomes enough.
 
 
 // Uncomment this line for enabling TRACE() function.

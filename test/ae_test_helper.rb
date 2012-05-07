@@ -9,6 +9,14 @@ class AETestTimeout   < AETestError      ; end
 
 class AETest < Test::Unit::TestCase
 
+def assert_true(object, message="")
+    assert_equal(true, object, message)
+  end
+
+  def assert_false(object, message="")
+    assert_equal(false, object, message)
+  end
+
   # NOTE: Do not use assert_xxxx() methods within the block provided to this
   # method _set_timeout_ since they will be executed in a different process.
   def set_timeout timeout=2, block1=nil, &block2
@@ -34,14 +42,6 @@ class AETest < Test::Unit::TestCase
     else
       raise AETestError, "test failed due to an exception"
     end
-  end
-
-  def assert_true(object, message="")
-    assert_equal(object, true, message)
-  end
-
-  def assert_false(object, message="")
-    assert_equal(object, false, message)
   end
 
 end

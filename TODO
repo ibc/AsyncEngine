@@ -2,6 +2,13 @@ TODO
 ****
 
 
+assert()
+--------
+
+Add assert() in all the uv functions in which I do not check the exit status.
+
+
+
 `write': deadlock; recursive locking (ThreadError)
 --------------------------------------------------
 

@@ -3,6 +3,8 @@
 #include "ae_timer.h"
 #include "ae_next_tick.h"
 #include "ae_udp.h"
+//#include "ae_utils/ae_ip_utils.h"
+#include "ae_ip_utils.h"
 
 
 static uv_prepare_t *av_uv_prepare;
@@ -79,4 +81,5 @@ void Init_asyncengine_ext()
   init_ae_timer();
   init_ae_next_tick();
   init_ae_udp();
+  init_ae_ip_utils();
 }
