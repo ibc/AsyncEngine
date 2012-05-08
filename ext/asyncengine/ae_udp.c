@@ -1,15 +1,23 @@
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
 #include "ae_udp.h"
+#include "ae_ip_utils.h"
 
 
 static VALUE mAsyncEngineUdpSocket;
 
 
 typedef struct {
+  enum_ip_type ip_type;
   uv_udp_t *_uv_handle;
-  VALUE rb_instance;  // Points to the owner AE::Timer (if there is).
+  VALUE rb_ae_udp_socket_id;
 } struct_ae_udp_cdata;
+
+
+typedef struct {
+  char *data;
+  int data_len;
+} struct_ae_udp_send_data;
 
 
 void init_ae_udp()
@@ -19,6 +27,7 @@ void init_ae_udp()
   mAsyncEngineUdpSocket = rb_define_module_under(mAsyncEngine, "UDPSocket");
 
   rb_define_private_method(mAsyncEngineUdpSocket, "_c_init_udp_socket", AsyncEngineUdpSocket_c_init_udp_socket, 3);
+  rb_define_method(mAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, 3);
 }
 
 
@@ -29,34 +38,115 @@ void deallocate_udp_handle(struct_ae_udp_cdata* cdata)
   printf("--- deallocate_udp_handle()\n");
 
   // Let the GC work. TODO: Debe quitarlo del hash de udp handles de AE (salvo que haya fallado al crearse !!!).
-  //ae_remove_block(cdata->rb_block_id);
-  // Close the timer so it's unreferenced by uv.
+  ae_remove_handle(cdata->rb_ae_udp_socket_id);
+  // Close the UDP handle so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
   // Free memory.
   xfree(cdata);
 }
 
 
-VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_ip_type, VALUE rb_bind_ip, VALUE rb_bind_port)
+VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_is_ipv6, VALUE rb_bind_ip, VALUE rb_bind_port)
 {
   AE_TRACE();
 
   char *bind_ip = StringValueCStr(rb_bind_ip);
   int bind_port = FIX2INT(rb_bind_port);
-  struct sockaddr_in bind_addr;
   struct_ae_udp_cdata* cdata = ALLOC(struct_ae_udp_cdata);
 
   cdata->_uv_handle = ALLOC(uv_udp_t);
-  cdata->rb_instance = self;
+  cdata->rb_ae_udp_socket_id = ae_store_handle(self);
 
-  Data_Wrap_Struct(rb_obj_class(self), NULL, NULL, cdata);
+  //rb_obj_class(self) TODO: lo dejo por si acaso para el tema del Wrap.
 
-  bind_addr = uv_ip4_addr(bind_ip, bind_port);
+  if (! NIL_P(rb_is_ipv6))
+    cdata->ip_type = ip_type_ipv6;
+  else
+    cdata->ip_type = ip_type_ipv4;
+
+  rb_ivar_set(self, att_cdata, Data_Wrap_Struct(cAsyncEngineCData, NULL, NULL, cdata));
+
   assert(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
-  if (uv_udp_bind(cdata->_uv_handle, bind_addr, 0)) {
-    deallocate_udp_handle(cdata);
-    return AE_FIXNUM_UV_LAST_ERROR();
+
+  switch(cdata->ip_type) {
+    case ip_type_ipv4:
+      if (uv_udp_bind(cdata->_uv_handle, uv_ip4_addr(bind_ip, bind_port), 0)) {
+        deallocate_udp_handle(cdata);
+        return AE_FIXNUM_UV_LAST_ERROR();
+      }
+      break;
+    case ip_type_ipv6:
+      // TODO: UDP flags en IPv6 puede ser que si. Solo vale 0 o UV_UDP_IPV6ONLY.
+      if (uv_udp_bind6(cdata->_uv_handle, uv_ip6_addr(bind_ip, bind_port), UV_UDP_IPV6ONLY)) {
+        deallocate_udp_handle(cdata);
+        return AE_FIXNUM_UV_LAST_ERROR();
+      }
+      break;
   }
 
+  return Qtrue;
+}
+
+
+static
+void udp_send_callback(uv_udp_send_t* req, int status)
+{
+  AE_TRACE();
+
+  if (status)
+    printf("ERROR: udp_send_callback() => error = %d\n", uv_last_error(uv_default_loop()).code);
+
+  struct_ae_udp_send_data* send_data = req->data;
+  xfree(send_data->data);
+  xfree(send_data);
+  xfree(req);
+}
+
+
+VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port, VALUE rb_data)
+{
+  AE_TRACE();
+
+  char *ip = StringValueCStr(rb_ip);
+  int port = FIX2INT(rb_port);
+  uv_buf_t buffer;
+  char *data;
+  int data_len;
+  uv_udp_send_t* _uv_req;
+  struct_ae_udp_send_data* send_data;
+  struct_ae_udp_cdata* cdata;
+
+  Check_Type(rb_data, T_STRING);
+
+  data_len = RSTRING_LEN(rb_data);
+  data = ALLOC_N(char, data_len);
+  memcpy(data, RSTRING_PTR(rb_data), data_len);
+
+  buffer = uv_buf_init(data, data_len);
+
+  _uv_req = ALLOC(uv_udp_send_t);
+  send_data = ALLOC(struct_ae_udp_send_data);
+
+  send_data->data = data;
+  send_data->data_len = data_len;
+
+  Data_Get_Struct(rb_ivar_get(self, att_cdata), struct_ae_udp_cdata, cdata);
+
+  _uv_req->data = send_data;
+
+  // TODO uv_udp_send() parece que devuelve siempre 0 aunque le pases un puerto destino 0 (que
+  // luego se traduce en error en el callback).
+  // Segun los src solo devuelve error si el handle no esta bindeado (el nuestro ya lo está) o si no hay
+  // más memoria para un alloc que hace, bufff. Un assert y va que arde.
+  switch(cdata->ip_type) {
+    case ip_type_ipv4:
+      assert(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), udp_send_callback));
+      break;
+    case ip_type_ipv6:
+      assert(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), udp_send_callback));
+      break;
+  }
+
+  // TODO: Si está chapao el socket habrá que devolver false no?
   return Qtrue;
 }

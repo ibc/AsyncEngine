@@ -1,17 +1,14 @@
-#include "ip_utils.h"
+#include "ip_parser.h"
 
 
 /** machine **/
 %%{
-  machine ip_utils_parser;
+  machine ae_ip_parser;
 
   DIGIT                         = "0".."9";
   HEXDIG                        = DIGIT | "A"i | "B"i | "C"i | "D"i | "E"i | "F"i;
-  #dec_octet                     = DIGIT | ( 0x31..0x39 DIGIT ) | ( "1" DIGIT{2} ) |
-  #                                ( "2" 0x30..0x34 DIGIT ) | ( "25" 0x30..0x35 );
-  # Let's make it less strict and allow "1.2.03.004".
-  dec_octet                     = DIGIT | ( DIGIT{2} ) | ( "0" DIGIT{2} ) |( "1" DIGIT{2} ) |
-  ( "2" 0x30..0x34 DIGIT ) | ( "25" 0x30..0x35 );
+  dec_octet                     = DIGIT | ( 0x31..0x39 DIGIT ) | ( "1" DIGIT{2} ) |
+                                  ( "2" 0x30..0x34 DIGIT ) | ( "25" 0x30..0x35 );
   IPv4address                   = dec_octet "." dec_octet "." dec_octet "." dec_octet;
   h16                           = HEXDIG{1,4};
   ls32                          = ( h16 ":" h16 ) | IPv4address;
@@ -49,11 +46,11 @@
 
 
 /** Exec **/
-enum enum_ip_type ip_utils_parser_execute(const char *str, size_t len)
+enum_ip_type ae_ip_parser_execute(const char *str, size_t len)
 {
   int cs = 0;
   const char *p, *pe;
-  enum enum_ip_type ip_type = ip_type_error;
+  enum_ip_type ip_type = ip_type_error;
 
   p = str;
   pe = str+len;

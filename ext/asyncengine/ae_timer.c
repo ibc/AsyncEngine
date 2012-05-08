@@ -10,8 +10,7 @@ typedef struct {
   uv_timer_t *_uv_handle;
   int periodic;
   VALUE rb_block_id;
-  int has_rb_instance;
-  VALUE rb_instance;  // Points to the owner AE::Timer (if there is).
+  VALUE rb_ae_timer_id;
 } struct_ae_timer_cdata;
 
 
@@ -28,12 +27,14 @@ void init_ae_timer()
 
 
 static
-void deallocate_timer_handle(struct_ae_timer_cdata* cdata)
+void deallocate_timer_handle(struct_ae_timer_cdata* cdata, int remove_handle)
 {
   AE_TRACE();
 
   // Let the GC work.
   ae_remove_block(cdata->rb_block_id);
+  if (remove_handle)
+    ae_remove_handle(cdata->rb_ae_timer_id);
   // Close the timer so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
   // Free memory.
@@ -54,15 +55,15 @@ void execute_timer_callback_with_gvl(uv_timer_t* handle)
   if (cdata->periodic == 0) {
     // If the timer has a ruby AE::Timer instance then set its attribute
     // @_handle_terminated to true.
-    if (cdata->has_rb_instance == 1)
-      rb_ivar_set(cdata->rb_instance, att_handle_terminated, Qtrue);
-    deallocate_timer_handle(cdata);
+    if (! NIL_P(cdata->rb_ae_timer_id))
+      rb_ivar_set(ae_remove_handle(cdata->rb_ae_timer_id), att_handle_terminated, Qtrue);
+    deallocate_timer_handle(cdata, 0);
   }
 
   exception_tag = ae_protect_block_call_0(block);
 
   if (exception_tag)
-    ae_manage_exception(exception_tag);
+    ae_handle_exception(exception_tag);
 }
 
 
@@ -100,10 +101,12 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   cdata->rb_block_id = ae_store_block(block);
 
   if (NIL_P(instance))
-    cdata->has_rb_instance = 0;
+    cdata->rb_ae_timer_id = Qnil;
   else {
-    cdata->has_rb_instance = 1;
-    cdata->rb_instance = instance;
+    // Save the AE timer from being GC'd.
+    cdata->rb_ae_timer_id = ae_store_handle(instance);
+    // Store CDATA within the instance.
+    rb_ivar_set(instance, att_cdata, Data_Wrap_Struct(cAsyncEngineCData, NULL, NULL, cdata));
   }
 
   // Initialize.
@@ -112,7 +115,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
 
   uv_timer_start(_uv_handle, timer_callback, delay, interval);
 
-  return Data_Wrap_Struct(cAsyncEngineCData, NULL, NULL, cdata);
+  return Qtrue;
 }
 
 
@@ -132,7 +135,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   uv_timer_stop(cdata->_uv_handle);
 
   // Terminate the timer.
-  deallocate_timer_handle(cdata);
+  deallocate_timer_handle(cdata, 1);
 
   return Qtrue;
 }

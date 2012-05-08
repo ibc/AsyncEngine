@@ -12,15 +12,14 @@ require "asyncengine/udp.rb"
 module AsyncEngine
 
   @_is_running = false
-  @_exception_manager = nil
+  @_exception_handler = nil
   @_blocks = {}
   @_next_ticks = []
+  @_handles = {}
 
   def self.run
     raise AsyncEngine::Error, "AsyncEngine already running"  if @_is_running
     @_is_running = true
-
-    @_thread = Thread.current
 
     # SIGPIPE is received by a program when reading from a pipe whose other
     # end has been closed, so it's good to trap and ignore it:
@@ -47,20 +46,20 @@ module AsyncEngine
     @_is_running
   end
 
-  def self.set_exception_manager block1=nil, &block2
+  def self.set_exception_handler block1=nil, &block2
     block = block1 || block2
     raise AsyncEngine::Error, "no block provided"  unless block.respond_to? :call
 
-    @_exception_manager = block
+    @_exception_handler = block
   end
 
-  def self.unset_exception_manager
-    @_exception_manager = nil
+  def self.unset_exception_handler
+    @_exception_handler = nil
   end
 
-  def self.manage_exception e
-    if @_exception_manager
-      @_exception_manager.call e
+  def self.handle_exception e
+    if @_exception_handler
+      @_exception_handler.call e
     else
       raise e
     end
@@ -68,7 +67,7 @@ module AsyncEngine
 
   class << self
     private :_c_run
-    private :manage_exception
+    private :handle_exception
   end
 
 end

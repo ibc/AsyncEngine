@@ -14,7 +14,7 @@ fi
 set -e
 
 
-RAGEL_FILE=ip_utils
+RAGEL_FILE=ip_parser
 
 
 echo "compiling Ragel grammar $RAGEL_FILE.rl ..."

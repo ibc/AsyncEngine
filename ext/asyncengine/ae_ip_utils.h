@@ -2,7 +2,7 @@
 #define AE_IP_UTILS_H
 
 
-#include "ip_utils.h"
+#include "ip_parser.h"
 
 
 VALUE symbol_ipv4;

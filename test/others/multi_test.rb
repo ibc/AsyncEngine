@@ -9,6 +9,45 @@ puts "PID = #{$$}\n\n"
 at_exit { puts "NOTICE: exiting..." }
 
 
+if true and false
+  require "benchmark"
+  AE.run do
+    #puts Benchmark.realtime { 300000.times { AE.add_timer(0.001) {} } }
+    puts Benchmark.realtime { 300000.times { a=AE::Timer.new(0.001) {} } }
+  end
+  exit
+end
+
+
+if true and false
+  t1 = Thread.new do
+    AE.run { AE.add_periodic_timer(0.1) { printf "." } }
+  end
+
+  sleep 0.2
+  AE.run { AE.add_periodic_timer(0.1) { printf "-" } }
+  t1.join
+  exit
+end
+
+
+if true and false
+  puts AE.num_handles
+  begin
+    AE.run do
+      AE.add_timer(0.1) { AHH }
+      AE.add_timer(1) { puts "AE.run 1 ends" }
+    end
+  rescue => e
+    puts "NOTICE: exception rescued in AE.run: #{e.class} - #{e.message}"
+  end
+  puts AE.num_handles
+  AE.run
+  #AE.run { AE.add_timer(0.01) { AHHHHH } } rescue nil
+  #AE.run { AE.add_timer(0.1) { puts "FIN"} }
+  exit
+end
+
 
 #trap(:INT)  { puts "*** INT trapped => ignore" }
 #trap(:INT)  { puts "*** INT trapped => exit" ; exit }
@@ -69,15 +108,6 @@ if true and false
   100.times do AE.add_periodic_timer(0.001) { pt.restart {} } end
   AE.run
   exit
-end
-
-
-if true and false
-  AE.run do
-    AE.test_send_udp4("1.2.3.4", 9999, "111")
-    AE.test_send_udp4("1.2.3.4", 9999, "222")
-    AE.test_send_udp4("1.2.3.4", 9999, "333")
-  end
 end
 
 
@@ -197,7 +227,7 @@ end
 #AE.add_periodic_timer(5){ exit }
 
 
-AE.exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
+AE.set_exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
 AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
 AE.next_tick { raise "next_tick: raising an exception !!!" }
 #AE.add_timer(0.5) { require "lalala-in-add_timer" }

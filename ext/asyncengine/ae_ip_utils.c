@@ -1,6 +1,4 @@
-// TODO: hace falta?  #include <string.h>
-#include <netinet/in.h>
-//#include "../asyncengine_ruby.h"
+#include <netinet/in.h>  /* TODO: will it work on Windows? */
 #include "asyncengine_ruby.h"
 #include "ae_ip_utils.h"
 
@@ -35,8 +33,8 @@ VALUE AsyncEngineUtils_ip_type(VALUE self, VALUE string)
 
   str = RSTRING_PTR(string);
   len = RSTRING_LEN(string);
-  
-  switch(ip_utils_parser_execute(str, len)) {
+
+  switch(ae_ip_parser_execute(str, len)) {
     case(ip_type_ipv4):
       return symbol_ipv4;
       break;
@@ -57,7 +55,7 @@ VALUE AsyncEngineUtils_ip_type(VALUE self, VALUE string)
  * Return 1 if both pure IP's are equal, 0 otherwise.
  */
 static
-int compare_pure_ips(char *ip1, size_t len1, enum enum_ip_type ip1_type, char *ip2, size_t len2, enum enum_ip_type ip2_type)
+int compare_pure_ips(char *ip1, size_t len1, enum_ip_type ip1_type, char *ip2, size_t len2, enum_ip_type ip2_type)
 {
   AE_TRACE();
 
@@ -77,8 +75,8 @@ int compare_pure_ips(char *ip1, size_t len1, enum enum_ip_type ip1_type, char *i
   switch(ip1_type) {
     // Comparing IPv4 with IPv4.
     case(ip_type_ipv4):
-      if (inet_pton(AF_INET, _ip1, &in_addr1) == 0)  return 0;
-      if (inet_pton(AF_INET, _ip2, &in_addr2) == 0)  return 0;
+      if (ae_inet_pton(AF_INET, _ip1, &in_addr1) == 0)  return 0;
+      if (ae_inet_pton(AF_INET, _ip2, &in_addr2) == 0)  return 0;
       if (in_addr1.s_addr == in_addr2.s_addr)
         return 1;
       else
@@ -86,8 +84,8 @@ int compare_pure_ips(char *ip1, size_t len1, enum enum_ip_type ip1_type, char *i
       break;
     // Comparing IPv6 with IPv6.
     case(ip_type_ipv6):
-      if (inet_pton(AF_INET6, _ip1, &in6_addr1) != 1)  return 0;
-      if (inet_pton(AF_INET6, _ip2, &in6_addr2) != 1)  return 0;
+      if (ae_inet_pton(AF_INET6, _ip1, &in6_addr1) != 1)  return 0;
+      if (ae_inet_pton(AF_INET6, _ip2, &in6_addr2) != 1)  return 0;
       if (memcmp(in6_addr1.s6_addr, in6_addr2.s6_addr, sizeof(in6_addr1.s6_addr)) == 0)
         return 1;
       else
@@ -101,11 +99,12 @@ int compare_pure_ips(char *ip1, size_t len1, enum enum_ip_type ip1_type, char *i
 
 
 /*
- * Returns true if both IP's are equal (binary comparison).
- * Returns false if both IP's are not equal.
+ * Returns true if both IP's are equal (binary comparison). It allows comparison
+ * between IPv4, IPv6 and IPv6 references.
+ * Returns true when comparing an IPv6 with its IPv6 reference in case
+ * parameter _allow_ipv6_reference_ is set to true, it returns false otherwise.
+ *
  * Returns nil if at least one of the IP's is not valid IPv4, IPv6 or IPv6 reference.
- * This function also allows comparing an IPv6 with an IPv6 reference if
- * the parameter _allow_ipv6_reference_ is set to true.
  */
 VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
 {
@@ -113,8 +112,9 @@ VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
 
   char *str1, *str2;
   long len1, len2;
-  enum enum_ip_type ip1_type, ip2_type;
+  enum_ip_type ip1_type, ip2_type;
   int allow_ipv6_reference = 0;
+  int ipv6_references_found = 0;
 
   if (argc < 2)
     rb_raise(rb_eArgError, "at least two arguments are required");
@@ -130,13 +130,12 @@ VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
   str2 = RSTRING_PTR(argv[1]);
   len2 = RSTRING_LEN(argv[1]);
 
-  switch(ip1_type = ip_utils_parser_execute(str1, len1)) {
+  switch(ip1_type = ae_ip_parser_execute(str1, len1)) {
     case(ip_type_error):
       return Qnil;
       break;
     case(ip_type_ipv6_reference):
-      if (! allow_ipv6_reference)
-        return Qnil;
+      ipv6_references_found++;
       str1 += 1;
       len1 -= 2;
       ip1_type = ip_type_ipv6;
@@ -144,13 +143,12 @@ VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
     default:
       break;
   }
-  switch(ip2_type = ip_utils_parser_execute(str2, len2)) {
+  switch(ip2_type = ae_ip_parser_execute(str2, len2)) {
     case(ip_type_error):
       return Qnil;
       break;
     case(ip_type_ipv6_reference):
-      if (! allow_ipv6_reference)
-        return Qnil;
+      ipv6_references_found++;
       str2 += 1;
       len2 -= 2;
       ip2_type = ip_type_ipv6;
@@ -158,6 +156,9 @@ VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
     default:
       break;
   }
+
+  if (ipv6_references_found == 1 && allow_ipv6_reference == 0)
+    return Qfalse;
 
   if (compare_pure_ips(str1, len1, ip1_type, str2, len2, ip2_type))
     return Qtrue;

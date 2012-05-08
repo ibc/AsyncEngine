@@ -2,10 +2,11 @@ TODO
 ****
 
 
+
 assert()
 --------
 
-Add assert() in all the uv functions in which I do not check the exit status.
+Add assert() in all the uv functions in which I do not check the return code.
 
 
 
@@ -13,7 +14,7 @@ Add assert() in all the uv functions in which I do not check the exit status.
 --------------------------------------------------
 
   trap(:INT)  { puts "*** INT trapped => ignore" }
-  AE.start do
+  AE.run do
     Thread.new { loop { puts "---t1---" ; sleep 0.001 } }
     Thread.new { loop { puts "---t2---" ; sleep 0.001 } }
     AE.add_periodic_timer(0.001) { puts "***AE timer 1***" }
@@ -51,3 +52,17 @@ So when you encounter spurious, unexplained daemon exits, make sure you ignore S
 So maybe AsyncEngine should trap and ignore SIGPIPE from the beginning.
 
 UPDATE: Ruby ignores PIPE signal by default, and also uv so nothing must be done.
+
+
+
+Wait for uv_run_nowait()
+------------------------
+
+https://github.com/joyent/libuv/issues/410
+
+
+
+uv_inet_pton/ntop
+-----------------
+
+https://github.com/saghul/pyuv/blob/master/src/pyuv.h#L269

@@ -3,7 +3,6 @@
 #include "ae_timer.h"
 #include "ae_next_tick.h"
 #include "ae_udp.h"
-//#include "ae_utils/ae_ip_utils.h"
 #include "ae_ip_utils.h"
 
 
@@ -39,9 +38,8 @@ VALUE run_uv_without_gvl(void* param)
   uv_ref(uv_default_loop());
   uv_close((uv_handle_t *)av_uv_prepare, ae_uv_handle_close_callback_0);
 
-  if (! ret) {
+  if (! ret)
     return Qtrue;
-  }
   else
     return Qfalse;
 }

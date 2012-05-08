@@ -6,19 +6,22 @@
 extern VALUE mAsyncEngine;
 
 // C variable holding current block number.
-static long block_id = 0;
+static long block_id;
+// C variable holding current handle number.
+static long handle_id;
 
 // Ruby class for saving C data inside.
 VALUE cAsyncEngineCData;
 
 // Ruby attributes.
 static ID att_blocks;
+static ID att_handles;
 ID att_cdata;
 ID att_handle_terminated;
 
 // Ruby method names.
 ID id_method_call;
-ID id_manage_exception;
+ID id_handle_exception;
 
 
 void init_ae_handle_common()
@@ -28,11 +31,42 @@ void init_ae_handle_common()
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
   att_blocks = rb_intern("@_blocks");
+  att_handles = rb_intern("@_handles");
   att_cdata = rb_intern("@_cdata");
   att_handle_terminated = rb_intern("@_handle_terminated");
 
   id_method_call = rb_intern("call");
-  id_manage_exception = rb_intern("manage_exception");
+  id_handle_exception = rb_intern("handle_exception");
+
+  block_id = 0;
+  handle_id = 0;
+}
+
+
+VALUE ae_store_handle(VALUE handle)
+{
+  AE_TRACE();
+
+  VALUE handle_id = LONG2FIX(++handle_id);
+
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), handle_id, handle);
+  return handle_id;
+}
+
+
+VALUE ae_get_handle(VALUE handle_id)
+{
+  AE_TRACE();
+
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), handle_id);
+}
+
+
+VALUE ae_remove_handle(VALUE handle_id)
+{
+  AE_TRACE();
+
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), handle_id);
 }
 
 
@@ -63,17 +97,17 @@ VALUE ae_remove_block(VALUE rb_block_id)
 }
 
 
-void ae_manage_exception(int exception_tag)
+void ae_handle_exception(int exception_tag)
 {
   AE_TRACE();
 
   // rb_errinfo() gives the current exception object in this thread.
   VALUE exception = rb_errinfo();
 
-  // Just check the exception in the user provided AE.exception_manager block if
+  // Just check the exception in the user provided AE.exception_handler block if
   // it is a StandardError. Otherwise raise it and terminate.
   if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue) {
-    rb_funcall(mAsyncEngine, id_manage_exception, 1, exception);
+    rb_funcall(mAsyncEngine, id_handle_exception, 1, exception);
     // Dissable the current thread exception.
     rb_set_errinfo(Qnil);
   }

@@ -33,18 +33,18 @@ class TestBasic < AETest
     assert_equal "abcdef", str
   end
 
-  def test_02_exception_manager
-    AE.set_exception_manager {|e| assert e.is_a? ::StandardError }
+  def test_02_exception_handler
+    AE.set_exception_handler {|e| assert e.is_a? ::StandardError }
 
-    assert_true AE.instance_variable_get(:@_exception_manager).respond_to?(:call)
+    assert_respond_to AE.instance_variable_get(:@_exception_handler), :call
 
     assert_nothing_raised do
       AE.run { AE.next_tick { oppps } ; AE.add_timer(0.001) { uhhhh } }
       AE.run { AE.next_tick { ouchh } ; AE.add_timer(0.001) { LOL } }
     end
 
-    # Dissable the exception manager again.
-    AE.unset_exception_manager
+    # Dissable the exception handler again.
+    AE.unset_exception_handler
 
     assert_equal nil, AE.instance_variable_get(:@_exception_manager)
   end
