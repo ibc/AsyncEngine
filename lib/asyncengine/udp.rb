@@ -1,29 +1,24 @@
 module AsyncEngine
 
-  def self.open_udp_socket_ip4 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocketDefaultClass, *args, &block
-    _open_udp_socket nil, bind_ip || "0.0.0.0", bind_port || 0, udp_options, klass, *args, &block
-  end
+#   def self.open_udp_socket_ip4 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocket, *args, &block
+#     _open_udp_socket nil, bind_ip || "0.0.0.0", bind_port || 0, udp_options, klass, *args, &block
+#   end
+# 
+#   def self.open_udp_socket_ip6 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocket, *args, &block
+#     _open_udp_socket true, bind_ip || "::0", bind_port || 0, udp_options, klass, *args, &block
+#   end
 
-  def self.open_udp_socket_ip6 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocketDefaultClass, *args, &block
-    _open_udp_socket true, bind_ip || "::0", bind_port || 0, udp_options, klass, *args, &block
-  end
-
-  def self._open_udp_socket is_ipv6, bind_ip, bind_port, udp_options, klass, *args
-    raise AsyncEngine::Error, "klass must include AsyncEngine::UDPSocket module" unless
-      klass.include? AsyncEngine::UDPSocket
+  def self.open_udp_socket bind_ip, bind_port, klass=AsyncEngine::UDPSocket, *args
+    raise AsyncEngine::Error, "klass must inherit from AsyncEngine::UDPSocket" unless
+      klass <= AsyncEngine::UDPSocket
 
     # First allocate a handler instance.
     sock = klass.allocate
 
     # Set the UV handler.
-    unless (ret = sock.send :_c_init_udp_socket, is_ipv6, bind_ip, bind_port) == true
+    unless (ret = sock.send :_c_init_udp_socket, bind_ip, bind_port) == true
       raise AsyncEngine.get_uv_error(ret)
     end
-
-    # Initiate instance attributes.
-    sock.instance_variable_set :@_ip_type, ( is_ipv6 ? :ipv6 : :ipv4 )
-    sock.instance_variable_set :@_bind_ip, bind_ip
-    sock.instance_variable_set :@_bind_port, bind_port
 
     # Call the usual initialize() method as defined by the user.
     sock.send :initialize, *args
@@ -38,11 +33,11 @@ module AsyncEngine
   end
 
   class << self
-    private :_open_udp_socket
+    #private :_open_udp_socket
   end
 
 
-  module UDPSocket
+  class UDPSocket
     def ip_type
       @_ip_type
     end
@@ -56,11 +51,16 @@ module AsyncEngine
       @_bind_port
     end
     alias :local_port :bind_port
-  end  # module UDPSocket
 
+    alias orig_to_s to_s
+    def to_s
+      "#{self.orig_to_s} (#{@_ip_type} : #{@_bind_ip} : #{@_bind_port})"
+    end
+    alias :inspect :to_s
 
-  class UDPSocketDefaultClass
-    include AsyncEngine::UDPSocket
-  end  # class UDPSocketDefaultClass
+    class << self
+      private :new
+    end
+  end  # class UDPSocket
 
 end
