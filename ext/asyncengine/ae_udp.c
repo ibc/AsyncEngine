@@ -145,6 +145,10 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
     case ip_type_ipv6:
       assert(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), udp_send_callback));
       break;
+    // TODO: Quitar esto.
+    default:
+      printf("NOOOOOOOOOOOOOOOOOOOO\n");
+      
   }
 
   // TODO: Si está chapao el socket habrá que devolver false no?

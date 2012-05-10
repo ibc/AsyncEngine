@@ -1,4 +1,3 @@
-#include <netinet/in.h>  /* TODO: will it work on Windows? */
 #include "asyncengine_ruby.h"
 #include "ae_ip_utils.h"
 
@@ -61,7 +60,8 @@ int compare_pure_ips(char *ip1, size_t len1, enum_ip_type ip1_type, char *ip2, s
 
   struct in_addr in_addr1, in_addr2;
   struct in6_addr in6_addr1, in6_addr2;
-  char _ip1[INET6_ADDRSTRLEN], _ip2[INET6_ADDRSTRLEN];
+  //INET6_ADDRSTRLEN = 46
+  char _ip1[46], _ip2[46];
 
   // Not same IP type, return false.
   if (ip1_type != ip2_type)

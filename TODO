@@ -66,3 +66,74 @@ uv_inet_pton/ntop
 -----------------
 
 https://github.com/saghul/pyuv/blob/master/src/pyuv.h#L269
+
+
+
+uv_bind_udp() multiple times with same bind address
+---------------------------------------------------
+
+https://github.com/joyent/libuv/issues/412
+
+RESPONSE: It's a feature, libuv sets the SO_REUSEADDR flag on both sockets. Both are able to send but only the second socket can receive datagrams.
+
+
+
+Ruby DATA_PTR
+-------------
+
+file.c:
+
+/*
+ * call-seq:
+ *
+ *   File::Stat.new(file_name)  -> stat
+ *
+ * Create a File::Stat object for the given file name (raising an
+ * exception if the file doesn't exist).
+ */
+
+static VALUE
+rb_stat_init(VALUE obj, VALUE fname)
+{
+    struct stat st, *nst;
+
+    rb_secure(2);
+    FilePathValue(fname);
+    fname = rb_str_encode_ospath(fname);
+    if (STAT(StringValueCStr(fname), &st) == -1) {
+        rb_sys_fail(RSTRING_PTR(fname));
+    }
+    if (DATA_PTR(obj)) {
+        xfree(DATA_PTR(obj));
+        DATA_PTR(obj) = NULL;
+    }
+    nst = ALLOC(struct stat);
+    *nst = st;
+    DATA_PTR(obj) = nst;
+
+    return Qnil;
+}
+
+static VALUE
+rb_stat_init_copy(VALUE copy, VALUE orig)
+{
+    struct stat *nst;
+
+    if (copy == orig) return orig;
+    rb_check_frozen(copy);
+    /* need better argument type check */
+    if (!rb_obj_is_instance_of(orig, rb_obj_class(copy))) {
+        rb_raise(rb_eTypeError, "wrong argument class");
+    }
+    if (DATA_PTR(copy)) {
+        xfree(DATA_PTR(copy));
+        DATA_PTR(copy) = 0;
+    }
+    if (DATA_PTR(orig)) {
+        nst = ALLOC(struct stat);
+        *nst = *(struct stat*)DATA_PTR(orig);
+        DATA_PTR(copy) = nst;
+    }
+
+    return copy;
+}
