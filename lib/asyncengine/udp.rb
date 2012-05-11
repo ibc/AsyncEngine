@@ -1,13 +1,5 @@
 module AsyncEngine
 
-#   def self.open_udp_socket_ip4 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocket, *args, &block
-#     _open_udp_socket nil, bind_ip || "0.0.0.0", bind_port || 0, udp_options, klass, *args, &block
-#   end
-# 
-#   def self.open_udp_socket_ip6 bind_ip=nil, bind_port=nil, udp_options={}, klass=AsyncEngine::UDPSocket, *args, &block
-#     _open_udp_socket true, bind_ip || "::0", bind_port || 0, udp_options, klass, *args, &block
-#   end
-
   def self.open_udp_socket bind_ip, bind_port, klass=AsyncEngine::UDPSocket, *args
     raise AsyncEngine::Error, "klass must inherit from AsyncEngine::UDPSocket" unless
       klass <= AsyncEngine::UDPSocket
@@ -15,7 +7,7 @@ module AsyncEngine
     # First allocate a handler instance.
     sock = klass.allocate
 
-    # Set the UV handler.
+    # Set the UV UDP handler and bind.
     unless (ret = sock.send :_c_init_udp_socket, bind_ip, bind_port) == true
       raise AsyncEngine.get_uv_error(ret)
     end
@@ -25,8 +17,6 @@ module AsyncEngine
 
     # Run the given block.
     block_given? and yield sock
-
-    # TODO: Falta meterlo en un hash no?
 
     # Return the klass instance.
     sock

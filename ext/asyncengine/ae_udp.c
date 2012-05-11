@@ -12,6 +12,7 @@ static ID att_ip_type;
 
 
 typedef struct {
+  int closed;
   enum_ip_type ip_type;
   uv_udp_t *_uv_handle;
   VALUE rb_ae_udp_socket_id;
@@ -20,7 +21,6 @@ typedef struct {
 
 typedef struct {
   char *datagram;
-  int datagram_len;
 } struct_ae_udp_send_data;
 
 
@@ -31,8 +31,7 @@ static void AsyncEngineUdpSocket_free(void *cdata)
   printf("--- AsyncEngineUdpSocket_free()\n");
 
   // NOTE: The cdata struct is freed via Ruby GC.
-  if(cdata)
-    xfree(cdata);
+  xfree(cdata);
 }
 
 
@@ -58,6 +57,8 @@ void init_ae_udp()
   rb_define_private_method(cAsyncEngineUdpSocket, "_c_init_udp_socket", AsyncEngineUdpSocket_c_init_udp_socket, 2);
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, 3);
 
+  rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
+
   att_bind_ip = rb_intern("@_bind_ip");
   att_bind_port = rb_intern("@_bind_port");
   att_ip_type = rb_intern("@_ip_type");
@@ -70,7 +71,7 @@ void deallocate_udp_handle(struct_ae_udp_cdata* cdata)
   AE_TRACE();
   printf("--- deallocate_udp_handle()\n");
 
-  // Let the GC work. TODO: Debe quitarlo del hash de udp handles de AE (salvo que haya fallado al crearse !!!).
+  // Let the GC work.
   ae_remove_handle(cdata->rb_ae_udp_socket_id);
   // Close the UDP handle so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
@@ -102,8 +103,9 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
 
   Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
 
+  cdata->closed = 0;
   cdata->_uv_handle = ALLOC(uv_udp_t);
-  cdata->rb_ae_udp_socket_id = ae_store_handle(self);
+  cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
 
   assert(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
@@ -147,8 +149,8 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
 {
   AE_TRACE();
 
-  char *ip = StringValueCStr(rb_ip);
-  int port = FIX2INT(rb_port);
+  char *ip;
+  int port;
   uv_buf_t buffer;
   char *datagram;
   int datagram_len;
@@ -158,6 +160,14 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   enum_ip_type ip_type;
 
   Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
+
+  if (cdata->closed) {
+    printf("AsyncEngineUdpSocket_send_datagram => closed !!!\n");
+    return Qfalse;
+  }
+
+  ip = StringValueCStr(rb_ip);
+  port = FIX2INT(rb_port);
 
   ip_type = ae_ip_parser_execute(RSTRING_PTR(rb_ip), RSTRING_LEN(rb_ip));
   if (ip_type != cdata->ip_type)
@@ -169,15 +179,13 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   datagram = ALLOC_N(char, datagram_len);
   memcpy(datagram, RSTRING_PTR(rb_data), datagram_len);
 
-  buffer = uv_buf_init(datagram, datagram_len);
+  send_data = ALLOC(struct_ae_udp_send_data);
+  send_data->datagram = datagram;
 
   _uv_req = ALLOC(uv_udp_send_t);
-  send_data = ALLOC(struct_ae_udp_send_data);
-
-  send_data->datagram = datagram;
-  send_data->datagram_len = datagram_len;
-
   _uv_req->data = send_data;
+
+  buffer = uv_buf_init(datagram, datagram_len);
 
   // TODO uv_udp_send() parece que devuelve siempre 0 aunque le pases un puerto destino 0 (que
   // luego se traduce en error en el callback).
@@ -193,5 +201,20 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   }
 
   // TODO: Si está chapao el socket habrá que devolver false no?
+  return Qtrue;
+}
+
+
+
+VALUE AsyncEngineUdpSocket_close(VALUE self)
+{
+  AE_TRACE();
+
+  struct_ae_udp_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
+
+  cdata->closed = 1;
+
   return Qtrue;
 }
