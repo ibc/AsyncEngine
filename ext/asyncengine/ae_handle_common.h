@@ -13,8 +13,7 @@
 VALUE cAsyncEngineCData;
 
 ID att_cdata;
-ID att_handle_terminated;
-ID id_method_call;
+ID att_handle_terminated; // TODO: Fuera, hacer como en UDP y meterlo en el cdata struct.
 
 void init_ae_handle_common();
 
@@ -27,8 +26,11 @@ VALUE ae_get_block(VALUE);
 VALUE ae_remove_block(VALUE);
 
 void ae_handle_exception(int);
-void ae_uv_handle_close_callback_0(uv_handle_t*);
-int ae_protect_block_call_0(VALUE);
+void ae_uv_handle_close_callback(uv_handle_t*);
+VALUE ae_protect_block_call(VALUE block, int *exception_tag);
+
+typedef VALUE (*execute_method_with_protect)(VALUE param);
+void execute_method_with_gvl_and_protect(execute_method_with_protect method_with_protect, void *param);
 
 
 #endif  /* AE_HANDLE_COMMON_H */

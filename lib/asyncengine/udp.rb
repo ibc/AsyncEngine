@@ -22,10 +22,6 @@ module AsyncEngine
     sock
   end
 
-  class << self
-    #private :_open_udp_socket
-  end
-
 
   class UDPSocket
     def ip_type
@@ -47,6 +43,10 @@ module AsyncEngine
       "#{self.orig_to_s} (#{@_ip_type} : #{@_bind_ip} : #{@_bind_port})"
     end
     alias :inspect :to_s
+
+    def on_received_datagram datagram
+      puts "INFO: received datagram: #{datagram.inspect}"
+    end
 
     class << self
       private :new

@@ -36,7 +36,7 @@ void deallocate_timer_handle(struct_ae_timer_cdata* cdata, int remove_handle)
   if (remove_handle)
     ae_remove_handle(cdata->rb_ae_timer_id);
   // Close the timer so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
   // Free memory.
   xfree(cdata);
 }
@@ -60,7 +60,7 @@ void execute_timer_callback_with_gvl(uv_timer_t* handle)
     deallocate_timer_handle(cdata, 0);
   }
 
-  exception_tag = ae_protect_block_call_0(block);
+  ae_protect_block_call(block, &exception_tag);
 
   if (exception_tag)
     ae_handle_exception(exception_tag);

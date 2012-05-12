@@ -36,7 +36,7 @@ VALUE run_uv_without_gvl(void* param)
 
   // Referece again av_uv_prepare so it can be properly closed.
   uv_ref(uv_default_loop());
-  uv_close((uv_handle_t *)av_uv_prepare, ae_uv_handle_close_callback_0);
+  uv_close((uv_handle_t *)av_uv_prepare, ae_uv_handle_close_callback);
 
   if (! ret)
     return Qtrue;

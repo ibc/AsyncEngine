@@ -65,6 +65,16 @@ module AsyncEngine
     end
   end
 
+  # TODO: testing
+  def self.debug
+    puts "DBG: AsyncEngine debug:"
+    puts
+    puts "@_blocks: #{@_blocks.inspect}"
+    puts
+    puts "@_handles: #{@_handles.inspect}"
+    puts
+  end
+
   class << self
     private :_c_run
     private :handle_exception

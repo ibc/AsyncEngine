@@ -20,8 +20,8 @@ ID att_cdata;
 ID att_handle_terminated;
 
 // Ruby method names.
-ID id_method_call;
-ID id_handle_exception;
+static ID method_call;
+static ID method_handle_exception;
 
 
 void init_ae_handle_common()
@@ -35,48 +35,48 @@ void init_ae_handle_common()
   att_cdata = rb_intern("@_cdata");
   att_handle_terminated = rb_intern("@_handle_terminated");
 
-  id_method_call = rb_intern("call");
-  id_handle_exception = rb_intern("handle_exception");
+  method_call = rb_intern("call");
+  method_handle_exception = rb_intern("handle_exception");
 
   block_id = 0;
   handle_id = 0;
 }
 
 
-VALUE ae_store_handle(VALUE handle)
+VALUE ae_store_handle(VALUE rb_handle)
 {
   AE_TRACE();
 
-  VALUE handle_id = LONG2FIX(++handle_id);
+  VALUE rb_handle_id = LONG2FIX(++handle_id);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), handle_id, handle);
-  return handle_id;
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id, rb_handle);
+  return rb_handle_id;
 }
 
 
-VALUE ae_get_handle(VALUE handle_id)
+VALUE ae_get_handle(VALUE rb_handle_id)
 {
   AE_TRACE();
 
-  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), handle_id);
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
 
-VALUE ae_remove_handle(VALUE handle_id)
+VALUE ae_remove_handle(VALUE rb_handle_id)
 {
   AE_TRACE();
 
-  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), handle_id);
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
 }
 
 
-VALUE ae_store_block(VALUE block)
+VALUE ae_store_block(VALUE rb_block)
 {
   AE_TRACE();
 
   VALUE rb_block_id = LONG2FIX(++block_id);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id, block);
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id, rb_block);
   return rb_block_id;
 }
 
@@ -107,7 +107,7 @@ void ae_handle_exception(int exception_tag)
   // Just check the exception in the user provided AE.exception_handler block if
   // it is a StandardError. Otherwise raise it and terminate.
   if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue) {
-    rb_funcall(mAsyncEngine, id_handle_exception, 1, exception);
+    rb_funcall(mAsyncEngine, method_handle_exception, 1, exception);
     // Dissable the current thread exception.
     rb_set_errinfo(Qnil);
   }
@@ -116,7 +116,7 @@ void ae_handle_exception(int exception_tag)
 }
 
 
-void ae_uv_handle_close_callback_0(uv_handle_t* handle)
+void ae_uv_handle_close_callback(uv_handle_t* handle)
 {
   AE_TRACE();
 
@@ -125,21 +125,60 @@ void ae_uv_handle_close_callback_0(uv_handle_t* handle)
 
 
 static
-VALUE wrapper_rb_funcall_0(VALUE block)
+VALUE wrapper_rb_funcall_block_call(VALUE block)
 {
   AE_TRACE();
 
-  rb_funcall(block, id_method_call, 0, 0);
-  return Qnil;
+  return rb_funcall2(block, method_call, 0, NULL);
 }
 
 
-int ae_protect_block_call_0(VALUE block)
+VALUE ae_protect_block_call(VALUE block, int *exception_tag)
 {
   AE_TRACE();
 
-  int exception = 0;
+  *exception_tag;
 
-  rb_protect(wrapper_rb_funcall_0, block, &exception);
-  return exception;
+  return rb_protect(wrapper_rb_funcall_block_call, block, exception_tag);
+}
+
+
+
+
+typedef struct {
+  execute_method_with_protect method_with_protect;
+  void *param;
+} struct_method_with_protect_data;
+
+
+static
+void execute_method_with_gvl(struct_method_with_protect_data data)
+{
+  AE_TRACE();
+
+  int exception_tag;
+  VALUE param;
+
+  if (data.param)
+    param = (VALUE)(data.param);
+  else
+    param = Qnil;
+
+  rb_protect(data.method_with_protect, param, &exception_tag);
+
+  if (exception_tag)
+    ae_handle_exception(exception_tag);
+}
+
+
+// param MUST be NULL or VALUE.
+void execute_method_with_gvl_and_protect(execute_method_with_protect method_with_protect, void *param)
+{
+  AE_TRACE();
+
+  struct_method_with_protect_data data;
+  data.method_with_protect = method_with_protect;
+  data.param = param;
+
+  rb_thread_call_with_gvl(execute_method_with_gvl, data);
 }

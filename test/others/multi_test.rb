@@ -227,7 +227,7 @@ end
 #AE.add_periodic_timer(5){ exit }
 
 
-AE.set_exception_manager {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
+AE.set_exception_handler {|e| puts "ERROR: exception rescued: #{e.class} - #{e}"} #\n#{e.backtrace.join("\n")}" }
 AE.add_timer(0.5) { raise "add_timer: raising an exception !!!" }
 AE.next_tick { raise "next_tick: raising an exception !!!" }
 #AE.add_timer(0.5) { require "lalala-in-add_timer" }

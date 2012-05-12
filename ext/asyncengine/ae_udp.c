@@ -4,18 +4,25 @@
 #include "ae_ip_utils.h"
 
 
+#define AE_UDP_DATAGRAM_MAX_SIZE 65536
+
+
 static VALUE cAsyncEngineUdpSocket;
 
 static ID att_bind_ip;
 static ID att_bind_port;
 static ID att_ip_type;
 
+static ID method_on_received_datagram;
+
 
 typedef struct {
   int closed;
   enum_ip_type ip_type;
   uv_udp_t *_uv_handle;
+  VALUE rb_ae_udp_socket;
   VALUE rb_ae_udp_socket_id;
+  uv_buf_t recv_buffer;
 } struct_ae_udp_cdata;
 
 
@@ -24,13 +31,27 @@ typedef struct {
 } struct_ae_udp_send_data;
 
 
+typedef struct {
+  uv_udp_t* handle;
+  ssize_t nread;
+  uv_buf_t buf;
+  struct sockaddr* addr;
+  unsigned flags;
+} struct_udp_recv_callback_data;
+
+
+// NOTE: Used for storing information about the last UDP recv callback.
+static struct_udp_recv_callback_data udp_recv_callback_data;
+
+
 static void AsyncEngineUdpSocket_free(void *cdata)
 {
   AE_TRACE();
 
-  printf("--- AsyncEngineUdpSocket_free()\n");
+  printf("DBG: AsyncEngineUdpSocket_free()\n");
 
   // NOTE: The cdata struct is freed via Ruby GC.
+  xfree(((struct_ae_udp_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
 }
 
@@ -39,9 +60,8 @@ VALUE AsyncEngineUdpSocket_alloc(VALUE klass)
 {
   AE_TRACE();
 
-  printf("--- AsyncEngineUdpSocket_alloc()\n");
-
   struct_ae_udp_cdata* cdata = ALLOC(struct_ae_udp_cdata);
+  cdata->recv_buffer = uv_buf_init(ALLOC_N(char, AE_UDP_DATAGRAM_MAX_SIZE), AE_UDP_DATAGRAM_MAX_SIZE);
 
   return Data_Wrap_Struct(klass, NULL, AsyncEngineUdpSocket_free, cdata);
 }
@@ -62,6 +82,8 @@ void init_ae_udp()
   att_bind_ip = rb_intern("@_bind_ip");
   att_bind_port = rb_intern("@_bind_port");
   att_ip_type = rb_intern("@_ip_type");
+
+  method_on_received_datagram = rb_intern("on_received_datagram");
 }
 
 
@@ -69,12 +91,95 @@ static
 void deallocate_udp_handle(struct_ae_udp_cdata* cdata)
 {
   AE_TRACE();
-  printf("--- deallocate_udp_handle()\n");
+  printf("DBG: deallocate_udp_handle()\n");
 
   // Let the GC work.
   ae_remove_handle(cdata->rb_ae_udp_socket_id);
   // Close the UDP handle so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback_0);
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+}
+
+
+static
+uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
+{
+  AE_TRACE();
+
+  //printf("DBG: uv_alloc_cb: suggested_size = %d\n", (int)suggested_size);
+
+  return ((struct_ae_udp_cdata*)handle->data)->recv_buffer;
+}
+
+
+static
+VALUE ae_udp_socket_recv_callback(VALUE ignore)
+{
+  AE_TRACE();
+
+  //printf("DBG: ae_udp_socket_recv_callback\n");
+
+  struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)udp_recv_callback_data.handle->data;
+  VALUE rb_datagram = rb_tainted_str_new(udp_recv_callback_data.buf.base, udp_recv_callback_data.nread);
+
+  return rb_funcall(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, rb_datagram);
+}
+
+
+// static
+// VALUE execute_udp_recv_callback_with_protection(VALUE ignore)
+// {
+//   AE_TRACE();
+// 
+//   //printf("DBG: execute_udp_recv_callback_with_protection\n");
+// 
+//   struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)udp_recv_callback_data.handle->data;
+//   VALUE rb_datagram = rb_tainted_str_new(udp_recv_callback_data.buf.base, udp_recv_callback_data.nread);
+// 
+//   return rb_funcall(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, rb_datagram);
+// }
+
+
+// static
+// void execute_udp_recv_callback_with_gvl()
+// {
+//   AE_TRACE();
+// 
+//   //printf("DBG: execute_udp_recv_callback_with_gvl\n");
+// 
+//   int exception_tag;
+// 
+//   rb_protect(execute_udp_recv_callback_with_protection, Qnil, &exception_tag);
+// 
+//   if (exception_tag)
+//     ae_handle_exception(exception_tag);
+// }
+
+
+static
+void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct sockaddr* addr, unsigned flags)
+{
+  AE_TRACE();
+
+  if (nread == 0) return;
+
+  if (nread == -1) {
+    // TODO: Que hacemos?
+    printf("ERROR: udp_recv_callback: nread = %d\n", (int)nread);
+    return;
+  }
+
+  //printf("DBG: udp_recv_allback: nread = %d\n", (int)nread);
+
+  // Store UDP recv information in the udp_recv_callback_data struct.
+  udp_recv_callback_data.handle = handle;
+  udp_recv_callback_data.nread = nread;
+  udp_recv_callback_data.buf = buf;
+  udp_recv_callback_data.addr = addr;
+  udp_recv_callback_data.flags = flags;
+
+  //rb_thread_call_with_gvl(execute_udp_recv_callback_with_gvl, NULL);
+
+  execute_method_with_gvl_and_protect(ae_udp_socket_recv_callback, NULL);
 }
 
 
@@ -105,10 +210,14 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
 
   cdata->closed = 0;
   cdata->_uv_handle = ALLOC(uv_udp_t);
+  cdata->rb_ae_udp_socket = self;
   cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
 
   assert(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
+
+  // NOTE: If we set the data field *before* uv_udp_init() then such a function set data to NULL !!!
+  cdata->_uv_handle->data = cdata;
 
   switch(ip_type) {
     case ip_type_ipv4:
@@ -126,6 +235,8 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
       break;
   }
 
+  assert(! uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback));
+
   return Qtrue;
 }
 
@@ -136,6 +247,7 @@ void udp_send_callback(uv_udp_send_t* req, int status)
   AE_TRACE();
 
   if (status)
+    // TODO: Do something...
     printf("ERROR: udp_send_callback() => error = %d\n", uv_last_error(uv_default_loop()).code);
 
   struct_ae_udp_send_data* send_data = req->data;
@@ -157,11 +269,11 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   uv_udp_send_t* _uv_req;
   struct_ae_udp_send_data* send_data;
   struct_ae_udp_cdata* cdata;
-  enum_ip_type ip_type;
 
   Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
 
   if (cdata->closed) {
+    // TODO: blablabla
     printf("AsyncEngineUdpSocket_send_datagram => closed !!!\n");
     return Qfalse;
   }
@@ -169,8 +281,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   ip = StringValueCStr(rb_ip);
   port = FIX2INT(rb_port);
 
-  ip_type = ae_ip_parser_execute(RSTRING_PTR(rb_ip), RSTRING_LEN(rb_ip));
-  if (ip_type != cdata->ip_type)
+  if (cdata->ip_type != ae_ip_parser_execute(RSTRING_PTR(rb_ip), RSTRING_LEN(rb_ip)))
     rb_raise(rb_eTypeError, "invalid destination IP family");
 
   Check_Type(rb_data, T_STRING);
@@ -191,7 +302,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   // luego se traduce en error en el callback).
   // Segun los src solo devuelve error si el handle no esta bindeado (el nuestro ya lo está) o si no hay
   // más memoria para un alloc que hace, bufff. Un assert y va que arde.
-  switch(ip_type) {
+  switch(cdata->ip_type) {
     case ip_type_ipv4:
       assert(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), udp_send_callback));
       break;
@@ -200,10 +311,8 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
       break;
   }
 
-  // TODO: Si está chapao el socket habrá que devolver false no?
   return Qtrue;
 }
-
 
 
 VALUE AsyncEngineUdpSocket_close(VALUE self)
