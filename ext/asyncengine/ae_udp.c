@@ -41,11 +41,8 @@ typedef struct {
 } struct_udp_recv_callback_data;
 
 
-// NOTE: Used for storing information about the last UDP recv callback.
+// Used for storing information about the last UDP recv callback.
 static struct_udp_recv_callback_data last_udp_recv_callback_data;
-
-// NOTE: Used for storing information about the last UDP send error callback.
-static last_rb_on_send_error_block_id;
 
 
 static void AsyncEngineUdpSocket_free(void *cdata)
@@ -54,7 +51,6 @@ static void AsyncEngineUdpSocket_free(void *cdata)
 
   printf("DBG: AsyncEngineUdpSocket_free()\n");
 
-  // NOTE: The cdata struct is freed via Ruby GC.
   xfree(((struct_ae_udp_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
 }
@@ -149,7 +145,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
   last_udp_recv_callback_data.addr = addr;
   last_udp_recv_callback_data.flags = flags;
 
-  ae_execute_function_with_gvl_and_protect(ae_udp_socket_recv_callback);
+  ae_execute_function_with_gvl_and_protect(ae_udp_socket_recv_callback, Qnil);
 }
 
 
@@ -193,33 +189,32 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
     case ip_type_ipv4:
       if (uv_udp_bind(cdata->_uv_handle, uv_ip4_addr(bind_ip, bind_port), 0)) {
         deallocate_udp_handle(cdata);
-        return AE_FIXNUM_UV_LAST_ERROR();
+        ae_raise_last_uv_errno();
+        //return AE_FIXNUM_LAST_UV_ERRNO();
       }
       break;
     case ip_type_ipv6:
       // TODO: UDP flags en IPv6 puede ser que si. Solo vale 0 o UV_UDP_IPV6ONLY.
       if (uv_udp_bind6(cdata->_uv_handle, uv_ip6_addr(bind_ip, bind_port), UV_UDP_IPV6ONLY)) {
         deallocate_udp_handle(cdata);
-        return AE_FIXNUM_UV_LAST_ERROR();
+        ae_raise_last_uv_errno();
+        //return AE_FIXNUM_LAST_UV_ERRNO();
       }
       break;
   }
 
   assert(! uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback));
 
-  return Qtrue;
+  return self;
 }
 
 
 static
-VALUE ae_udp_send_error_callback(VALUE ignore)
+VALUE ae_udp_send_error_callback(VALUE rb_on_send_error_block)
 {
   AE_TRACE();
 
-  VALUE rb_block = ae_remove_block(last_rb_on_send_error_block_id);
-  VALUE last_error = AE_FIXNUM_UV_LAST_ERROR();
-
-  return ae_block_call_1(rb_block, last_error);
+  return ae_block_call_1(rb_on_send_error_block, ae_get_uv_error());
 }
 
 
@@ -228,26 +223,28 @@ void _uv_udp_send_callback(uv_udp_send_t* req, int status)
 {
   AE_TRACE();
 
-  struct_ae_udp_send_data* send_data = req->data;
+  //printf("DBG: _uv_udp_send_callback(): status = %i\n", status);
 
-  last_rb_on_send_error_block_id = send_data->rb_on_send_error_block_id;
+  struct_ae_udp_send_data* send_data = req->data;
+  VALUE rb_on_send_error_block;
+  int do_error = 0;
+
+  if (! NIL_P(send_data->rb_on_send_error_block_id)) {
+    rb_on_send_error_block = ae_remove_block(send_data->rb_on_send_error_block_id);
+    if (status)
+      do_error = 1;
+  }
 
   xfree(send_data->datagram);
   xfree(send_data);
   xfree(req);
 
-  if (status) {
-    // TODO: Do something...
-    //printf("ERROR: _uv_udp_send_callback() => error = %d\n", uv_last_error(uv_default_loop()).code);
-
-    if (! NIL_P(last_rb_on_send_error_block_id)) {
-      ae_execute_function_with_gvl_and_protect(ae_udp_send_error_callback);
-    }
-  }
+  if (do_error)
+    ae_execute_function_with_gvl_and_protect(ae_udp_send_error_callback, rb_on_send_error_block);
 }
 
 
-VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port, VALUE rb_data)
+VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip, VALUE rb_port)
 {
   AE_TRACE();
 

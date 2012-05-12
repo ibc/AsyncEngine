@@ -39,7 +39,7 @@ end
 class AeUdp < AE::UDPSocket
   def on_received_datagram data
     $ae_datagrams += 1
-    send_datagram "127.0.0.1", $ae_port, data.succ
+    send_datagram data.succ, "127.0.0.1", $ae_port
   end
 end
 
@@ -57,7 +57,7 @@ end
 t2 = Thread.new do
   AE.run do
     AE.open_udp_socket("127.0.0.1", $ae_port, AeUdp) do |udp|
-      udp.send_datagram("127.0.0.1", $ae_port, "A")
+      udp.send_datagram("A", "127.0.0.1", $ae_port)
     end
   end
 end

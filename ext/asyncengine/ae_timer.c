@@ -83,7 +83,7 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
   timer_callback_data.handle = handle;
 
   //ae_execute_block_with_gvl_and_protect_0(block);
-  ae_execute_function_with_gvl_and_protect(ae_timer_callback);
+  ae_execute_function_with_gvl_and_protect(ae_timer_callback, Qnil);
 }
 
 

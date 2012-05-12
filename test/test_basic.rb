@@ -40,7 +40,16 @@ class TestBasic < AETest
 
     assert_nothing_raised do
       AE.run { AE.next_tick { oppps } ; AE.add_timer(0.001) { uhhhh } }
-      AE.run { AE.next_tick { ouchh } ; AE.add_timer(0.001) { LOL } }
+
+      AE.next_tick { ouchh } ; AE.add_timer(0.001) { LOL }
+      AE.run
+    end
+
+    assert_nothing_raised do
+      AE.add_timer(0.001) { ohhhh1 }
+      AE::Timer.new(0.001) { ohhhh2 }
+      pt1 = AE::PeriodicTimer.new(0.001) { pt1.stop ; ohhhh3 }
+      AE.run
     end
 
     # Dissable the exception handler again.

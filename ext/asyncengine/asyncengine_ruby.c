@@ -10,7 +10,7 @@ static uv_prepare_t *av_uv_prepare;
 
 
 static
-void prepare_callback(uv_prepare_t* handle, int status)
+void _uv_prepare_callback(uv_prepare_t* handle, int status)
 {
   AE_TRACE();
 
@@ -29,7 +29,7 @@ VALUE run_uv_without_gvl(void* param)
   /* Load the AE prepare handle */
   av_uv_prepare = ALLOC(uv_prepare_t);
   uv_prepare_init(uv_default_loop(), av_uv_prepare);
-  uv_prepare_start(av_uv_prepare, prepare_callback);
+  uv_prepare_start(av_uv_prepare, _uv_prepare_callback);
   uv_unref(uv_default_loop());
 
   ret = uv_run(uv_default_loop());

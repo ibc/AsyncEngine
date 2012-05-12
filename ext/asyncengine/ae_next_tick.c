@@ -34,7 +34,7 @@ void execute_next_tick_callback_with_gvl()
 
 
 static
-void next_tick_callback(uv_idle_t* handle, int status)
+void _uv_idle_callback(uv_idle_t* handle, int status)
 {
   AE_TRACE();
 
@@ -50,7 +50,7 @@ VALUE AsyncEngine_c_next_tick(VALUE self)
   AE_TRACE();
 
   if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {
-    uv_idle_start(ae_next_tick_uv_idle, next_tick_callback);
+    uv_idle_start(ae_next_tick_uv_idle, _uv_idle_callback);
     uv_ref(uv_default_loop());
   }
   return Qtrue;

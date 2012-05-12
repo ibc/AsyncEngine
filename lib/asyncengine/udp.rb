@@ -8,15 +8,13 @@ module AsyncEngine
     sock = klass.allocate
 
     # Set the UV UDP handler and bind.
-    unless (ret = sock.send :_c_init_udp_socket, bind_ip, bind_port) == true
-      raise AsyncEngine.get_uv_error(ret)
-    end
+    sock.send :_c_init_udp_socket, bind_ip, bind_port
 
     # Call the usual initialize() method as defined by the user.
     sock.send :initialize, *args
 
     # Run the given block.
-    block_given? and yield sock
+    yield sock  if block_given?
 
     # Return the klass instance.
     sock

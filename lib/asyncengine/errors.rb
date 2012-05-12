@@ -15,19 +15,6 @@ module AsyncEngine
   end
 
 
-#   module UvErrors
-#     def self.get_error code
-#       UV_ERRNOS[code] || UV_ERRNOS[-1]
-#     end
-# 
-#     # TODO: esto fuera.
-#     def last_error
-#       return nil  unless @_uv_error
-#       UV_ERRNOS[@_uv_error] || UV_ERRNOS[-1]
-#     end
-#   end
-
-
   UV_ERRNOS = {
     -1 => UvError.new(-1, :UNKNOWN, "unknown error"),
     0 => UvError.new(0, :OK, "success"),
@@ -88,10 +75,5 @@ module AsyncEngine
     55 => UvError.new(55, :EIO, "i/o error"),
     56 => UvError.new(56, :EROFS, "read-only file system")
   }
-
-
-  def self.get_uv_error code
-    UV_ERRNOS[code] || UV_ERRNOS[-1]
-  end
 
 end
