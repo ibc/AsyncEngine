@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
   char *datagram;
+  VALUE rb_on_send_error_block_id;
 } struct_ae_udp_send_data;
 
 
@@ -41,7 +42,10 @@ typedef struct {
 
 
 // NOTE: Used for storing information about the last UDP recv callback.
-static struct_udp_recv_callback_data udp_recv_callback_data;
+static struct_udp_recv_callback_data last_udp_recv_callback_data;
+
+// NOTE: Used for storing information about the last UDP send error callback.
+static last_rb_on_send_error_block_id;
 
 
 static void AsyncEngineUdpSocket_free(void *cdata)
@@ -116,43 +120,11 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  //printf("DBG: ae_udp_socket_recv_callback\n");
+  struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)last_udp_recv_callback_data.handle->data;
+  VALUE rb_datagram = rb_tainted_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread);
 
-  struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)udp_recv_callback_data.handle->data;
-  VALUE rb_datagram = rb_tainted_str_new(udp_recv_callback_data.buf.base, udp_recv_callback_data.nread);
-
-  return rb_funcall(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, rb_datagram);
+  return rb_funcall2(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, &rb_datagram);
 }
-
-
-// static
-// VALUE execute_udp_recv_callback_with_protection(VALUE ignore)
-// {
-//   AE_TRACE();
-// 
-//   //printf("DBG: execute_udp_recv_callback_with_protection\n");
-// 
-//   struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)udp_recv_callback_data.handle->data;
-//   VALUE rb_datagram = rb_tainted_str_new(udp_recv_callback_data.buf.base, udp_recv_callback_data.nread);
-// 
-//   return rb_funcall(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, rb_datagram);
-// }
-
-
-// static
-// void execute_udp_recv_callback_with_gvl()
-// {
-//   AE_TRACE();
-// 
-//   //printf("DBG: execute_udp_recv_callback_with_gvl\n");
-// 
-//   int exception_tag;
-// 
-//   rb_protect(execute_udp_recv_callback_with_protection, Qnil, &exception_tag);
-// 
-//   if (exception_tag)
-//     ae_handle_exception(exception_tag);
-// }
 
 
 static
@@ -170,16 +142,14 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 
   //printf("DBG: udp_recv_allback: nread = %d\n", (int)nread);
 
-  // Store UDP recv information in the udp_recv_callback_data struct.
-  udp_recv_callback_data.handle = handle;
-  udp_recv_callback_data.nread = nread;
-  udp_recv_callback_data.buf = buf;
-  udp_recv_callback_data.addr = addr;
-  udp_recv_callback_data.flags = flags;
+  // Store UDP recv information in the last_udp_recv_callback_data struct.
+  last_udp_recv_callback_data.handle = handle;
+  last_udp_recv_callback_data.nread = nread;
+  last_udp_recv_callback_data.buf = buf;
+  last_udp_recv_callback_data.addr = addr;
+  last_udp_recv_callback_data.flags = flags;
 
-  //rb_thread_call_with_gvl(execute_udp_recv_callback_with_gvl, NULL);
-
-  execute_method_with_gvl_and_protect(ae_udp_socket_recv_callback, NULL);
+  ae_execute_function_with_gvl_and_protect(ae_udp_socket_recv_callback);
 }
 
 
@@ -242,18 +212,38 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
 
 
 static
-void udp_send_callback(uv_udp_send_t* req, int status)
+VALUE ae_udp_send_error_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  if (status)
-    // TODO: Do something...
-    printf("ERROR: udp_send_callback() => error = %d\n", uv_last_error(uv_default_loop()).code);
+  VALUE rb_block = ae_remove_block(last_rb_on_send_error_block_id);
+  VALUE last_error = AE_FIXNUM_UV_LAST_ERROR();
+
+  return ae_block_call_1(rb_block, last_error);
+}
+
+
+static
+void _uv_udp_send_callback(uv_udp_send_t* req, int status)
+{
+  AE_TRACE();
 
   struct_ae_udp_send_data* send_data = req->data;
+
+  last_rb_on_send_error_block_id = send_data->rb_on_send_error_block_id;
+
   xfree(send_data->datagram);
   xfree(send_data);
   xfree(req);
+
+  if (status) {
+    // TODO: Do something...
+    //printf("ERROR: _uv_udp_send_callback() => error = %d\n", uv_last_error(uv_default_loop()).code);
+
+    if (! NIL_P(last_rb_on_send_error_block_id)) {
+      ae_execute_function_with_gvl_and_protect(ae_udp_send_error_callback);
+    }
+  }
 }
 
 
@@ -293,6 +283,12 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   send_data = ALLOC(struct_ae_udp_send_data);
   send_data->datagram = datagram;
 
+  // TODO
+  if (rb_block_given_p())
+    send_data->rb_on_send_error_block_id = ae_store_block(rb_block_proc());
+  else
+    send_data->rb_on_send_error_block_id = Qnil;
+
   _uv_req = ALLOC(uv_udp_send_t);
   _uv_req->data = send_data;
 
@@ -304,10 +300,10 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_ip, VALUE rb_port,
   // más memoria para un alloc que hace, bufff. Un assert y va que arde.
   switch(cdata->ip_type) {
     case ip_type_ipv4:
-      assert(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), udp_send_callback));
+      assert(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
       break;
     case ip_type_ipv6:
-      assert(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), udp_send_callback));
+      assert(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), _uv_udp_send_callback));
       break;
   }
 

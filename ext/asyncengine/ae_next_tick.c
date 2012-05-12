@@ -29,7 +29,7 @@ void execute_next_tick_callback_with_gvl()
 {
   AE_TRACE();
 
-  rb_funcall(mAsyncEngine, id_method_execute_next_ticks, 0, 0);
+  rb_funcall2(mAsyncEngine, id_method_execute_next_ticks, 0, NULL);
 }
 
 

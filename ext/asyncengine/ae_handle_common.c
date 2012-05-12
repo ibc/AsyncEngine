@@ -2,22 +2,14 @@
 #include "ae_handle_common.h"
 
 
-// Global variables defined in asyncengine_ruby.c.
-extern VALUE mAsyncEngine;
-
 // C variable holding current block number.
 static long block_id;
 // C variable holding current handle number.
 static long handle_id;
 
-// Ruby class for saving C data inside.
-VALUE cAsyncEngineCData;
-
 // Ruby attributes.
 static ID att_blocks;
 static ID att_handles;
-ID att_cdata;
-ID att_handle_terminated;
 
 // Ruby method names.
 static ID method_call;
@@ -124,61 +116,42 @@ void ae_uv_handle_close_callback(uv_handle_t* handle)
 }
 
 
-static
-VALUE wrapper_rb_funcall_block_call(VALUE block)
+VALUE ae_block_call_0(VALUE rb_block)
 {
   AE_TRACE();
 
-  return rb_funcall2(block, method_call, 0, NULL);
+  return rb_funcall2(rb_block, method_call, 0, NULL);
 }
 
 
-VALUE ae_protect_block_call(VALUE block, int *exception_tag)
+VALUE ae_block_call_1(VALUE rb_block, VALUE param)
 {
   AE_TRACE();
 
-  *exception_tag;
-
-  return rb_protect(wrapper_rb_funcall_block_call, block, exception_tag);
+  return rb_funcall2(rb_block, method_call, 1, &param);
 }
 
 
-
-
-typedef struct {
-  execute_method_with_protect method_with_protect;
-  void *param;
-} struct_method_with_protect_data;
-
-
 static
-void execute_method_with_gvl(struct_method_with_protect_data data)
+VALUE execute_function_with_gvl(function_with_gvl_and_protect function)
 {
   AE_TRACE();
 
   int exception_tag;
-  VALUE param;
+  VALUE ret;
 
-  if (data.param)
-    param = (VALUE)(data.param);
-  else
-    param = Qnil;
-
-  rb_protect(data.method_with_protect, param, &exception_tag);
+  ret = rb_protect(function, Qnil, &exception_tag);
 
   if (exception_tag)
     ae_handle_exception(exception_tag);
+
+  return ret;
 }
 
 
-// param MUST be NULL or VALUE.
-void execute_method_with_gvl_and_protect(execute_method_with_protect method_with_protect, void *param)
+VALUE ae_execute_function_with_gvl_and_protect(function_with_gvl_and_protect function)
 {
   AE_TRACE();
 
-  struct_method_with_protect_data data;
-  data.method_with_protect = method_with_protect;
-  data.param = param;
-
-  rb_thread_call_with_gvl(execute_method_with_gvl, data);
+  return rb_thread_call_with_gvl(execute_function_with_gvl, function);
 }

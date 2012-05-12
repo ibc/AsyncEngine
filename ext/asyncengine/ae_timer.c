@@ -14,6 +14,15 @@ typedef struct {
 } struct_ae_timer_cdata;
 
 
+typedef struct {
+  uv_timer_t* handle;
+} struct_timer_callback_data;
+
+
+// NOTE: Used for storing information about the last timer callback.
+static struct_timer_callback_data timer_callback_data;
+
+
 void init_ae_timer()
 {
   AE_TRACE();
@@ -43,13 +52,13 @@ void deallocate_timer_handle(struct_ae_timer_cdata* cdata, int remove_handle)
 
 
 static
-void execute_timer_callback_with_gvl(uv_timer_t* handle)
+VALUE ae_timer_callback(VALUE ignore)
 {
   AE_TRACE();
 
+  uv_timer_t* handle = timer_callback_data.handle;
   struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)handle->data;
-  VALUE block = ae_get_block(cdata->rb_block_id);
-  int exception_tag;
+  VALUE rb_block = ae_get_block(cdata->rb_block_id);
 
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0) {
@@ -60,19 +69,21 @@ void execute_timer_callback_with_gvl(uv_timer_t* handle)
     deallocate_timer_handle(cdata, 0);
   }
 
-  ae_protect_block_call(block, &exception_tag);
-
-  if (exception_tag)
-    ae_handle_exception(exception_tag);
+  return ae_block_call_0(rb_block);
 }
 
 
 static
-void timer_callback(uv_timer_t* handle, int status)
+void _uv_timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
 
-  rb_thread_call_with_gvl(execute_timer_callback_with_gvl, handle);
+  //rb_thread_call_with_gvl(execute_timer_callback_with_gvl, handle);
+
+  timer_callback_data.handle = handle;
+
+  //ae_execute_block_with_gvl_and_protect_0(block);
+  ae_execute_function_with_gvl_and_protect(ae_timer_callback);
 }
 
 
@@ -113,7 +124,7 @@ VALUE AsyncEngine_c_add_timer(VALUE self, VALUE rb_delay, VALUE rb_interval, VAL
   uv_timer_init(uv_default_loop(), _uv_handle);
   _uv_handle->data = cdata;
 
-  uv_timer_start(_uv_handle, timer_callback, delay, interval);
+  uv_timer_start(_uv_handle, _uv_timer_callback, delay, interval);
 
   return Qtrue;
 }

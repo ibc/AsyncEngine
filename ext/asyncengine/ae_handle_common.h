@@ -10,12 +10,13 @@
 #define AE_FIXNUM_UV_LAST_ERROR()  INT2FIX(uv_last_error(uv_default_loop()).code)
 
 
+// Ruby class for saving C data inside.
 VALUE cAsyncEngineCData;
 
 ID att_cdata;
 ID att_handle_terminated; // TODO: Fuera, hacer como en UDP y meterlo en el cdata struct.
 
-void init_ae_handle_common();
+void init_ae_handle_common(void);
 
 VALUE ae_store_handle(VALUE);
 VALUE ae_get_handle(VALUE);
@@ -27,10 +28,12 @@ VALUE ae_remove_block(VALUE);
 
 void ae_handle_exception(int);
 void ae_uv_handle_close_callback(uv_handle_t*);
-VALUE ae_protect_block_call(VALUE block, int *exception_tag);
 
-typedef VALUE (*execute_method_with_protect)(VALUE param);
-void execute_method_with_gvl_and_protect(execute_method_with_protect method_with_protect, void *param);
+VALUE ae_block_call_0(VALUE rb_block);
+VALUE ae_block_call_1(VALUE rb_block, VALUE param);
+
+typedef VALUE (*function_with_gvl_and_protect)(VALUE param);
+VALUE ae_execute_function_with_gvl_and_protect(function_with_gvl_and_protect function);
 
 
 #endif  /* AE_HANDLE_COMMON_H */
