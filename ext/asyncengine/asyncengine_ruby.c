@@ -9,6 +9,8 @@
 static _uv_is_running;
 static uv_prepare_t *ae_uv_prepare;
 
+static ID method_destroy;
+
 
 static
 void _uv_prepare_callback(uv_prepare_t* handle, int status)
@@ -21,48 +23,16 @@ void _uv_prepare_callback(uv_prepare_t* handle, int status)
 
 
 static
-VALUE stop_uv_without_gvl(void* param)
-{
-  AE_TRACE();
-
-  int ret;
-
-  // TODO: buffff
-  if (! _uv_is_running) {
-    printf("NOTICE: stop_uv_without_gvl(): uv_run is NOT running !!!\n");
-    return Qfalse;
-  }
-
-  // Referece again ae_uv_prepare so it can be properly closed.
-  uv_ref(uv_default_loop());
-  uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
-
-  assert(! uv_run(uv_default_loop()));
-
-  _uv_is_running = 0;
-
-  return Qtrue;
-}
-
-
-VALUE AsyncEngine_c_stop(VALUE self)
-{
-  AE_TRACE();
-
-  return rb_thread_call_without_gvl(stop_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
-}
-
-
-static
 VALUE run_uv_without_gvl(void* param)
 {
   AE_TRACE();
 
+  printf("C DBG: run_uv_without_gvl() starts\n");
+
   int ret;
 
-  // TODO: buffff
   if (_uv_is_running) {
-    printf("CRITICAL: run_uv_without_gvl(): uv_run is already running !!!\n");
+    printf("C CRITICAL: run_uv_without_gvl(): uv_run is already running, exit with false !!!\n");
     return Qfalse;
   }
 
@@ -76,8 +46,7 @@ VALUE run_uv_without_gvl(void* param)
 
   assert(! uv_run(uv_default_loop()));
 
-  printf("DBG: run_uv_without_gvl(): uv_run exits\n");
-  printf("DBG: run_uv_without_gvl(): [1] uv_loop_refcount(uv_default_loop()): %d\n", uv_loop_refcount(uv_default_loop()));
+  printf("C DBG: run_uv_without_gvl(): uv_run exits\n");
 
   // If AsyncEngine has been properly stopped due to the lack of active handles,
   // then free the uv_prepare handle.
@@ -88,28 +57,42 @@ VALUE run_uv_without_gvl(void* param)
     uv_ref(uv_default_loop());
     uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
   }
-  printf("DBG: run_uv_without_gvl(): setting _uv_is_running = 0\n");
-  printf("DBG: run_uv_without_gvl(): [2] uv_loop_refcount(uv_default_loop()): %d\n", uv_loop_refcount(uv_default_loop()));
+
   _uv_is_running = 0;
+
+  printf("C DBG: run_uv_without_gvl() terminates\n");
+  return Qtrue;
+}
+
+
+static
+VALUE terminate_uv_with_gvl(void* param)
+{
+  AE_TRACE();
+
+  printf("C INFO: terminate_uv_with_gvl() starts\n");
+
+  rb_funcall2(mAsyncEngine, method_destroy, 0, NULL);
+
+  while(_uv_is_running) {
+    printf("C INFO: terminate_uv_with_gvl(), waiting for _uv_is_running == 0\n");
+    sleep(0.01);
+  }
+
+  printf("C INFO: terminate_uv_with_gvl() terminates\n");
 
   return Qtrue;
 }
 
 
 static
-VALUE terminate_uv(void)
+void ae_thread_killed(void)
 {
   AE_TRACE();
 
-  printf("NOTICE: terminate_uv() !!!\n");
-  if (rb_thread_interrupted(rb_thread_current()))
-    printf("INFO: terminate_uv(): rb_thread_interrupted() => true\n");
+  printf("C NOTICE: ae_thread_killed() starts, running rb_thread_call_with_gvl(terminate_uv_with_gvl, NULL)...\n");
 
-  // NOTE: En teoría terminate_uv() se ejecuta sin GVL (ver rb_thread_blocking_region()), pero
-  // al ejecutar esto me da error "[BUG] rb_thread_call_with_gvl: called by a thread which has GVL."
-  //return rb_thread_call_with_gvl(terminate_uv_with_gvl, NULL);
-
-  return rb_funcall2(mAsyncEngine, rb_intern("ae_thread_killed"), 0, NULL);
+  rb_thread_call_with_gvl(terminate_uv_with_gvl, NULL);
 }
 
 
@@ -117,8 +100,7 @@ VALUE AsyncEngine_c_run(VALUE self)
 {
   AE_TRACE();
 
-  //return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
-  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, terminate_uv, NULL);
+  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_thread_killed, NULL);
 }
 
 
@@ -153,9 +135,10 @@ void Init_asyncengine_ext()
   mAsyncEngine = rb_define_module("AsyncEngine");
 
   rb_define_module_function(mAsyncEngine, "_c_run", AsyncEngine_c_run, 0);
-  rb_define_module_function(mAsyncEngine, "_c_stop", AsyncEngine_c_stop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
+
+  method_destroy = rb_intern("destroy");
 
   init_ae_handle_common();
   init_ae_timer();

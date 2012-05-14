@@ -18,18 +18,8 @@ module AsyncEngine
 
   def self.run
     if running?
-      puts log + "NOTICE: AsyncEngine was already running, forcing stop and re-run."
-
-      begin
-        stop
-      rescue AsyncEngine::StopException
-        puts "--- run() : rescue AsyncEngine::StopException"
-      end
-
-      loop do
-        sleep 0.01
-        break  unless running?
-      end
+      puts "RB NOTICE: AE.run() => AsyncEngine is already running, return nil"
+      return nil
     end
 
     # SIGPIPE is received by a program when reading from a pipe whose other
@@ -44,13 +34,12 @@ module AsyncEngine
     # within the first level of the given block.
     begin
       yield  if block_given?
-    rescue AsyncEngine::StopException
+    rescue AsyncEngine::StopException => e
+      stop rescue nil
       return false
     end
 
     @_running_thread = Thread.current
-
-    at_exit { stop rescue nil }
 
     begin
       if _c_run
@@ -60,8 +49,7 @@ module AsyncEngine
         raise AsyncEngine::Error, "AsyncEngine failed to run"
       end
     rescue AsyncEngine::StopException
-    rescue AsyncEngine::StopFromOtherThreadException
-      stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
+      stop rescue nil
     rescue Exception => e
       puts log + "NOTICE: AsyncEngine._c_run raised #{e.class} (#{e}), running AE.stop now and raising the exception..."
       stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
@@ -69,46 +57,19 @@ module AsyncEngine
     end
   end
 
-  # TODO: Si el thread en el que se arrancó AE ha muerto (i.e. Thread#kill) sin terminar AE,
-  # entonces esto peta casi siempre.
   def self.stop
-    raise AsyncEngine::StopException, "AsyncEngine is not running yet"  unless running?
+    puts "RB NOTICE: stop() starts"
 
-    # NOTE: Cannot run _c_stop from a different thread than the thread in which AsyncEngine
-    # is running (@_running_thread) since it would run uv_run in a different OS thread and
-    # provoke a crash. So if we are calling stop on a different thread, raise an exception
-    # in the AsyncEngine thread.
-    if running? and Thread.current != @_running_thread and @_running_thread.alive?
-      puts log + "NOTICE: calling stop() on a different thread. Calling to stop() in AE.next_tick instead."
-      @_running_thread.raise AsyncEngine::StopFromOtherThreadException
-      return nil
+    is_running = running?
+
+    @_handles.each_value { |handle| handle.send :destroy }
+    @_handles.clear
+    @_blocks.clear
+    @_next_ticks.clear
+
+    if Thread.current == @_running_thread and not is_running
+      raise AsyncEngine::StopException
     end
-
-    @_handles.each_value { |handle| handle.send :destroy }
-    @_handles.clear
-    @_blocks.clear
-    @_next_ticks.clear
-
-    _c_stop
-
-    # Raise a custom AsyncEngine::Stop exception to avoid that new handles created
-    # after calling stop() are loaded into UV. This exception is ignored by the run
-    # function.
-    raise AsyncEngine::StopException
-  end
-
-  # TODO: Test
-  def self.ae_thread_killed
-    puts "NOTICE: rb ae_thread_killed()"
-
-    @_handles.each_value { |handle| handle.send :destroy }
-    @_handles.clear
-    @_blocks.clear
-    @_next_ticks.clear
-
-    asdasd rescue nil
-
-    puts "NOTICE: rb ae_thread_killed() => exiting..."
   end
 
   def self.set_exception_handler block1=nil, &block2
@@ -146,7 +107,6 @@ module AsyncEngine
 
   class << self
     private :_c_run
-    private :_c_stop
     private :handle_exception
   end
 

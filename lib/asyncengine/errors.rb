@@ -15,7 +15,6 @@ module AsyncEngine
   end
 
   class StopException < Error ; end
-  class StopFromOtherThreadException < Error ; end
 
 
   UV_ERRNOS = {
