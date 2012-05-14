@@ -17,19 +17,18 @@ static ID method_on_received_datagram;
 
 
 typedef struct {
-  int closed;
-  enum_ip_type ip_type;
   uv_udp_t *_uv_handle;
+  uv_buf_t recv_buffer;
+  enum_ip_type ip_type;
   VALUE rb_ae_udp_socket;
   VALUE rb_ae_udp_socket_id;
-  uv_buf_t recv_buffer;
-} struct_ae_udp_cdata;
+} struct_ae_udp_socket_cdata;
 
 
 typedef struct {
   char *datagram;
   VALUE rb_on_send_error_block_id;
-} struct_ae_udp_send_data;
+} struct_ae_udp_socket_send_data;
 
 
 typedef struct {
@@ -38,11 +37,11 @@ typedef struct {
   uv_buf_t buf;
   struct sockaddr* addr;
   unsigned flags;
-} struct_udp_recv_callback_data;
+} struct_ae_udp_socket_recv_callback_data;
 
 
 // Used for storing information about the last UDP recv callback.
-static struct_udp_recv_callback_data last_udp_recv_callback_data;
+static struct_ae_udp_socket_recv_callback_data last_udp_recv_callback_data;
 
 
 static void AsyncEngineUdpSocket_free(void *cdata)
@@ -51,7 +50,7 @@ static void AsyncEngineUdpSocket_free(void *cdata)
 
   printf("DBG: AsyncEngineUdpSocket_free()\n");
 
-  xfree(((struct_ae_udp_cdata*)cdata)->recv_buffer.base);
+  xfree(((struct_ae_udp_socket_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
 }
 
@@ -60,7 +59,7 @@ VALUE AsyncEngineUdpSocket_alloc(VALUE klass)
 {
   AE_TRACE();
 
-  struct_ae_udp_cdata* cdata = ALLOC(struct_ae_udp_cdata);
+  struct_ae_udp_socket_cdata* cdata = ALLOC(struct_ae_udp_socket_cdata);
   cdata->recv_buffer = uv_buf_init(ALLOC_N(char, AE_UDP_DATAGRAM_MAX_SIZE), AE_UDP_DATAGRAM_MAX_SIZE);
 
   return Data_Wrap_Struct(klass, NULL, AsyncEngineUdpSocket_free, cdata);
@@ -76,8 +75,8 @@ void init_ae_udp()
   rb_define_alloc_func(cAsyncEngineUdpSocket, AsyncEngineUdpSocket_alloc);
   rb_define_private_method(cAsyncEngineUdpSocket, "_c_init_udp_socket", AsyncEngineUdpSocket_c_init_udp_socket, 2);
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, 3);
-
   rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
+  rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
 
   att_bind_ip = rb_intern("@_bind_ip");
   att_bind_port = rb_intern("@_bind_port");
@@ -88,15 +87,41 @@ void init_ae_udp()
 
 
 static
-void deallocate_udp_handle(struct_ae_udp_cdata* cdata)
+void terminate(struct_ae_udp_socket_cdata* cdata)
 {
   AE_TRACE();
-  printf("DBG: deallocate_udp_handle()\n");
+  printf("DBG: terminate()\n");
 
-  // Let the GC work.
-  ae_remove_handle(cdata->rb_ae_udp_socket_id);
   // Close the UDP handle so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+  // Set the handle field to NULL.
+  cdata->_uv_handle = NULL;
+  // Let the GC work.
+  ae_remove_handle(cdata->rb_ae_udp_socket_id);
+}
+
+
+/*
+ * The same as terminate() but it does not remove the instance from the
+ * hash of handles. This private method MUST be called by AE over all the
+ * existing handles in the hash when the user invokes AE.stop or when an
+ * exception raises. It allows uv_run() to exit.
+ */
+VALUE AsyncEngineUdpSocket_destroy(VALUE self)
+{
+  AE_TRACE();
+  printf("DBG: AsyncEngineUdpSocket_destroy()\n");
+
+  struct_ae_udp_socket_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
+
+  // Close the UDP handle so it's unreferenced by uv.
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+  // Set the handle field to NULL.
+  cdata->_uv_handle = NULL;
+
+  return Qtrue;
 }
 
 
@@ -107,7 +132,7 @@ uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 
   //printf("DBG: uv_alloc_cb: suggested_size = %d\n", (int)suggested_size);
 
-  return ((struct_ae_udp_cdata*)handle->data)->recv_buffer;
+  return ((struct_ae_udp_socket_cdata*)handle->data)->recv_buffer;
 }
 
 
@@ -116,8 +141,8 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  struct_ae_udp_cdata* cdata = (struct_ae_udp_cdata*)last_udp_recv_callback_data.handle->data;
-  VALUE rb_datagram = rb_tainted_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread);
+  struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
+  VALUE rb_datagram = RB_STR_TAINTED_UTF8_NEW(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread);
 
   return rb_funcall2(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, &rb_datagram);
 }
@@ -156,7 +181,7 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
   char *bind_ip = StringValueCStr(rb_bind_ip);
   int bind_port = FIX2INT(rb_bind_port);
   enum_ip_type ip_type;
-  struct_ae_udp_cdata* cdata;
+  struct_ae_udp_socket_cdata* cdata;
 
   switch(ip_type = ae_ip_parser_execute(RSTRING_PTR(rb_bind_ip), RSTRING_LEN(rb_bind_ip))) {
     case ip_type_ipv4:
@@ -172,9 +197,8 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
   rb_ivar_set(self, att_bind_ip, rb_bind_ip);
   rb_ivar_set(self, att_bind_port, rb_bind_port);
 
-  Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
 
-  cdata->closed = 0;
   cdata->_uv_handle = ALLOC(uv_udp_t);
   cdata->rb_ae_udp_socket = self;
   cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
@@ -188,17 +212,15 @@ VALUE AsyncEngineUdpSocket_c_init_udp_socket(VALUE self, VALUE rb_bind_ip, VALUE
   switch(ip_type) {
     case ip_type_ipv4:
       if (uv_udp_bind(cdata->_uv_handle, uv_ip4_addr(bind_ip, bind_port), 0)) {
-        deallocate_udp_handle(cdata);
-        ae_raise_last_uv_errno();
-        //return AE_FIXNUM_LAST_UV_ERRNO();
+        terminate(cdata);
+        ae_raise_last_uv_error();
       }
       break;
     case ip_type_ipv6:
       // TODO: UDP flags en IPv6 puede ser que si. Solo vale 0 o UV_UDP_IPV6ONLY.
       if (uv_udp_bind6(cdata->_uv_handle, uv_ip6_addr(bind_ip, bind_port), UV_UDP_IPV6ONLY)) {
-        deallocate_udp_handle(cdata);
-        ae_raise_last_uv_errno();
-        //return AE_FIXNUM_LAST_UV_ERRNO();
+        terminate(cdata);
+        ae_raise_last_uv_error();
       }
       break;
   }
@@ -214,7 +236,7 @@ VALUE ae_udp_send_error_callback(VALUE rb_on_send_error_block)
 {
   AE_TRACE();
 
-  return ae_block_call_1(rb_on_send_error_block, ae_get_uv_error());
+  return ae_block_call_1(rb_on_send_error_block, ae_get_last_uv_error());
 }
 
 
@@ -225,10 +247,15 @@ void _uv_udp_send_callback(uv_udp_send_t* req, int status)
 
   //printf("DBG: _uv_udp_send_callback(): status = %i\n", status);
 
-  struct_ae_udp_send_data* send_data = req->data;
+  struct_ae_udp_socket_send_data* send_data = req->data;
   VALUE rb_on_send_error_block;
   int do_error = 0;
 
+  // TODO: Ojo, estoy eliminando un elemento de un Hash sin tener el GVL !!!
+  // It could crash:
+  // (1) rb_hash_delete() can call Ruby's #hash method for each elements.
+  // (2) If another thread access to the hash simultaneously, it will be crash.
+  // But in my case I use Fixnum as hash key, so no problem :)
   if (! NIL_P(send_data->rb_on_send_error_block_id)) {
     rb_on_send_error_block = ae_remove_block(send_data->rb_on_send_error_block_id);
     if (status)
@@ -254,14 +281,14 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip,
   char *datagram;
   int datagram_len;
   uv_udp_send_t* _uv_req;
-  struct_ae_udp_send_data* send_data;
-  struct_ae_udp_cdata* cdata;
+  struct_ae_udp_socket_send_data* send_data;
+  struct_ae_udp_socket_cdata* cdata;
 
-  Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
 
-  if (cdata->closed) {
-    // TODO: blablabla
-    printf("AsyncEngineUdpSocket_send_datagram => closed !!!\n");
+  if (! cdata->_uv_handle) {
+    if (rb_block_given_p())
+      ae_block_call_1(rb_block_proc(), ae_get_uv_error(31));
     return Qfalse;
   }
 
@@ -277,7 +304,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip,
   datagram = ALLOC_N(char, datagram_len);
   memcpy(datagram, RSTRING_PTR(rb_data), datagram_len);
 
-  send_data = ALLOC(struct_ae_udp_send_data);
+  send_data = ALLOC(struct_ae_udp_socket_send_data);
   send_data->datagram = datagram;
 
   // TODO
@@ -312,11 +339,14 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_udp_cdata* cdata;
+  struct_ae_udp_socket_cdata* cdata;
 
-  Data_Get_Struct(self, struct_ae_udp_cdata, cdata);
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
 
-  cdata->closed = 1;
-
-  return Qtrue;
+  if (cdata->_uv_handle) {
+    terminate(cdata);
+    return Qtrue;
+  }
+  else
+    return Qfalse;
 }

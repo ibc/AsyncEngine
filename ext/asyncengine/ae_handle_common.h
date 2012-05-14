@@ -8,6 +8,8 @@
 
 
 #define AE_FIXNUM_LAST_UV_ERRNO()  INT2FIX(uv_last_error(uv_default_loop()).code)
+#define RB_STR_UTF8_NEW(s, len) (rb_enc_str_new(s, len, rb_utf8_encoding()))
+#define RB_STR_TAINTED_UTF8_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_utf8_encoding()))
 
 
 // Ruby class for saving C data inside.
@@ -28,7 +30,9 @@ VALUE ae_remove_block(VALUE);
 
 void ae_uv_handle_close_callback(uv_handle_t*);
 
-void ae_raise_last_uv_errno(void);
+VALUE ae_get_uv_error(int uv_errno);
+VALUE ae_get_last_uv_error(void);
+void ae_raise_last_uv_error(void);
 
 VALUE ae_block_call_0(VALUE rb_block);
 VALUE ae_block_call_1(VALUE rb_block, VALUE param);

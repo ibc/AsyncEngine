@@ -32,11 +32,12 @@ void init_ae_timer()
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
   rb_define_alias(cAsyncEngineTimer, "stop", "cancel");
   rb_define_private_method(cAsyncEngineTimer, "_c_set_interval", AsyncEngineTimer_c_set_interval, 1);
+  rb_define_private_method(cAsyncEngineTimer, "destroy", AsyncEngineTimer_destroy, 0);
 }
 
 
 static
-void deallocate_timer_handle(struct_ae_timer_cdata* cdata, int remove_handle)
+void terminate(struct_ae_timer_cdata* cdata, int remove_handle)
 {
   AE_TRACE();
 
@@ -48,6 +49,31 @@ void deallocate_timer_handle(struct_ae_timer_cdata* cdata, int remove_handle)
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
   // Free memory.
   xfree(cdata);
+}
+
+
+VALUE AsyncEngineTimer_destroy(VALUE self)
+{
+  AE_TRACE();
+  printf("DBG: AsyncEngineTimer_destroy()\n");
+
+  struct_ae_timer_cdata* cdata;
+
+  if (! NIL_P(rb_ivar_get(self, att_handle_terminated)))
+    return Qfalse;
+  rb_ivar_set(self, att_handle_terminated, Qtrue);
+
+  Data_Get_Struct(rb_ivar_get(self, att_cdata), struct_ae_timer_cdata, cdata);
+
+  // Stop timer.
+  uv_timer_stop(cdata->_uv_handle);
+
+  // Close the timer so it's unreferenced by uv.
+  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+  // Free memory.
+  xfree(cdata);
+  
+  return Qtrue;
 }
 
 
@@ -66,7 +92,7 @@ VALUE ae_timer_callback(VALUE ignore)
     // @_handle_terminated to true.
     if (! NIL_P(cdata->rb_ae_timer_id))
       rb_ivar_set(ae_remove_handle(cdata->rb_ae_timer_id), att_handle_terminated, Qtrue);
-    deallocate_timer_handle(cdata, 0);
+    terminate(cdata, 0);
   }
 
   return ae_block_call_0(rb_block);
@@ -146,7 +172,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   uv_timer_stop(cdata->_uv_handle);
 
   // Terminate the timer.
-  deallocate_timer_handle(cdata, 1);
+  terminate(cdata, 1);
 
   return Qtrue;
 }

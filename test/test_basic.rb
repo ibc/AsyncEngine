@@ -3,7 +3,7 @@ require "ae_test_helper"
 
 class TestBasic < AETest
 
-  def test_01_AE_is_restartable
+  def _test_01_AE_is_restartable
     str = ""
 
     assert_false AE.running?
@@ -33,7 +33,7 @@ class TestBasic < AETest
     assert_equal "abcdef", str
   end
 
-  def test_02_exception_handler
+  def _test_02_exception_handler
     AE.set_exception_handler {|e| assert e.is_a? ::StandardError }
 
     assert_respond_to AE.instance_variable_get(:@_exception_handler), :call
@@ -58,7 +58,7 @@ class TestBasic < AETest
     assert_equal nil, AE.instance_variable_get(:@_exception_manager)
   end
 
-  def test_03_num_handles
+  def _test_03_num_handles
     assert_equal 0, AE.num_handles
 
     AE.run do

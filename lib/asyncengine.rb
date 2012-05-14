@@ -11,15 +11,26 @@ require "asyncengine/udp.rb"
 
 module AsyncEngine
 
-  @_is_running = false
   @_exception_handler = nil
   @_blocks = {}
   @_next_ticks = []
   @_handles = {}
 
   def self.run
-    raise AsyncEngine::Error, "AsyncEngine already running"  if @_is_running
-    @_is_running = true
+    if running?
+      puts log + "NOTICE: AsyncEngine was already running, forcing stop and re-run."
+
+      begin
+        stop
+      rescue AsyncEngine::StopException
+        puts "--- run() : rescue AsyncEngine::StopException"
+      end
+
+      loop do
+        sleep 0.01
+        break  unless running?
+      end
+    end
 
     # SIGPIPE is received by a program when reading from a pipe whose other
     # end has been closed, so it's good to trap and ignore it:
@@ -29,21 +40,75 @@ module AsyncEngine
     # SIGPIPE signal.
     trap(:PIPE) {}
 
-    yield  if block_given?
+    # Run the block, and be ready to properly exit if the use calls to stop()
+    # within the first level of the given block.
+    begin
+      yield  if block_given?
+    rescue AsyncEngine::StopException
+      return false
+    end
 
-    if _c_run
-      # _c_run does not terminate (it blocks) until all the handles end.
-      # If so, let's set again @_is_running to false and return true.
-      @_is_running = false
-      return true
-    else
-      @_is_running = false
-      raise AsyncEngine::Error, "AsyncEngine failed to run"
+    @_running_thread = Thread.current
+
+    at_exit { stop rescue nil }
+
+    begin
+      if _c_run
+        return true
+      else
+        # TODO: This should NEVER occur!
+        raise AsyncEngine::Error, "AsyncEngine failed to run"
+      end
+    rescue AsyncEngine::StopException
+    rescue AsyncEngine::StopFromOtherThreadException
+      stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
+    rescue Exception => e
+      puts log + "NOTICE: AsyncEngine._c_run raised #{e.class} (#{e}), running AE.stop now and raising the exception..."
+      stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
+      raise e # And raise the original exception.
     end
   end
 
-  def self.running?
-    @_is_running
+  # TODO: Si el thread en el que se arrancó AE ha muerto (i.e. Thread#kill) sin terminar AE,
+  # entonces esto peta casi siempre.
+  def self.stop
+    raise AsyncEngine::StopException, "AsyncEngine is not running yet"  unless running?
+
+    # NOTE: Cannot run _c_stop from a different thread than the thread in which AsyncEngine
+    # is running (@_running_thread) since it would run uv_run in a different OS thread and
+    # provoke a crash. So if we are calling stop on a different thread, raise an exception
+    # in the AsyncEngine thread.
+    if running? and Thread.current != @_running_thread and @_running_thread.alive?
+      puts log + "NOTICE: calling stop() on a different thread. Calling to stop() in AE.next_tick instead."
+      @_running_thread.raise AsyncEngine::StopFromOtherThreadException
+      return nil
+    end
+
+    @_handles.each_value { |handle| handle.send :destroy }
+    @_handles.clear
+    @_blocks.clear
+    @_next_ticks.clear
+
+    _c_stop
+
+    # Raise a custom AsyncEngine::Stop exception to avoid that new handles created
+    # after calling stop() are loaded into UV. This exception is ignored by the run
+    # function.
+    raise AsyncEngine::StopException
+  end
+
+  # TODO: Test
+  def self.ae_thread_killed
+    puts "NOTICE: rb ae_thread_killed()"
+
+    @_handles.each_value { |handle| handle.send :destroy }
+    @_handles.clear
+    @_blocks.clear
+    @_next_ticks.clear
+
+    asdasd rescue nil
+
+    puts "NOTICE: rb ae_thread_killed() => exiting..."
   end
 
   def self.set_exception_handler block1=nil, &block2
@@ -67,16 +132,21 @@ module AsyncEngine
 
   # TODO: testing
   def self.debug
-    puts "DBG: AsyncEngine debug:"
+    puts "\nDBG: AsyncEngine debug:"
+    puts "- AE.running?: #{running?.inspect}"
+    puts "- AE.num_handles: #{num_handles}"
+    puts "- @_blocks: #{@_blocks.inspect}"
+    puts "- @_handles: #{@_handles.inspect}"
     puts
-    puts "@_blocks: #{@_blocks.inspect}"
-    puts
-    puts "@_handles: #{@_handles.inspect}"
-    puts
+  end
+
+  def self.log
+    "[AE thr:#{Thread.current}] "
   end
 
   class << self
     private :_c_run
+    private :_c_stop
     private :handle_exception
   end
 

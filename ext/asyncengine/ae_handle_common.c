@@ -104,11 +104,26 @@ void ae_uv_handle_close_callback(uv_handle_t* handle)
 {
   AE_TRACE();
 
+  //printf("DBG: ae_uv_handle_close_callback()\n");
+
   xfree(handle);
 }
 
 
-VALUE ae_get_uv_error(void)
+VALUE ae_get_uv_error(int uv_errno)
+{
+  AE_TRACE();
+
+  VALUE ae_uv_error;
+
+  if (NIL_P(ae_uv_error = rb_hash_aref(rb_const_get(mAsyncEngine, const_UV_ERRNOS), INT2FIX(uv_errno))))
+    ae_uv_error = rb_hash_aref(rb_const_get(mAsyncEngine, const_UV_ERRNOS), INT2FIX(-1));
+
+  return ae_uv_error;
+}
+
+
+VALUE ae_get_last_uv_error(void)
 {
   AE_TRACE();
 
@@ -121,11 +136,11 @@ VALUE ae_get_uv_error(void)
 }
 
 
-void ae_raise_last_uv_errno(void)
+void ae_raise_last_uv_error(void)
 {
   AE_TRACE();
 
-  VALUE ae_uv_error = ae_get_uv_error();
+  VALUE ae_uv_error = ae_get_last_uv_error();
 
   rb_funcall2(mKernel, method_raise, 1, &ae_uv_error);
 }
@@ -135,6 +150,10 @@ VALUE ae_block_call_0(VALUE rb_block)
 {
   AE_TRACE();
 
+  if (NIL_P(rb_block)) {
+    printf("CRITICAL: ae_block_call_0() called with nil as rb_block !!!\n");
+    return Qfalse;
+  }
   return rb_funcall2(rb_block, method_call, 0, NULL);
 }
 
@@ -143,6 +162,10 @@ VALUE ae_block_call_1(VALUE rb_block, VALUE param)
 {
   AE_TRACE();
 
+  if (NIL_P(rb_block)) {
+    printf("CRITICAL: ae_block_call_1() called with nil as rb_block !!!\n");
+    return Qfalse;
+  }
   return rb_funcall2(rb_block, method_call, 1, &param);
 }
 
