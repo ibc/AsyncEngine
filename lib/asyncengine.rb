@@ -36,7 +36,7 @@ module AsyncEngine
       yield  if block_given?
     rescue AsyncEngine::StopException => e
       stop rescue nil
-      return false
+      return true
     end
 
     @_running_thread = Thread.current
@@ -50,6 +50,7 @@ module AsyncEngine
       end
     rescue AsyncEngine::StopException
       stop rescue nil
+      return true
     rescue Exception => e
       stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
       raise e # And raise the original exception.
@@ -57,20 +58,25 @@ module AsyncEngine
   end
 
   def self.stop
-    is_running = running?
+    ae_was_running = running?
+    ae_thread = @_running_thread
 
+    puts "--- AE.stop 1"
     @_handles.each_value { |handle| handle.send :destroy }
     @_handles.clear
     @_blocks.clear
     @_next_ticks.clear
+    @_exception_handler = nil
+    @_running_thread = nil
 
-    # For this case:
-    #   AE.run { AE.stop }
-    # So the StopException exception is captured by AE.run, it executes
-    # AE.stop and returns false (see above).
-    if Thread.current == @_running_thread and not is_running
+    # ESTE PUTO RAISE me estaba jodiendo, creo
+    #raise AsyncEngine::StopException
+
+    if Thread.current == ae_thread
+      puts "AE.stop:  Thread.current == ae_thread  =>  raise molon"
       raise AsyncEngine::StopException
     end
+    puts "--- AE.stop 2 (end)"
   end
 
   def self.set_exception_handler block1=nil, &block2

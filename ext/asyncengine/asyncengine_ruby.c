@@ -7,7 +7,7 @@
 
 
 static _uv_is_running;
-static _can_exit = 0;
+
 static uv_prepare_t *ae_uv_prepare;
 
 static ID method_stop;
@@ -31,7 +31,7 @@ VALUE run_uv_without_gvl(void* param)
   int ret;
 
   if (_uv_is_running) {
-    AE_TRACE2("uv_run is already running, return false");
+    AE_TRACE3("uv_run is already running, return false");
     return Qfalse;
   }
 
@@ -41,49 +41,50 @@ VALUE run_uv_without_gvl(void* param)
   uv_prepare_start(ae_uv_prepare, _uv_prepare_callback);
   uv_unref(uv_default_loop());
 
+  /* Load the AE next_tick idle handle */
+  load_ae_next_tick_uv_idle();
+
   _uv_is_running = 1;
 
   assert(! uv_run(uv_default_loop()));
 
-  //printf("C DBG: run_uv_without_gvl(): uv_run exits (gvl? %d)\n", ruby_thread_has_gvl_p());
-  AE_TRACE2("uv_run() exits");
+  AE_TRACE3("uv_run() exits");
 
-  // If AsyncEngine has been properly stopped due to the lack of active handles,
-  // then free the uv_prepare handle.
-  // But if it has been terminated by AE.stop (so _uv_is_running is already 0)
-  // then the work is already done.
-  if (_uv_is_running) {
-    // Referece again ae_uv_prepare so it can be properly closed.
-    uv_ref(uv_default_loop());
-    uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
-  }
+  // Referece again ae_uv_prepare so it can be properly closed.
+  uv_ref(uv_default_loop());
+  uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
+
+  // Same for the av_uv_idle_next_tick handle.
+  unload_ae_next_tick_uv_idle();
 
   _uv_is_running = 0;
 
-  AE_TRACE2("function terminates");
+  AE_TRACE3("function terminates");
 
   return Qtrue;
 }
 
 
 static
-rb_unblock_function_t* ubf_ae_thread_killed(void)
+void ubf_ae_thread_killed(void)
 {
   AE_TRACE();
+  AE_TRACE3("rb_funcall2(mAsyncEngine, method_stop, 0, NULL) starts");
 
   // Call AE.stop which closes all the active UV handles and that allows uv_run() to terminate.
   // NOTE: We have the GVL now (ruby_thread_has_gvl_p() says that) but, do we have it in any case?
   rb_funcall2(mAsyncEngine, method_stop, 0, NULL);
 
-  AE_TRACE2("rb_funcall2(mAsyncEngine, method_stop, 0, NULL) terminates");
+  AE_TRACE3("rb_funcall2(mAsyncEngine, method_stop, 0, NULL) terminates");
 
-  // TODO: I DON'T like this:
+  AE_TRACE3("waiting for _uv_is_running == 0");
   while(_uv_is_running) {
-    AE_TRACE2("waiting for _uv_is_running == 0");
-    sleep(0.01);
+    printf(".");
+    rb_thread_schedule();
   }
+  printf("\n");
 
-  AE_TRACE2("function terminates");
+  AE_TRACE3("function terminates");
 }
 
 
@@ -92,6 +93,7 @@ VALUE AsyncEngine_c_run(VALUE self)
   AE_TRACE();
 
   return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ubf_ae_thread_killed, NULL);
+  //return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, RUBY_UBF_IO, NULL);
 }
 
 

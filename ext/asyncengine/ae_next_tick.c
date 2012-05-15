@@ -14,13 +14,39 @@ void init_ae_next_tick()
 
   /* Load the AE next tick idle handle */
   /* NOTE: This handle is never freed until the process exists. */
-  ae_next_tick_uv_idle = ALLOC(uv_idle_t);
-  uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle);
-  uv_unref(uv_default_loop());
+//   ae_next_tick_uv_idle = ALLOC(uv_idle_t);
+//   uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle);
+//   uv_unref(uv_default_loop());
 
   rb_define_module_function(mAsyncEngine, "_c_next_tick", AsyncEngine_c_next_tick, 0);
 
   id_method_execute_next_ticks = rb_intern("execute_next_ticks");
+
+  ae_next_tick_uv_idle = NULL;
+}
+
+
+void load_ae_next_tick_uv_idle()
+{
+  AE_TRACE();
+
+  if (ae_next_tick_uv_idle)
+    return;
+ 
+  ae_next_tick_uv_idle = ALLOC(uv_idle_t);
+  uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle);
+  uv_unref(uv_default_loop());
+}
+
+
+void unload_ae_next_tick_uv_idle()
+{
+  AE_TRACE();
+
+  // Referece again ae_uv_prepare so it can be properly closed.
+  uv_ref(uv_default_loop());
+  uv_close((uv_handle_t *)ae_next_tick_uv_idle, ae_uv_handle_close_callback);
+  ae_next_tick_uv_idle = NULL;
 }
 
 
@@ -48,6 +74,8 @@ void _uv_idle_callback(uv_idle_t* handle, int status)
 VALUE AsyncEngine_c_next_tick(VALUE self)
 {
   AE_TRACE();
+
+  load_ae_next_tick_uv_idle();
 
   if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {
     uv_idle_start(ae_next_tick_uv_idle, _uv_idle_callback);
