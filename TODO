@@ -3,6 +3,32 @@ TODO
 
 
 
+BUG: multithread BIG problems
+------------------------------
+
+http://bugs.ruby-lang.org/issues/6433
+
+From Tony Arcieri:
+
+----------
+The unblocking function doesn't run inside the blocking thread, it
+runs from the running thread which by definition holds the GVL
+---------- 
+
+
+
+WARNING: I manage Ruby objects without GVL
+------------------------------------------
+
+C callbacks remove elements from the @_handles Hash without the GVL. It's not *very* dangerous since keys are FIXNUM
+(immutable) but:
+
+"Fixnum instances are immutable and calling #hash should be safe on them.
+However, point 2) stands: if two threads will access the hash simultaneously,
+that may and will lead to crashes."
+
+
+
 assert()
 --------
 
@@ -76,9 +102,3 @@ https://github.com/joyent/libuv/issues/412
 
 RESPONSE: It's a feature, libuv sets the SO_REUSEADDR flag on both sockets. Both are able to send but only the second socket can receive datagrams.
 
-
-
-Use a single buf for receiving in each UDP socket
--------------------------------------------------
-
-Why to alloc and free it for every request?

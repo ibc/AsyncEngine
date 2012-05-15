@@ -51,15 +51,12 @@ module AsyncEngine
     rescue AsyncEngine::StopException
       stop rescue nil
     rescue Exception => e
-      puts log + "NOTICE: AsyncEngine._c_run raised #{e.class} (#{e}), running AE.stop now and raising the exception..."
       stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
       raise e # And raise the original exception.
     end
   end
 
   def self.stop
-    puts "RB NOTICE: stop() starts"
-
     is_running = running?
 
     @_handles.each_value { |handle| handle.send :destroy }
@@ -67,6 +64,10 @@ module AsyncEngine
     @_blocks.clear
     @_next_ticks.clear
 
+    # For this case:
+    #   AE.run { AE.stop }
+    # So the StopException exception is captured by AE.run, it executes
+    # AE.stop and returns false (see above).
     if Thread.current == @_running_thread and not is_running
       raise AsyncEngine::StopException
     end
@@ -99,10 +100,6 @@ module AsyncEngine
     puts "- @_blocks: #{@_blocks.inspect}"
     puts "- @_handles: #{@_handles.inspect}"
     puts
-  end
-
-  def self.log
-    "[AE thr:#{Thread.current}] "
   end
 
   class << self

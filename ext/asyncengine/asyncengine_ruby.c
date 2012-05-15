@@ -7,9 +7,10 @@
 
 
 static _uv_is_running;
+static _can_exit = 0;
 static uv_prepare_t *ae_uv_prepare;
 
-static ID method_destroy;
+static ID method_stop;
 
 
 static
@@ -27,12 +28,10 @@ VALUE run_uv_without_gvl(void* param)
 {
   AE_TRACE();
 
-  printf("C DBG: run_uv_without_gvl() starts\n");
-
   int ret;
 
   if (_uv_is_running) {
-    printf("C CRITICAL: run_uv_without_gvl(): uv_run is already running, exit with false !!!\n");
+    AE_TRACE2("uv_run is already running, return false");
     return Qfalse;
   }
 
@@ -46,7 +45,8 @@ VALUE run_uv_without_gvl(void* param)
 
   assert(! uv_run(uv_default_loop()));
 
-  printf("C DBG: run_uv_without_gvl(): uv_run exits\n");
+  //printf("C DBG: run_uv_without_gvl(): uv_run exits (gvl? %d)\n", ruby_thread_has_gvl_p());
+  AE_TRACE2("uv_run() exits");
 
   // If AsyncEngine has been properly stopped due to the lack of active handles,
   // then free the uv_prepare handle.
@@ -60,39 +60,30 @@ VALUE run_uv_without_gvl(void* param)
 
   _uv_is_running = 0;
 
-  printf("C DBG: run_uv_without_gvl() terminates\n");
+  AE_TRACE2("function terminates");
+
   return Qtrue;
 }
 
 
 static
-VALUE terminate_uv_with_gvl(void* param)
+rb_unblock_function_t* ubf_ae_thread_killed(void)
 {
   AE_TRACE();
 
-  printf("C INFO: terminate_uv_with_gvl() starts\n");
+  // Call AE.stop which closes all the active UV handles and that allows uv_run() to terminate.
+  // NOTE: We have the GVL now (ruby_thread_has_gvl_p() says that) but, do we have it in any case?
+  rb_funcall2(mAsyncEngine, method_stop, 0, NULL);
 
-  rb_funcall2(mAsyncEngine, method_destroy, 0, NULL);
+  AE_TRACE2("rb_funcall2(mAsyncEngine, method_stop, 0, NULL) terminates");
 
+  // TODO: I DON'T like this:
   while(_uv_is_running) {
-    printf("C INFO: terminate_uv_with_gvl(), waiting for _uv_is_running == 0\n");
+    AE_TRACE2("waiting for _uv_is_running == 0");
     sleep(0.01);
   }
 
-  printf("C INFO: terminate_uv_with_gvl() terminates\n");
-
-  return Qtrue;
-}
-
-
-static
-void ae_thread_killed(void)
-{
-  AE_TRACE();
-
-  printf("C NOTICE: ae_thread_killed() starts, running rb_thread_call_with_gvl(terminate_uv_with_gvl, NULL)...\n");
-
-  rb_thread_call_with_gvl(terminate_uv_with_gvl, NULL);
+  AE_TRACE2("function terminates");
 }
 
 
@@ -100,7 +91,7 @@ VALUE AsyncEngine_c_run(VALUE self)
 {
   AE_TRACE();
 
-  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_thread_killed, NULL);
+  return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ubf_ae_thread_killed, NULL);
 }
 
 
@@ -126,6 +117,10 @@ VALUE AsyncEngine_num_handles(VALUE self)
 }
 
 
+VALUE AsyncEngine_has_gvl(VALUE self)
+{
+  return INT2FIX(ruby_thread_has_gvl_p());
+}
 
 
 void Init_asyncengine_ext()
@@ -138,7 +133,9 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
 
-  method_destroy = rb_intern("destroy");
+  rb_define_module_function(mAsyncEngine, "gvl?", AsyncEngine_has_gvl, 0);
+
+  method_stop = rb_intern("stop");
 
   init_ae_handle_common();
   init_ae_timer();
