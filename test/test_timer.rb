@@ -115,5 +115,3 @@ class TestTimer < AETest
   end
 
 end
-
-

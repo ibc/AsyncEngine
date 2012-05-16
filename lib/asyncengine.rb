@@ -30,53 +30,61 @@ module AsyncEngine
     # SIGPIPE signal.
     trap(:PIPE) {}
 
-    # Run the block, and be ready to properly exit if the use calls to stop()
-    # within the first level of the given block.
     begin
-      yield  if block_given?
-    rescue AsyncEngine::StopException => e
-      stop rescue nil
-      return true
-    end
+      # Run the block. If AsyncEngine.stop is called here, it will be captured below.
+      if block_given?
+        @_in_yield = true
+        yield
+        @_in_yield = nil
+      end
 
-    @_running_thread = Thread.current
-
-    begin
+      # Run UV.
+      @_exit_exception = nil
       if _c_run
-        return true
+        puts "YEAH: _c_run exits !!!"
+        # Any kind of exception (StandardError) is rescued by the exception_handler which
+        # sets @_exit_exception, so _c_run always ends with true.
+        if @_exit_exception
+          _c_run
+          puts "NOTICE: exception #{@_exit_exception.class} (#{@_exit_exception}) after _c_run !!! raising it..."
+          raise @_exit_exception
+        else
+          return true
+        end
       else
         # TODO: This should NEVER occur!
-        raise AsyncEngine::Error, "AsyncEngine failed to run"
+        abort "ABORT: _c_run does not return true"
       end
-    rescue AsyncEngine::StopException
-      stop rescue nil
+    rescue AsyncEngine::StopInYield
+      puts "AsyncEngine::StopInYield rescued => true"
+      # Run UV once so it executes the async_uv handle and it's removed.
+      _c_run
       return true
     rescue Exception => e
-      stop rescue nil  # Ignore the AsyncEngine::StopException to be created.
+      raise e  if @_exit_exception
+      puts "NOTICE: exception #{e.class} (#{e}) rescued running _c_run, calling destroy() and raising it"
+      destroy
+      # Run UV once so it executes the async_uv handle and it's removed.
+      _c_run
       raise e # And raise the original exception.
     end
   end
 
-  def self.stop
-    ae_was_running = running?
-    ae_thread = @_running_thread
+  def self.destroy
+    # TODO: OSTRAS QUE NO HACE FALTA !!!
+    #ret = _c_destroy
+    #puts "AE.destroy:  _c_destroy() returns #{ret.inspect}"
 
-    puts "--- AE.stop 1"
     @_handles.each_value { |handle| handle.send :destroy }
     @_handles.clear
     @_blocks.clear
     @_next_ticks.clear
-    @_exception_handler = nil
-    @_running_thread = nil
+  end
 
-    # ESTE PUTO RAISE me estaba jodiendo, creo
-    #raise AsyncEngine::StopException
-
-    if Thread.current == ae_thread
-      puts "AE.stop:  Thread.current == ae_thread  =>  raise molon"
-      raise AsyncEngine::StopException
-    end
-    puts "--- AE.stop 2 (end)"
+  def self.stop
+    destroy
+    raise AsyncEngine::StopInYield  if @_in_yield
+    true
   end
 
   def self.set_exception_handler block1=nil, &block2
@@ -92,9 +100,18 @@ module AsyncEngine
 
   def self.handle_exception e
     if @_exception_handler
-      @_exception_handler.call e
+      # Protect the code if the user generates an exception in the exception_handler block.
+      begin
+        @_exception_handler.call e
+      rescue => e
+        @_exit_exception = e
+        destroy
+      end
     else
-      raise e
+      # Instead of raising an exception (which would bypass uv_run() without proper exiting,
+      # store the exception in @_exit_exception and call destroy(), so _c_run() terminates.
+      @_exit_exception = e
+      destroy
     end
   end
 
@@ -110,6 +127,8 @@ module AsyncEngine
 
   class << self
     private :_c_run
+    private :_c_destroy
+    private :destroy
     private :handle_exception
   end
 

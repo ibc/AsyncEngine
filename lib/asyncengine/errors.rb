@@ -14,8 +14,7 @@ module AsyncEngine
     end
   end
 
-  class StopException < Error ; end
-
+  class StopInYield < Error ; end
 
   UV_ERRNOS = {
     -1 => UvError.new(-1, :UNKNOWN, "unknown error"),

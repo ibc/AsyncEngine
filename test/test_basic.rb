@@ -3,11 +3,11 @@ require "ae_test_helper"
 
 class TestBasic < AETest
 
-  def _test_01_AE_is_restartable
+  def test_01_AE_is_restartable
     str = ""
 
     assert_false AE.running?
-    AE.run { assert_true AE.running? }
+    AE.run { assert_false AE.running? }
     assert_false AE.running?
 
     AE.run
@@ -33,7 +33,7 @@ class TestBasic < AETest
     assert_equal "abcdef", str
   end
 
-  def _test_02_exception_handler
+  def test_02_exception_handler
     AE.set_exception_handler {|e| assert e.is_a? ::StandardError }
 
     assert_respond_to AE.instance_variable_get(:@_exception_handler), :call
@@ -58,7 +58,7 @@ class TestBasic < AETest
     assert_equal nil, AE.instance_variable_get(:@_exception_manager)
   end
 
-  def _test_03_num_handles
+  def test_03_num_handles
     assert_equal 0, AE.num_handles
 
     AE.run do
@@ -68,6 +68,77 @@ class TestBasic < AETest
     end
 
     assert_equal 0, AE.num_handles
+  end
+
+  def test_04_stop_in_yield
+    @var = false
+
+    AE.run { AE.next_tick { @var = true } ; AE.stop }
+
+    assert_false AE.running?
+    assert_equal 0, AE.num_handles
+    assert_true AE.run
+    assert_false @var
+
+    AE.run { AE.stop ; AE.next_tick { @var = true } }
+
+    assert_false AE.running?
+    assert_equal 0, AE.num_handles
+    assert_true AE.run
+    assert_false @var
+  end
+
+  def test_05_stop_in_callback
+    @var = false
+
+    AE.run do
+      AE.next_tick { AE.next_tick { @var = true  } }
+      AE.next_tick { AE::Timer.new(0) { @var = true  } }
+      AE.next_tick { AE.stop }
+    end
+
+    assert_false AE.running?
+    assert_equal 0, AE.num_handles
+    assert_true AE.run
+    assert_false @var
+  end
+
+  def test_06_run_in_run
+    num = 0
+
+    AE.run do
+      num+=1
+      AE.run { num+=1 }
+      AE.run { AE.run { num+=1 } }
+      AE.next_tick { AE.stop }
+      # uv_prepare is executed before uv_async, so next line does its job.
+      AE.next_tick { AE.next_tick { num+=1 } }
+    end
+
+    assert_equal 4, num
+  end
+
+  def test_07_uv_prepare_runs_after_uv_async
+    # So don't block in this simple case:
+    AE.run do
+      AE.next_tick { AE.next_tick { } }
+      AE.next_tick { AE.stop }
+    end
+
+    assert_false AE.running?
+    assert_equal 0, AE.num_handles
+    assert_true AE.run
+  end
+
+  def test_08_multiple_stop
+    AE.run do
+      AE.next_tick { AE.stop ; AE.stop }
+      AE.next_tick { AE.next_tick { AE.stop } }
+    end
+
+    assert_false AE.running?
+    assert_equal 0, AE.num_handles
+    assert_true AE.run
   end
 
 end
