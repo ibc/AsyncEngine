@@ -41,7 +41,7 @@ module AsyncEngine
       # Run UV.
       @_exit_exception = nil
       if _c_run
-        puts "YEAH: _c_run exits !!!"
+        #puts "YEAH: _c_run exits !!!"
         # Any kind of exception (StandardError) is rescued by the exception_handler which
         # sets @_exit_exception, so _c_run always ends with true.
         if @_exit_exception
@@ -71,10 +71,6 @@ module AsyncEngine
   end
 
   def self.destroy
-    # TODO: OSTRAS QUE NO HACE FALTA !!!
-    #ret = _c_destroy
-    #puts "AE.destroy:  _c_destroy() returns #{ret.inspect}"
-
     @_handles.each_value { |handle| handle.send :destroy }
     @_handles.clear
     @_blocks.clear
@@ -127,7 +123,6 @@ module AsyncEngine
 
   class << self
     private :_c_run
-    private :_c_destroy
     private :destroy
     private :handle_exception
   end
