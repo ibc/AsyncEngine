@@ -8,7 +8,7 @@ module AsyncEngine
     sock = klass.allocate
 
     # Set the UV UDP handler and bind.
-    sock.send :_c_init_udp_socket, bind_ip, bind_port
+    sock.send :uv_init, bind_ip, bind_port
 
     # Call the usual initialize() method as defined by the user.
     sock.send :initialize, *args

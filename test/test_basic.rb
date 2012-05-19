@@ -58,37 +58,23 @@ class TestBasic < AETest
     assert_equal nil, AE.instance_variable_get(:@_exception_manager)
   end
 
-  def test_03_num_handles
-    assert_equal 0, AE.num_handles
-
-    AE.run do
-      assert_equal 0, AE.num_handles
-      AE.add_timer(0.001) { assert_equal 1, AE.num_handles }
-      pt1 = AE::PeriodicTimer.new(0.002) { assert_equal 1, AE.num_handles ; pt1.stop ; assert_equal 0, AE.num_handles }
-    end
-
-    assert_equal 0, AE.num_handles
-  end
-
-  def test_04_stop_in_yield
+  def test_03_stop_in_yield
     @var = false
 
     AE.run { AE.next_tick { @var = true } ; AE.stop }
 
     assert_false AE.running?
-    assert_equal 0, AE.num_handles
     assert_true AE.run
     assert_false @var
 
     AE.run { AE.stop ; AE.next_tick { @var = true } }
 
     assert_false AE.running?
-    assert_equal 0, AE.num_handles
     assert_true AE.run
     assert_false @var
   end
 
-  def test_05_stop_in_callback
+  def test_04_stop_in_callback
     @var = false
 
     AE.run do
@@ -98,12 +84,11 @@ class TestBasic < AETest
     end
 
     assert_false AE.running?
-    assert_equal 0, AE.num_handles
     assert_true AE.run
     assert_false @var
   end
 
-  def test_06_run_in_run
+  def test_05_run_in_run
     num = 0
 
     AE.run do
@@ -118,7 +103,7 @@ class TestBasic < AETest
     assert_equal 4, num
   end
 
-  def test_07_uv_prepare_runs_after_uv_async
+  def test_06_lalala  # TODO: quitarlo...
     # So don't block in this simple case:
     AE.run do
       AE.next_tick { AE.next_tick { } }
@@ -126,18 +111,16 @@ class TestBasic < AETest
     end
 
     assert_false AE.running?
-    assert_equal 0, AE.num_handles
     assert_true AE.run
   end
 
-  def test_08_multiple_stop
+  def test_07_multiple_stop
     AE.run do
       AE.next_tick { AE.stop ; AE.stop }
       AE.next_tick { AE.next_tick { AE.stop } }
     end
 
     assert_false AE.running?
-    assert_equal 0, AE.num_handles
     assert_true AE.run
   end
 

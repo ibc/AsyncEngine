@@ -6,28 +6,20 @@
 
 
 // Uncomment this line for enabling TRACE() function.
-//#define AE_DEBUG1
-//#define AE_DEBUG2
-//#define AE_DEBUG3
+//#define AE_DO_TRACE
+#define AE_DO_DEBUG
 
-#ifdef AE_DEBUG1
-#define AE_TRACE()  fprintf(stderr, "AE_TRACE: %s:%d:%s (GVL: %d)\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p())
+#ifdef AE_DO_TRACE
+  #define AE_TRACE()  fprintf(stderr, "AE_TRACE: %s:%d:%s (GVL: %d)\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p())
 #else
-#define AE_TRACE()
+  #define AE_TRACE()
 #endif
 
-#ifdef AE_DEBUG2
-#define AE_TRACE2(desc)  fprintf(stderr, "AE_TRACE2: %s:%d:%s (GVL: %d):  %s\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p(), desc)
+#ifdef AE_DO_DEBUG
+  #define AE_DEBUG(desc)  fprintf(stderr, "AE_DEBUG: %s:%d:%s (GVL: %d):  %s\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p(), desc)
 #else
-#define AE_TRACE2(desc)
+  #define AE_DEBUG(desc)
 #endif
-
-#ifdef AE_DEBUG3
-#define AE_TRACE3(desc)  fprintf(stderr, "AE_TRACE3: %s:%d:%s (GVL: %d):  %s\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p(), desc)
-#else
-#define AE_TRACE3(desc)
-#endif
-
 
 
 VALUE mAsyncEngine;

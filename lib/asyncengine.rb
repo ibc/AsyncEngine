@@ -4,6 +4,7 @@ require "asyncengine/asyncengine_ext.so"
 # AsyncEngine Ruby library files.
 require "asyncengine/version.rb"
 require "asyncengine/errors.rb"
+require "asyncengine/async.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/next_tick.rb"
 require "asyncengine/udp.rb"
@@ -12,9 +13,9 @@ require "asyncengine/udp.rb"
 module AsyncEngine
 
   @_exception_handler = nil
-  @_blocks = {}
   @_next_ticks = []
   @_handles = {}
+  @_blocks = {}  # For now used for uv_async handles.
 
   def self.run
     if running?
@@ -30,6 +31,8 @@ module AsyncEngine
     # SIGPIPE signal.
     trap(:PIPE) {}
 
+    @_thread = Thread.current
+
     begin
       # Run the block. If AsyncEngine.stop is called here, it will be captured below.
       if block_given?
@@ -41,11 +44,18 @@ module AsyncEngine
       # Run UV.
       @_exit_exception = nil
       if _c_run
-        #puts "YEAH: _c_run exits !!!"
+        # Run destroy() since, i.e. paused timers are not active
+        # so they could remain after uv_run() exits.
+        if destroy
+          raise "ERROR: after _c_run still handles to destroy, running _c_run again..."
+          # And run _c_run so they are freed.
+          #_c_run
+          puts "DONE"
+        end
+
         # Any kind of exception (StandardError) is rescued by the exception_handler which
         # sets @_exit_exception, so _c_run always ends with true.
         if @_exit_exception
-          _c_run
           puts "NOTICE: exception #{@_exit_exception.class} (#{@_exit_exception}) after _c_run !!! raising it..."
           raise @_exit_exception
         else
@@ -57,28 +67,39 @@ module AsyncEngine
       end
     rescue AsyncEngine::StopInYield
       puts "AsyncEngine::StopInYield rescued => true"
-      # Run UV once so it executes the async_uv handle and it's removed.
+      # If we are here is because AsyncEngine is not running, so run _c_run once in order to clean stopped UV handles.
       _c_run
       return true
     rescue Exception => e
+      # If we are here is because AsyncEngine is not running, so run _c_run once in order to clean stopped UV handles.
+      # TODO: Si quito este if se produce el "run_uv_without_gvl: Assertion `! _uv_is_running' failed."
+      # super a menudo (ver crash_ubf_gvl.rb).
+      _c_run  if @_in_yield
       raise e  if @_exit_exception
-      puts "NOTICE: exception #{e.class} (#{e}) rescued running _c_run, calling destroy() and raising it"
+      #puts "NOTICE: exception #{e.class} (#{e}) rescued running _c_run, calling destroy() and raising it"
       destroy
-      # Run UV once so it executes the async_uv handle and it's removed.
-      _c_run
       raise e # And raise the original exception.
     end
   end
 
   def self.destroy
-    @_handles.each_value { |handle| handle.send :destroy }
-    @_handles.clear
-    @_blocks.clear
-    @_next_ticks.clear
+    ret = @_handles.any?
+
+    # TODO: bufff
+    #Thread.exclusive do
+      call_from_other_thread do
+        @_handles.each_value { |handle| handle.send :destroy }
+        @_handles.clear
+        @_next_ticks.clear
+      end
+    #end
+
+    ret
   end
 
   def self.stop
-    destroy
+    #destroy
+    _c_stop
     raise AsyncEngine::StopInYield  if @_in_yield
     true
   end
@@ -115,9 +136,11 @@ module AsyncEngine
   def self.debug
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running?: #{running?.inspect}"
-    puts "- AE.num_handles: #{num_handles}"
-    puts "- @_blocks: #{@_blocks.inspect}"
-    puts "- @_handles: #{@_handles.inspect}"
+    puts "- Num @_handles: #{@_handles.size}"
+    puts "- @_handles:\n"
+    @_handles.each {|h| puts "  - #{h.inspect}"}
+    puts "- @_blocks:\n"
+    @_blocks.each {|b| puts "  - #{b.inspect}"}
     puts
   end
 

@@ -1,81 +1,49 @@
 module AsyncEngine
 
   def self.add_timer delay, block1=nil, &block2
-    _c_add_timer((delay*1000).to_i, nil, block1 || block2, nil)
+    Timer.new delay, block1 || block2
   end
 
   def self.add_periodic_timer interval, delay=nil, block1=nil, &block2
-    if delay
-      _c_add_timer((delay*1000).to_i, (interval*1000).to_i, block1 || block2, nil)
-    else
-      interval = (interval*1000).to_i
-      _c_add_timer(interval, interval, block1 || block2, nil)
-    end
-  end
-
-  class << self
-    private :_c_add_timer
+    PeriodicTimer.new interval, delay, block1 || block2
   end
 
 
   class Timer
     def initialize delay, block1=nil, &block2
-      @_delay = (delay*1000).to_i
-      @_block = block1 || block2
-
-      AsyncEngine.send(:_c_add_timer, @_delay, nil, @_block, self)
+      uv_init delay = (delay*1000).to_i, nil, block1 || block2
     end
 
-    def active?
-      @_handle_terminated ? false : true
+    def restart delay=nil
+      delay = (delay*1000).to_i  if delay
+      _c_restart delay, nil
     end
 
-    # TODO: Doc.
-    # If no delay and block are given, it reuses the previous ones.
-    def restart delay=nil, block1=nil, &block2
-      @_delay = (delay*1000).to_i  if delay
-      @_block = block1 || block2 || @_block
-
-      cancel
-      @_handle_terminated = nil
-      AsyncEngine.send(:_c_add_timer, @_delay, nil, @_block, self)
+    alias orig_to_s to_s
+    def to_s
+      "#{self.orig_to_s} (delay: #{delay})"
     end
+    alias :inspect :to_s
   end
 
 
   class PeriodicTimer < Timer
     def initialize interval, delay=nil, block1=nil, &block2
-      @_interval = (interval*1000).to_i
-      @_delay = ( delay ? (delay*1000).to_i : @_interval )
-      @_block = block1 || block2
-
-      AsyncEngine.send(:_c_add_timer, @_delay, @_interval, @_block, self)
+      interval = (interval*1000).to_i
+      delay = ( delay ? (delay*1000).to_i : interval )
+      uv_init delay, interval, block1 || block2
     end
 
-    # TODO: Doc.
-    # If no interval and block are given, it reuses the previous ones.
-    # But if delay is not given, then it copies it from the new interval (if given).
-    def restart interval=nil, delay=nil, block1=nil, &block2
-      @_interval = (interval*1000).to_i  if interval
-      if delay
-        @_delay = (delay*1000).to_i
-      elsif interval
-        @_delay = @_interval
-      end
-      @_block = block1 || block2 || @_block
-
-      cancel
-      @_handle_terminated = nil
-      AsyncEngine.send(:_c_add_timer, @_delay, @_interval, @_block, self)
+    def restart interval=nil, delay=nil
+      interval = (interval*1000).to_i  if interval
+      delay = ( delay ? (delay*1000).to_i : interval )
+      _c_restart delay, interval
     end
 
-    # TODO: Doc.
-    # Changes the interval in which the periodic timer fires.
-    # If the timer was stopped this method takes no effect (and returns false).
-    def set_interval interval
-      _c_set_interval (interval*1000).to_i
+    def to_s
+      "#{self.orig_to_s} (delay: #{delay}, interval: #{interval})"
     end
-    alias :interval= :set_interval
+    alias :inspect :to_s
   end
 
 end

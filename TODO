@@ -3,17 +3,38 @@ TODO
 
 
 
+UV Refcount refactor
+--------------------
+
+In master:.
+
+https://github.com/joyent/libuv/commit/9efa8b35713ae2a1c2ba2300e54492861f1af1e5
+
+
+
 BUG: multithread BIG problems
 ------------------------------
 
 http://bugs.ruby-lang.org/issues/6433
 
-From Tony Arcieri:
+The problem seems a bit fixed, but not 100%. In fact, given the following code:
 
-----------
-The unblocking function doesn't run inside the blocking thread, it
-runs from the running thread which by definition holds the GVL
----------- 
+  loop do AE.run { AE.next_tick { AE.next_tick { } } } end
+
+If I send a STOP/INT signal to that process, I get:
+
+  ruby: asyncengine_ruby.c:33: run_uv_without_gvl: Assertion `! _uv_is_running' failed.
+
+and that is because _c_run was calling with _uv_is_running being true!!!
+
+UPDATE: Theorically fixed...
+
+However another critical bug (see bug_timer_frozen.rb):
+
+  AE.run { AE::PeriodicTimer.new(1) { puts "TICK" } }
+
+Sending a signal to this process makes it frozen (so kill -9 required...).
+
 
 
 
@@ -102,3 +123,8 @@ https://github.com/joyent/libuv/issues/412
 
 RESPONSE: It's a feature, libuv sets the SO_REUSEADDR flag on both sockets. Both are able to send but only the second socket can receive datagrams.
 
+
+Bugs reported in Github UV:
+---------------------------
+
+- https://github.com/joyent/libuv/issues/417

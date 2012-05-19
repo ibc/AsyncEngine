@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 
-require "eventmachine"
+#require "eventmachine"
 $LOAD_PATH.insert 0, File.expand_path(File.join(File.dirname(__FILE__), "../../", "lib"))
 require "asyncengine"
 
 
-Thread.abort_on_exception = true
+#Thread.abort_on_exception = true
 
 
 $ae_datagrams = 0
@@ -27,41 +27,44 @@ end
 
 
 
-class EmUdp < EM::Connection
-  def receive_data data
-    $em_datagrams += 1
-    #send_data data.succ
-    send_datagram data.succ, "127.0.0.1", $em_port
-  end
-end
+# class EmUdp < EM::Connection
+#   def receive_data data
+#     $em_datagrams += 1
+#     #send_data data.succ
+#     send_datagram data.succ, "127.0.0.1", $em_port
+#   end
+# end
 
 
 class AeUdp < AE::UDPSocket
   def on_received_datagram data
     $ae_datagrams += 1
-    send_datagram data.succ, "127.0.0.1", $ae_port
+    send_datagram(data.succ, "127.0.0.1", $ae_port) #{|e| puts e.inspect}
   end
 end
 
 
 
-t1 = Thread.new do
-  EM.run do
-    EM::open_datagram_socket("127.0.0.1", $em_port, EmUdp) do |udp|
-      udp.send_datagram "A", "127.0.0.1", $em_port
-    end
-  end
-end
+# t1 = Thread.new do
+#   EM.run do
+#     EM::open_datagram_socket("127.0.0.1", $em_port, EmUdp) do |udp|
+#       udp.send_datagram "A", "127.0.0.1", $em_port
+#     end
+#   end
+# end
 
 
-t2 = Thread.new do
+$ae_blocks = AE.instance_variable_get :@_blocks
+
+#t2 = Thread.new do
   AE.run do
-    AE.open_udp_socket("127.0.0.1", $ae_port, AeUdp) do |udp|
-      udp.send_datagram("A", "127.0.0.1", $ae_port)
-    end
+    AE.add_periodic_timer(10) { }
+#     AE.open_udp_socket("127.0.0.1", $ae_port, AeUdp) do |udp|
+#       udp.send_datagram("A", "127.0.0.1", $ae_port) #{|e| puts e.inspect}
+#     end
   end
-end
+#end
 
 
-t1.join rescue nil
-t2.join rescue nil
+#t1.join rescue nil
+#t2.join rescue nil

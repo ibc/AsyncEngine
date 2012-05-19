@@ -1,5 +1,6 @@
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
+#include "ae_async.h"
 #include "ae_timer.h"
 #include "ae_next_tick.h"
 #include "ae_udp.h"
@@ -7,8 +8,25 @@
 
 
 static _uv_is_running;
+static do_stop;
+
+uv_prepare_t *ae_uv_prepare;
+uv_check_t *ae_uv_check;
 
 static ID method_destroy;
+
+
+static
+VALUE stop_ae_from_kill(VALUE ignore)
+{
+  AE_TRACE();
+
+  AE_DEBUG("running AE.destroy");
+
+  rb_funcall2(mAsyncEngine, method_destroy, 0, NULL);
+
+  return Qnil;
+}
 
 
 static
@@ -16,8 +34,85 @@ void ae_uv_prepare_callback(uv_prepare_t* handle, int status)
 {
   AE_TRACE();
 
+  if (do_stop) {
+    AE_DEBUG("do_stop == 1");
+    do_stop = 0;
+    ae_execute_function_with_gvl_and_protect(stop_ae_from_kill, Qnil);
+  }
+
   // Check received interruptions in Ruby land.
   rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
+}
+
+
+static
+void load_ae_uv_prepare(void)
+{
+  AE_TRACE();
+
+  if (ae_uv_prepare)
+    return;
+
+  ae_uv_prepare = ALLOC(uv_prepare_t);
+  uv_prepare_init(uv_default_loop(), ae_uv_prepare);
+  uv_prepare_start(ae_uv_prepare, ae_uv_prepare_callback);
+  uv_unref((uv_handle_t*)ae_uv_prepare);
+}
+
+
+static
+void unload_ae_uv_prepare(void)
+{
+  AE_TRACE();
+
+  if (! ae_uv_prepare)
+    return;
+
+  uv_ref((uv_handle_t*)ae_uv_prepare);
+  uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
+  ae_uv_prepare = NULL;
+}
+
+
+static
+void ae_uv_check_callback(uv_check_t* handle, int status)
+{
+  AE_TRACE();
+
+  if (do_stop) {
+    AE_DEBUG("do_stop == 1");
+    do_stop = 0;
+    ae_execute_function_with_gvl_and_protect(stop_ae_from_kill, Qnil);
+  }
+}
+
+
+static
+void load_ae_uv_check(void)
+{
+  AE_TRACE();
+
+  if (ae_uv_check)
+    return;
+
+  ae_uv_check = ALLOC(uv_check_t);
+  uv_check_init(uv_default_loop(), ae_uv_check);
+  uv_check_start(ae_uv_check, ae_uv_check_callback);
+  uv_unref((uv_handle_t*)ae_uv_check);
+}
+
+
+static
+void unload_ae_uv_check(void)
+{
+  AE_TRACE();
+
+  if (! ae_uv_check)
+    return;
+  
+  uv_ref((uv_handle_t*)ae_uv_check);
+  uv_close((uv_handle_t *)ae_uv_check, ae_uv_handle_close_callback);
+  ae_uv_check = NULL;
 }
 
 
@@ -36,31 +131,26 @@ VALUE run_uv_without_gvl(void* param)
 //     return Qfalse;
 //   }
 
-  /* Load the AE prepare handle */
-  uv_prepare_t *ae_uv_prepare = ALLOC(uv_prepare_t);
-  uv_prepare_init(uv_default_loop(), ae_uv_prepare);
-  uv_prepare_start(ae_uv_prepare, ae_uv_prepare_callback);
-  uv_unref(uv_default_loop());
-
-  /* Load the AE next_tick idle handle */
-  load_ae_next_tick_uv_idle();
-
   _uv_is_running = 1;
+
+  /* Load the AE prepare and check handles */
+  load_ae_uv_prepare();
+  load_ae_uv_check();
 
   assert(! uv_run(uv_default_loop()));
 
-  AE_TRACE3("UV exits");
+  AE_DEBUG("uv_run() exits");
 
-  /* Referece again ae_uv_prepare so it can be properly closed. */
-  uv_ref(uv_default_loop());
-  uv_close((uv_handle_t *)ae_uv_prepare, ae_uv_handle_close_callback);
+  unload_ae_uv_prepare();
+  unload_ae_uv_check();
 
-  /* Same for the av_uv_idle_next_tick handle. */
-  unload_ae_next_tick_uv_idle();
+  /* Unload the av_uv_idle_next_tick handle (if AE.next_tick was used at least once). */
+  // TODO: peta, ver bug_uv_run_2.rb.
+  //unload_ae_next_tick_uv_idle();
 
   _uv_is_running = 0;
 
-  AE_TRACE3("function terminates");
+  AE_DEBUG("function terminates");
 
   return Qtrue;
 }
@@ -70,22 +160,16 @@ static
 void ubf_ae_thread_killed(void)
 {
   AE_TRACE();
-  AE_TRACE3("rb_funcall2(mAsyncEngine, method_destroy, 0, NULL) starts");
 
-  // Call AE.stop which closes all the active UV handles and that allows uv_run() to terminate.
-  // NOTE: We have the GVL now (ruby_thread_has_gvl_p() says that) but, do we have it in any case?
-  rb_funcall2(mAsyncEngine, method_destroy, 0, NULL);
+  AE_DEBUG("setting do_stop = 1");
 
-  AE_TRACE3("rb_funcall2(mAsyncEngine, method_destroy, 0, NULL) terminates");
+  do_stop = 1;
 
-//   AE_TRACE3("waiting for _uv_is_running == 0");
-//   while(_uv_is_running) {
-//     printf(".");
-//     rb_thread_schedule();
-//   }
-//   printf("\n");
+  // TODO:  No me mola demasiado, antes no hacía falta pero
+  // ahora al recibir un Interrupt no termina uv_run !!!
+  //_uv_is_running = 0;
 
-  AE_TRACE3("function terminates");
+  AE_DEBUG("function terminates");
 }
 
 
@@ -93,8 +177,15 @@ VALUE AsyncEngine_c_run(VALUE self)
 {
   AE_TRACE();
 
-  // TODO: future battle...
   return rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ubf_ae_thread_killed, NULL);
+}
+
+
+VALUE AsyncEngine_c_stop(VALUE self)
+{
+  AE_TRACE();
+
+  do_stop = 1;
 }
 
 
@@ -106,17 +197,6 @@ VALUE AsyncEngine_is_running(VALUE self)
     return Qtrue;
   else
     return Qfalse;
-}
-
-
-/*
- * Returns the number of handlers in the loop.
- */
-VALUE AsyncEngine_num_handles(VALUE self)
-{
-  AE_TRACE();
-
-  return INT2FIX(uv_loop_refcount(uv_default_loop()));
 }
 
 
@@ -133,18 +213,23 @@ void Init_asyncengine_ext()
   mAsyncEngine = rb_define_module("AsyncEngine");
 
   rb_define_module_function(mAsyncEngine, "_c_run", AsyncEngine_c_run, 0);
+  rb_define_module_function(mAsyncEngine, "_c_stop", AsyncEngine_c_stop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
-  rb_define_module_function(mAsyncEngine, "num_handles", AsyncEngine_num_handles, 0);
 
   rb_define_module_function(mAsyncEngine, "gvl?", AsyncEngine_has_gvl, 0);
 
   method_destroy = rb_intern("destroy");
 
   init_ae_handle_common();
+  init_ae_async();
   init_ae_timer();
   init_ae_next_tick();
   init_ae_udp();
   init_ae_ip_utils();
 
   _uv_is_running = 0;
+  do_stop = 0;
+
+  ae_uv_prepare = NULL;
+  ae_uv_check = NULL;
 }

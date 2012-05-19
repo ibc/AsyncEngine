@@ -15,8 +15,6 @@
 // Ruby class for saving C data inside.
 VALUE cAsyncEngineCData;
 
-ID att_cdata;
-ID att_handle_terminated; // TODO: Fuera, hacer como en UDP y meterlo en el cdata struct.
 
 void init_ae_handle_common(void);
 

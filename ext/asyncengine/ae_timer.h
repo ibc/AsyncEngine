@@ -4,9 +4,13 @@
 
 void init_ae_timer();
 
-VALUE AsyncEngine_c_add_timer(VALUE self, VALUE delay, VALUE interval, VALUE block, VALUE instance);
+VALUE AsyncEngineTimer_uv_init(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block);
+VALUE AsyncEngineTimer_stop(VALUE self);
+VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE rb_delay, VALUE rb_interval);
+VALUE AsyncEngineTimer_is_alive(VALUE self);
+VALUE AsyncEngineTimer_delay(VALUE self);
+VALUE AsyncEngineTimer_interval(VALUE self);
 VALUE AsyncEngineTimer_cancel(VALUE self);
-VALUE AsyncEngineTimer_c_set_interval(VALUE self, VALUE interval);
 VALUE AsyncEngineTimer_destroy(VALUE self);
 
 

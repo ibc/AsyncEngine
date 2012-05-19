@@ -2,17 +2,12 @@
 #include "ae_handle_common.h"
 
 
-// C variable holding current block number.
-static long block_id;
-// C variable holding current handle number.
-static long handle_id;
-
 // Ruby modules/classe.
 static VALUE mKernel;
 
 // Ruby attributes.
-static ID att_blocks;
 static ID att_handles;
+static ID att_blocks;
 
 // Ruby method names.
 static ID method_call;
@@ -22,6 +17,9 @@ static ID method_raise;
 // Ruby constanst.
 static ID const_UV_ERRNOS;
 
+// C variable holding current block number.
+static long block_long_id;
+
 
 void init_ae_handle_common()
 {
@@ -30,10 +28,8 @@ void init_ae_handle_common()
   mKernel = rb_define_module("Kernel");
   cAsyncEngineCData = rb_define_class_under(mAsyncEngine, "CData", rb_cObject);
 
-  att_blocks = rb_intern("@_blocks");
   att_handles = rb_intern("@_handles");
-  att_cdata = rb_intern("@_cdata");
-  att_handle_terminated = rb_intern("@_handle_terminated");
+  att_blocks = rb_intern("@_blocks");
 
   method_call = rb_intern("call");
   method_handle_exception = rb_intern("handle_exception");
@@ -41,62 +37,61 @@ void init_ae_handle_common()
 
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
-  block_id = 0;
-  handle_id = 0;
+  block_long_id = 0;
 }
 
 
-VALUE ae_store_handle(VALUE rb_handle)
+VALUE ae_store_handle(VALUE ae_handle)
 {
   AE_TRACE();
 
-  VALUE rb_handle_id = LONG2FIX(++handle_id);
+  VALUE ae_handle_id = rb_obj_id(ae_handle);
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), ae_handle_id, ae_handle);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id, rb_handle);
-  return rb_handle_id;
+  return ae_handle_id;
 }
 
 
-VALUE ae_get_handle(VALUE rb_handle_id)
+VALUE ae_get_handle(VALUE ae_handle_id)
 {
   AE_TRACE();
 
-  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_handles), ae_handle_id);
 }
 
 
-VALUE ae_remove_handle(VALUE rb_handle_id)
+VALUE ae_remove_handle(VALUE ae_handle_id)
 {
   AE_TRACE();
 
-  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), rb_handle_id);
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_handles), ae_handle_id);
 }
 
 
-VALUE ae_store_block(VALUE rb_block)
+VALUE ae_store_block(VALUE block)
 {
   AE_TRACE();
 
-  VALUE rb_block_id = LONG2FIX(++block_id);
+  VALUE block_id = LONG2FIX(++block_long_id);
+  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_blocks), block_id, block);
 
-  rb_hash_aset(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id, rb_block);
-  return rb_block_id;
+  return block_id;
 }
 
 
-VALUE ae_get_block(VALUE rb_block_id)
+VALUE ae_get_block(VALUE block_id)
 {
   AE_TRACE();
 
-  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
+  return rb_hash_aref(rb_ivar_get(mAsyncEngine, att_blocks), block_id);
 }
 
 
-VALUE ae_remove_block(VALUE rb_block_id)
+VALUE ae_remove_block(VALUE block_id)
 {
   AE_TRACE();
 
-  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_blocks), rb_block_id);
+  return rb_hash_delete(rb_ivar_get(mAsyncEngine, att_blocks), block_id);
 }
 
 

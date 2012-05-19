@@ -10,4 +10,4 @@ LIBUV_DIR="libuv"
 rm -rf $LIBUV_DIR
 git clone -b $LIBUV_GIT_BRANCH $LIBUV_GIT_REPO $LIBUV_DIR
 cd $LIBUV_DIR
-git checkout $LIBUV_GIT_REVISION -q
+#git checkout $LIBUV_GIT_REVISION -q
