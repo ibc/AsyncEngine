@@ -1,17 +1,17 @@
 module AsyncEngine
 
-  def self.add_timer delay, block1=nil, &block2
-    Timer.new delay, block1 || block2
+  def self.add_timer delay, pr=nil, &bl
+    Timer.new delay, pr || bl
   end
 
-  def self.add_periodic_timer interval, delay=nil, block1=nil, &block2
-    PeriodicTimer.new interval, delay, block1 || block2
+  def self.add_periodic_timer interval, delay=nil, pr=nil, &bl
+    PeriodicTimer.new interval, delay, pr || bl
   end
 
 
   class Timer
-    def initialize delay, block1=nil, &block2
-      uv_init delay = (delay*1000).to_i, nil, block1 || block2
+    def initialize delay, pr=nil, &bl
+      uv_init delay = (delay*1000).to_i, nil, pr || bl
     end
 
     def restart delay=nil
@@ -28,10 +28,10 @@ module AsyncEngine
 
 
   class PeriodicTimer < Timer
-    def initialize interval, delay=nil, block1=nil, &block2
+    def initialize interval, delay=nil, pr=nil, &bl
       interval = (interval*1000).to_i
       delay = ( delay ? (delay*1000).to_i : interval )
-      uv_init delay, interval, block1 || block2
+      uv_init delay, interval, pr || bl
     end
 
     def restart interval=nil, delay=nil

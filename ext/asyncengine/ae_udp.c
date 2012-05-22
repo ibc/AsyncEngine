@@ -203,7 +203,7 @@ VALUE AsyncEngineUdpSocket_uv_init(VALUE self, VALUE rb_bind_ip, VALUE rb_bind_p
   cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
 
-  assert(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
+  AE_ASSERT(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
 
   // NOTE: If we set the data field *before* uv_udp_init() then such a function set data to NULL !!!
   cdata->_uv_handle->data = cdata;
@@ -224,7 +224,7 @@ VALUE AsyncEngineUdpSocket_uv_init(VALUE self, VALUE rb_bind_ip, VALUE rb_bind_p
       break;
   }
 
-  assert(! uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback));
+  AE_ASSERT(! uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback));
 
   return self;
 }
@@ -320,13 +320,13 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip,
   // TODO uv_udp_send() parece que devuelve siempre 0 aunque le pases un puerto destino 0 (que
   // luego se traduce en error en el callback).
   // Segun los src solo devuelve error si el handle no esta bindeado (el nuestro ya lo está) o si no hay
-  // más memoria para un alloc que hace, bufff. Un assert y va que arde.
+  // más memoria para un alloc que hace, bufff. Un AE_ASSERT y va que arde.
   switch(cdata->ip_type) {
     case ip_type_ipv4:
-      assert(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
+      AE_ASSERT(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
       break;
     case ip_type_ipv6:
-      assert(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), _uv_udp_send_callback));
+      AE_ASSERT(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), _uv_udp_send_callback));
       break;
   }
 

@@ -113,7 +113,7 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
   AE_TRACE();
 
   // TODO: testing
-  assert(! status);
+  AE_ASSERT(! status);
 
   last_timer_callback_data.handle = handle;
 

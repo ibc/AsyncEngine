@@ -128,3 +128,19 @@ Bugs reported in Github UV:
 ---------------------------
 
 - https://github.com/joyent/libuv/issues/417
+
+
+Ctrl+C in IRB:
+-------------
+
+irb> EM.run { EM.add_periodic_timer(1) {puts "QWE"} }
+
+If I press Ctrl+C now, it terminates and EM.reactor_running? returns false. I don't get it in AE, maybe it's about trapping interrupt signal?
+
+EM does this in em.cpp:
+
+  TRAP_BEG; = rb_enable_interrupt()
+  s = epoll_wait (epfd, epoll_events, MaxEvents, 0);
+  TRAP_END; do { rb_disable_interrupt(); rb_thread_check_ints(); } while(0)
+
+¿Usar rb_thread_interrupted() (GVL safe) para algo? ¿para qué es?

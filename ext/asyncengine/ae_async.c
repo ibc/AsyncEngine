@@ -38,10 +38,8 @@ void _uv_async_callback(uv_async_t* handle, int status)
 {
   AE_TRACE();
 
-  printf("_uv_async_callback()\n");
-  
   // TODO: testing
-  assert(! status);
+  AE_ASSERT(! status);
 
   last_async_callback_data.handle = handle;
 
@@ -55,13 +53,14 @@ VALUE AsyncEngine_c_call_from_other_thread(VALUE self, VALUE block)
 
   uv_async_t* _uv_async = ALLOC(uv_async_t);
 
-  assert(! uv_async_init(uv_default_loop(), _uv_async, _uv_async_callback));
+  AE_ASSERT(! uv_async_init(uv_default_loop(), _uv_async, _uv_async_callback));
 
   // Store just the block id in the handle data field.
   _uv_async->data = (void *)ae_store_block(block);
 
-  // TODO: ¿puede devolver error esto?
-  assert(! uv_async_send(_uv_async));
+  // TODO: ¿puede devolver error esto? Parece que no:
+  //   https://github.com/joyent/libuv/issues/419
+  AE_ASSERT(! uv_async_send(_uv_async));
 
   return Qtrue;
 }

@@ -1,7 +1,7 @@
 module AsyncEngine
 
-  def self.next_tick block1=nil, &block2
-    @_next_ticks << (block1 || block2)
+  def self.next_tick pr=nil, &bl
+    @_next_ticks << (pr || bl)
     _c_next_tick
   end
 
@@ -10,7 +10,7 @@ module AsyncEngine
     ticks.each do |cb|
       begin
         cb.call
-      rescue => e
+      rescue StandardError, LoadError => e
         AsyncEngine.send :handle_exception, e
       end
     end
