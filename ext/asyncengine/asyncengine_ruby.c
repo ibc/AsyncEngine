@@ -24,32 +24,6 @@ VALUE AsyncEngine_init(VALUE self)
 }
 
 
-void load_ae_next_tick_uv_idle()
-{
-  AE_TRACE();
-
-  if (ae_next_tick_uv_idle)
-    return;
-
-  ae_next_tick_uv_idle = ALLOC(uv_idle_t);
-  AE_ASSERT(! uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle));
-  uv_unref((uv_handle_t *)ae_next_tick_uv_idle);
-}
-
-
-void unload_ae_next_tick_uv_idle()
-{
-  AE_TRACE();
-
-  if (! ae_next_tick_uv_idle)
-    return;
-
-  uv_ref((uv_handle_t *)ae_next_tick_uv_idle);
-  uv_close((uv_handle_t *)ae_next_tick_uv_idle, ae_uv_handle_close_callback);
-  ae_next_tick_uv_idle = NULL;
-}
-
-
 static
 void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
@@ -90,14 +64,10 @@ VALUE run_uv_without_gvl(void)
 {
   AE_TRACE();
 
-  load_ae_next_tick_uv_idle();
-
   /* Run UV loop (it blocks if there were handles in the given block). */
   AE_DEBUG("uv_run() starts...");
   AE_ASSERT(! uv_run(uv_default_loop()));
   AE_DEBUG("uv_run() terminates");
-
-  unload_ae_next_tick_uv_idle();
 
   return Qtrue;
 }
@@ -115,14 +85,12 @@ VALUE AsyncEngine_run_uv(VALUE self)
 
 /*
  * This method is called in the _ensure_ block of AsyncEngine.run() method
- * after AsyncEngine.destroy_handles() to cause a single UV iteration in order
+ * after AsyncEngine.destroy_ae_handles() to cause a single UV iteration in order
  * to invoke all the uv_close callbacks and free() the uv_handles.
  */
 VALUE AsyncEngine_run_uv_once(VALUE self)
 {
   AE_TRACE();
-
-  unload_ae_next_tick_uv_idle();
 
   AE_DEBUG("uv_run_once() starts...");
   AE_ASSERT(! uv_run_once(uv_default_loop()));
@@ -154,6 +122,4 @@ void Init_asyncengine_ext()
   init_ae_next_tick();
   init_ae_udp();
   init_ae_ip_utils();
-
-  ae_next_tick_uv_idle = NULL;
 }

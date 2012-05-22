@@ -10,6 +10,7 @@ module AsyncEngine
     ticks.each do |cb|
       begin
         cb.call
+      # TODO: lalala
       rescue StandardError, LoadError => e
         AsyncEngine.send :handle_exception, e
       end

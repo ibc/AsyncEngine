@@ -7,8 +7,8 @@
 
 
 // Uncomment these lines for debugging and developming.
-#define AE_DO_TRACE
-#define AE_DO_DEBUG
+//#define AE_DO_TRACE
+//#define AE_DO_DEBUG
 #define AE_DO_WARN
 #define AE_DO_ASSERT
 
@@ -55,8 +55,6 @@ VALUE AE_handles;
 VALUE AE_blocks;
 VALUE AE_next_ticks;
 VALUE AE_UV_ERRNOS;
-
-uv_idle_t* ae_next_tick_uv_idle;
 
 
 #endif  /* #ifndef ASYNCENGINE_RUBY_H */

@@ -14,6 +14,9 @@ module AsyncEngine
 
   @_pid = Process.pid
   @_exception_handler = nil
+  @_mutex_run = Mutex.new
+  @_mutex_run = Mutex.new
+  @_mutex_destroy = Mutex.new
 
   # TMP: No hará falta, solo para AE.debug.
   @_handles = {}
@@ -31,32 +34,45 @@ module AsyncEngine
       if running_thread?
         block.call
       else
-        call_from_other_thread block
+        call_from_other_thread(block)
       end
       return true
     end
 
-    # TODO: testing
-    ensure_no_handles()
+    @_mutex_run.synchronize do
+      # TODO: testing
+      ensure_no_handles()
 
-    @_handles = {}
-    @_blocks = {}
-    @_next_ticks = []
-    @_thread = Thread.current
-    @_running = true
+      @_handles = {}
+      @_blocks = {}
+      @_next_ticks = []
+      @_thread = Thread.current
+      @_running = true
 
-    uv_terminated_by_itself = false
-    begin
-      init()
-      add_timer(0, block)
-      run_uv()
-      uv_terminated_by_itself = true
-      puts "NOTICE: AE.run_uv() terminates correctly"
-    ensure
-      destroy_handles()  unless uv_terminated_by_itself
-      @_thread = nil
-      @_running = false
-    end
+      uv_terminated_by_itself = false
+      begin
+        init()
+        #add_timer(0, block)  # NOTE: EM does it, do I need?
+        block.call
+        run_uv()
+        uv_terminated_by_itself = true
+        puts "INFO: AE.run_uv() terminates correctly"
+        true
+      ensure
+        if uv_terminated_by_itself
+          # Even if uv_run() terminated by itself, non active handles (i.e. stopped timers) could
+          # remain in @_handles, so destroy them.
+          destroy_ae_handles()
+          run_uv_once()
+        else
+          puts "WARN: AE.run_uv() terminates abruptly, running AE.destroy_ae_handles() and AE.run_uv_once()..."
+          destroy_ae_handles()
+          run_uv_once()
+        end
+        @_thread = nil
+        @_running = false
+      end
+    end  # @_mutex_run.synchronize
   end
 
   def self.running?
@@ -67,27 +83,28 @@ module AsyncEngine
     return false  unless running?
 
     if running_thread?
-      destroy_handles()
+      destroy_ae_handles()
     else
-      call_from_other_thread { destroy_handles() }
+      call_from_other_thread { destroy_ae_handles() }
     end
     return true
   end
 
-  def self.destroy_handles
-    puts "NOTICE: AE.destroy_handles() starts..."
+  def self.destroy_ae_handles
+    @_mutex_destroy.synchronize do
+      puts "NOTICE: AE.destroy_ae_handles() starts..."
 
-    # TODO: bufff
-    Thread.exclusive do
-      puts "NOTICE: AE.destroy_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
-      @_handles.each_value { |handle| handle.send :destroy }
-      @_handles.clear
-      @_blocks.clear
-      @_next_ticks.clear
-      run_uv_once()
-    end
+      # TODO: needed?
+      Thread.exclusive do
+        puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
+        @_handles.each_value { |handle| handle.send :destroy }
+        @_handles.clear
+        @_blocks.clear
+        @_next_ticks.clear
+      end
 
-    puts "NOTICE: AE.destroy_handles() terminates"
+      puts "NOTICE: AE.destroy_ae_handles() terminates"
+    end  # @_mutex_destroy.synchronize
   end
 
   def self.running_thread?
@@ -139,7 +156,7 @@ module AsyncEngine
   class << self
     private :run_uv
     private :run_uv_once
-    private :destroy_handles
+    private :destroy_ae_handles
     private :handle_exception
   end
 
