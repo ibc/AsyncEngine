@@ -89,6 +89,21 @@ module AsyncEngine
     end
   end
 
+  def self.destroy_ae_handles
+    #puts "NOTICE: AE.destroy_ae_handles() starts..."
+
+    # TODO: needed?
+    Thread.exclusive do
+      #puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
+      @_handles.each_value { |handle| handle.send :destroy }
+      # NOTE: #destroy removes the AE handle itself from @_handles.
+      @_blocks.clear
+      @_next_ticks.clear
+    end
+
+    #puts "NOTICE: AE.destroy_ae_handles() terminates"
+  end
+
   def self.clean?
     return false  if @_handles.any? or @_blocks.any? or @_next_ticks.any?
     true
@@ -105,21 +120,6 @@ module AsyncEngine
       end
     end
     true
-  end
-
-  def self.destroy_ae_handles
-    #puts "NOTICE: AE.destroy_ae_handles() starts..."
-
-    # TODO: needed?
-    Thread.exclusive do
-      #puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
-      @_handles.each_value { |handle| handle.send :destroy }
-      # NOTE: #destroy removes the AE handle itself from @_handles.
-      @_blocks.clear
-      @_next_ticks.clear
-    end
-
-    #puts "NOTICE: AE.destroy_ae_handles() terminates"
   end
 
   def self.running_thread?

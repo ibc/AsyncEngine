@@ -194,10 +194,22 @@ VALUE execute_function_with_protect(struct_function_with_gvl_and_protect *data)
   // If an exception occurred then call AsyncEngine.handle_exception(exception).
   if (exception_tag) {
     VALUE exception = rb_errinfo();
-    rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
+    /*
+     * Just check the exception in the user provided AE.exception_handler block
+     * if it is a StandardError or LoadError. Otherwise raise it.
+     */
+    if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue ||
+        rb_obj_is_kind_of(exception, rb_eLoadError) == Qtrue) {
+      rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
+      // Dissable the current thread exception.
+      rb_set_errinfo(Qnil);
+    }
+    else
+      rb_jump_tag(exception_tag);
   }
-
-  return ret;
+  // Otherwise just return the VALUE returned by rb_protec() above.
+  else
+    return ret;
 }
 
 

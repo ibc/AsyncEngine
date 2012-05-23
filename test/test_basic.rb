@@ -56,21 +56,25 @@ class TestBasic < AETest
   # /usr/lib/ruby/1.9.1/monitor.rb:201:in `mon_synchronize'
   #
   # TODO: Solo ocurre con AE, algo hay chungo en el tema de la captura de excepciones...
-  def _test_02_exception_handler
+  def test_02_exception_handler
     AE.set_exception_handler {|e| assert e.is_a? ::StandardError }
+    #AE.set_exception_handler {|e| puts "AE.exception_handler rescues #{e.class}: #{e}" }
 
     assert_respond_to AE.instance_variable_get(:@_exception_handler), :call
 
     assert_nothing_raised do
+      AE.run { qweqwe }
+      AE.run { AE.next_tick { uhhhh } }
+      AE.run { AE.add_timer(0) { uhhhh } }
       AE.run { AE.next_tick { oppps } ; AE.add_timer(0.001) { uhhhh } }
       AE.run { AE.next_tick { ouchh } ; AE.add_timer(0.001) { LOL } }
     end
 
     assert_nothing_raised do
       AE.run do
-        AE.add_timer(0.001) { ohhhh1 }
-        AE::Timer.new(0.001) { ohhhh2 }
-        pt1 = AE::PeriodicTimer.new(0.001) { pt1.stop ; ohhhh3 }
+        #AE.add_timer(0.001) { ohhhh1 }
+        #AE::Timer.new(0.001) { ohhhh2 }
+        #pt1 = AE::PeriodicTimer.new(0.001) { pt1.stop ; ohhhh3 }
       end
     end
 
