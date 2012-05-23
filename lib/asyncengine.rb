@@ -16,7 +16,6 @@ module AsyncEngine
   @_exception_handler = nil
   @_mutex_run = Mutex.new
   @_mutex_run = Mutex.new
-  @_mutex_destroy = Mutex.new
 
   # TMP: No hará falta, solo para AE.debug.
   @_handles = {}
@@ -32,16 +31,22 @@ module AsyncEngine
 
     if running?
       if running_thread?
+        puts "NOTICE: AE.run() called while AsyncEngine already running => block.call"
         block.call
       else
+        puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
         call_from_other_thread(block)
       end
       return true
+    else
+      unless clean?
+        puts "WARN: AE.run(): not running but clean? => false !!!"  # TODO
+        raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
+      end
     end
 
     @_mutex_run.synchronize do
-      # TODO: testing
-      ensure_no_handles()
+      ensure_no_handles()  # TODO: testing
 
       @_handles = {}
       @_blocks = {}
@@ -49,28 +54,25 @@ module AsyncEngine
       @_thread = Thread.current
       @_running = true
 
-      uv_terminated_by_itself = false
+      released = false
       begin
         init()
         #add_timer(0, block)  # NOTE: EM does it, do I need?
-        block.call
+        # NOTE: Yes, otherwise I "enable" AE handlers before running uv_run(), is that what I want? Maybe a next_tick? Not needed IMHO.
+        #block.call
+        next_tick(block)
         run_uv()
-        uv_terminated_by_itself = true
-        puts "INFO: AE.run_uv() terminates correctly"
-        true
       ensure
-        if uv_terminated_by_itself
+        # We must prevent an interrupt while in the ensure block. So let's add another ensure.
+        begin
           # Even if uv_run() terminated by itself, non active handles (i.e. stopped timers) could
           # remain in @_handles, so destroy them.
-          destroy_ae_handles()
-          run_uv_once()
-        else
-          puts "WARN: AE.run_uv() terminates abruptly, running AE.destroy_ae_handles() and AE.run_uv_once()..."
-          destroy_ae_handles()
-          run_uv_once()
+          release()
+          released = true
+        ensure
+          release()  unless released
+          ensure_no_handles()  # TODO: testing
         end
-        @_thread = nil
-        @_running = false
       end
     end  # @_mutex_run.synchronize
   end
@@ -79,32 +81,47 @@ module AsyncEngine
     !!@_running
   end
 
+  def self.release
+    destroy_ae_handles()
+    run_uv_once()
+    @_thread = nil
+    @_running = false
+  end
+
+  def self.clean?
+    return false  if @_handles.any? or @_blocks.any? or @_next_ticks.any?
+    true
+  end
+
   def self.stop
     return false  unless running?
 
     if running_thread?
-      destroy_ae_handles()
+      #destroy_ae_handles()  if running?
+      stop_uv()  if running?
     else
-      call_from_other_thread { destroy_ae_handles() }
+      return false  unless running?
+      call_from_other_thread do
+        #destroy_ae_handles()  if running?
+        stop_uv()  if running?
+      end
     end
-    return true
+    true
   end
 
   def self.destroy_ae_handles
-    @_mutex_destroy.synchronize do
-      puts "NOTICE: AE.destroy_ae_handles() starts..."
+    #puts "NOTICE: AE.destroy_ae_handles() starts..."
 
-      # TODO: needed?
-      Thread.exclusive do
-        puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
-        @_handles.each_value { |handle| handle.send :destroy }
-        @_handles.clear
-        @_blocks.clear
-        @_next_ticks.clear
-      end
+    # TODO: needed?
+    Thread.exclusive do
+      #puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
+      @_handles.each_value { |handle| handle.send :destroy }
+      #@_handles.clear  # NOTE: #destroy removes itself from @_handles so no need for it.
+      @_blocks.clear
+      @_next_ticks.clear
+    end
 
-      puts "NOTICE: AE.destroy_ae_handles() terminates"
-    end  # @_mutex_destroy.synchronize
+    #puts "NOTICE: AE.destroy_ae_handles() terminates"
   end
 
   def self.running_thread?
@@ -127,7 +144,7 @@ module AsyncEngine
       @_exception_handler.call e
     else
       # TODO: dbg
-      puts "AE.handle_exception(e = #{e.class}: #{e.inspect})"
+      puts "WARN: AE.handle_exception(e = #{e.class}: #{e})"
       raise e
     end
   end
@@ -143,19 +160,23 @@ module AsyncEngine
   def self.debug
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running: #{running?}"
-    puts "- Num @_handles: #{@_handles.size}"
-    puts "- @_handles:\n"
-      @_handles.each {|h| puts "  - #{h.inspect}"}
-    puts "- @_blocks:\n"
-      @_blocks.each {|b| puts "  - #{b.inspect}"}
-    puts "- @_blocks:\n"
-      @_next_ticks.each {|n| puts "  - #{n.inspect}"}
+    puts "- UV active handles: #{num_uv_active_handles()}"
+    puts "- @_handles (#{@_handles.size}):\n"
+      @_handles.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
+    puts "- @_blocks (#{@_blocks.size}):\n"
+      @_blocks.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
+    puts "- @_next_ticks (#{@_next_ticks.size}):\n"
+      @_next_ticks[0..10].each {|n| puts "  - #{n.inspect}"}
     puts
   end
 
   class << self
     private :run_uv
     private :run_uv_once
+    private :stop_uv
+    private :num_uv_active_handles
+    private :release
+    private :clean?
     private :destroy_ae_handles
     private :handle_exception
   end

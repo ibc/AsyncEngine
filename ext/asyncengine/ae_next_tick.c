@@ -28,8 +28,10 @@ void load_ae_next_tick_uv_idle()
 {
   AE_TRACE();
 
-  if (ae_next_tick_uv_idle)
+  if (ae_next_tick_uv_idle) {
+    AE_DEBUG("ae_next_tick_uv_idle == NULL");
     return;
+  }
 
   AE_DEBUG("ae_next_tick_uv_idle = ALLOC(uv_idle_t);");
   ae_next_tick_uv_idle = ALLOC(uv_idle_t);
@@ -46,8 +48,10 @@ void unload_ae_next_tick_uv_idle()
 {
   AE_TRACE();
 
-  if (! ae_next_tick_uv_idle)
+  if (! ae_next_tick_uv_idle) {
+    AE_DEBUG("ae_next_tick_uv_idle != NULL");
     return;
+  }
 
 #ifdef AE_UV_IDLE_DO_REF_UNREF
   AE_DEBUG("uv_ref((uv_handle_t *)ae_next_tick_uv_idle);");
@@ -88,7 +92,10 @@ VALUE AsyncEngine_c_next_tick(VALUE self)
 {
   AE_TRACE();
 
-  load_ae_next_tick_uv_idle();
+  // TODO: Ok, let's load and unload the idle from main file, but then we must
+  // check wheter AE is running or not (for all the handles better !).
+  //load_ae_next_tick_uv_idle();
+  AE_ASSERT(ae_next_tick_uv_idle != NULL);
 
   if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {
     AE_DEBUG("uv_idle_start(ae_next_tick_uv_idle, _uv_idle_callback);");

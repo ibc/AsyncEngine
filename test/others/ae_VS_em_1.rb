@@ -19,10 +19,9 @@ printf "1) AE::PeriodicTimer: "
 puts Benchmark.realtime {
   $i = 0
   AE.run do
-    t = AE::PeriodicTimer.new(0.001) do
-      #printf(".")
+    AE::PeriodicTimer.new(0.001) do
       $i += 1
-      t.cancel  if $i == TIMES
+      AE.stop  if $i == TIMES
     end
   end
 }
@@ -32,8 +31,8 @@ printf "2) EM::PeriodicTimer: "
 puts Benchmark.realtime {
   $i = 0
   EM.run do
-    t = EM::PeriodicTimer.new(0.001) do
-      #printf(".")
+    #t = EM::PeriodicTimer.new(0.001) do
+    EM.add_periodic_timer(0.001) do
       $i += 1
       EM.stop  if $i == TIMES
     end
@@ -47,9 +46,8 @@ puts Benchmark.realtime {
   AE.run do
     (TIMES*100).times do
       AE.next_tick do
-        #printf(".")
         $i+=1
-        printf()  if $i == TIMES
+        AE.stop  if $i == TIMES
       end
     end
   end
@@ -62,7 +60,6 @@ puts Benchmark.realtime {
   EM.run do
     (TIMES*100).times do
       EM.next_tick do
-        #printf(".")
         $i += 1
         EM.stop  if $i == TIMES
       end

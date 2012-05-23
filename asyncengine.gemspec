@@ -8,10 +8,9 @@ Gem::Specification.new do |spec|
   spec.date = Time.now
   spec.authors = ["Inaki Baz Castillo"]
   spec.email = "ibc@aliax.net"
-  spec.summary = "Ruby asynchronous event driven library based on libuv"
+  spec.summary = "Ruby asynchronous event driven framework on top of libuv"
   spec.homepage = "https://github.com/ibc/AsyncEngine"
-  spec.description = "Ruby asynchronous event driven library based on libuv"
-  spec.extensions = ["ext/asyncengine/extconf.rb"]
+  spec.description = "Ruby asynchronous event driven framework on top of libuv"
   spec.required_ruby_version = ">= 1.9.2"
 
   files = %w{
@@ -23,6 +22,8 @@ Gem::Specification.new do |spec|
     test/{ae_test_helper.rb}
     test/{test_*.rb}
   }.join(",")
+
   spec.files = Dir.glob "{#{files}}"
   spec.require_paths = ["lib"]
+  spec.extensions = ["ext/asyncengine/extconf.rb"]
 end

@@ -87,7 +87,7 @@ void init_ae_udp()
 
 
 static
-void terminate(struct_ae_udp_socket_cdata* cdata)
+void destroy(struct_ae_udp_socket_cdata* cdata)
 {
   AE_TRACE();
 
@@ -101,25 +101,21 @@ void terminate(struct_ae_udp_socket_cdata* cdata)
 
 
 /*
- * The same as terminate() but it does not remove the instance from the
- * hash of handles. This private method MUST be called by AE over all the
+ * This private method MUST be called by AE over all the
  * existing handles in the hash when the user invokes AE.stop or when an
  * exception raises. It allows uv_run() to exit.
  */
 VALUE AsyncEngineUdpSocket_destroy(VALUE self)
 {
   AE_TRACE();
-  printf("DBG: AsyncEngineUdpSocket_destroy()\n");
 
   struct_ae_udp_socket_cdata* cdata;
 
   Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
 
-  // Close the UDP handle so it's unreferenced by uv.
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
-  // Set the handle field to NULL.
-  cdata->_uv_handle = NULL;
-
+  destroy(cdata);
   return Qtrue;
 }
 

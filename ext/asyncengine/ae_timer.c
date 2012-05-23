@@ -80,7 +80,7 @@ void init_ae_timer()
 
 
 static
-void terminate(struct_ae_timer_cdata* cdata)
+void destroy(struct_ae_timer_cdata* cdata)
 {
   AE_TRACE();
 
@@ -101,7 +101,7 @@ VALUE ae_timer_callback(VALUE ignore)
 
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0)
-    terminate(cdata);
+    destroy(cdata);
 
   return ae_block_call_0(cdata->block);
 }
@@ -266,8 +266,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
   if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
     uv_timer_stop(cdata->_uv_handle);
 
-  // Terminate the AE timer.
-  terminate(cdata);
+  destroy(cdata);
 
   return Qtrue;
 }
@@ -277,5 +276,12 @@ VALUE AsyncEngineTimer_destroy(VALUE self)
 {
   AE_TRACE();
 
-  return AsyncEngineTimer_cancel(self);
+  struct_ae_timer_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
+
+  destroy(cdata);
+  return Qtrue;
 }
