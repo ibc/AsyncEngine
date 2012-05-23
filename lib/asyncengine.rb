@@ -31,10 +31,10 @@ module AsyncEngine
 
     if running?
       if running_thread?
-        puts "NOTICE: AE.run() called while AsyncEngine already running => block.call"
+        #puts "NOTICE: AE.run() called while AsyncEngine already running => block.call"
         block.call
       else
-        puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
+        #puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
         call_from_other_thread(block)
       end
       return true
@@ -46,16 +46,16 @@ module AsyncEngine
     end
 
     @_mutex_run.synchronize do
-      ensure_no_handles()  # TODO: testing
+      ensure_no_handles()  # TODO: for testing
 
       @_handles = {}
       @_blocks = {}
       @_next_ticks = []
-      @_thread = Thread.current
-      @_running = true
 
       released = false
       begin
+        @_thread = Thread.current
+        @_running = true
         init()
         next_tick(block)
         run_uv()
@@ -72,7 +72,7 @@ module AsyncEngine
           released = true
         ensure
           release()  unless released
-          ensure_no_handles()  # TODO: testing
+          ensure_no_handles()  # TODO: for testing
         end
       end
     end  # @_mutex_run.synchronize
@@ -95,16 +95,13 @@ module AsyncEngine
   end
 
   def self.stop
-    return false  unless running?
+    return false  unless ready_for_handles?()
 
     if running_thread?
-      #destroy_ae_handles()  if running?
-      stop_uv()  if running?
+      stop_uv()
     else
-      return false  unless running?
       call_from_other_thread do
-        #destroy_ae_handles()  if running?
-        stop_uv()  if running?
+        stop_uv()  unless ready_for_handles?()
       end
     end
     true
@@ -150,14 +147,15 @@ module AsyncEngine
     end
   end
 
-  # TODO: testing
+  # TODO: for testing
   def self.ensure_no_handles
+    raise AsyncEngine::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() <= 1
     raise AsyncEngine::Error, "@_handles not empty"  unless @_handles.empty?
     raise AsyncEngine::Error, "@_blocks not empty"  unless @_blocks.empty?
     raise AsyncEngine::Error, "@_next_ticks not empty"  unless @_next_ticks.empty?
   end
 
-  # TODO: testing
+  # TODO: for testing
   def self.debug
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running: #{running?}"
@@ -172,9 +170,12 @@ module AsyncEngine
   end
 
   class << self
+    private :init
     private :run_uv
     private :run_uv_once
     private :stop_uv
+    private :ready_for_handles?
+    private :ensure_AE_is_ready_for_handles
     private :num_uv_active_handles
     private :release
     private :clean?

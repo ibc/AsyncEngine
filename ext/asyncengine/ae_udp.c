@@ -73,7 +73,7 @@ void init_ae_udp()
   cAsyncEngineUdpSocket = rb_define_class_under(mAsyncEngine, "UDPSocket", rb_cObject);
 
   rb_define_alloc_func(cAsyncEngineUdpSocket, AsyncEngineUdpSocket_alloc);
-  rb_define_private_method(cAsyncEngineUdpSocket, "uv_init", AsyncEngineUdpSocket_uv_init, 2);
+  rb_define_private_method(cAsyncEngineUdpSocket, "uv_handle_init", AsyncEngineUdpSocket_uv_handle_init, 2);
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, 3);
   rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
   rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
@@ -169,7 +169,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 }
 
 
-VALUE AsyncEngineUdpSocket_uv_init(VALUE self, VALUE rb_bind_ip, VALUE rb_bind_port)
+VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb_bind_port)
 {
   AE_TRACE();
 

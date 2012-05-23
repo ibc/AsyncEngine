@@ -11,7 +11,9 @@ module AsyncEngine
 
   class Timer
     def initialize delay, pr=nil, &bl
-      uv_init delay = (delay*1000).to_i, nil, pr || bl
+      AsyncEngine.send :ensure_AE_is_ready_for_handles
+
+      uv_handle_init delay = (delay*1000).to_i, nil, pr || bl
     end
 
     def restart delay=nil
@@ -29,9 +31,11 @@ module AsyncEngine
 
   class PeriodicTimer < Timer
     def initialize interval, delay=nil, pr=nil, &bl
+      AsyncEngine.send :ensure_AE_is_ready_for_handles
+
       interval = (interval*1000).to_i
       delay = ( delay ? (delay*1000).to_i : interval )
-      uv_init delay, interval, pr || bl
+      uv_handle_init delay, interval, pr || bl
     end
 
     def restart interval=nil, delay=nil

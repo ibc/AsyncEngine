@@ -125,6 +125,8 @@ VALUE AsyncEngine_run_uv(VALUE self)
   rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_ubf, NULL);
 
   AE_DEBUG("function terminates");
+
+  return Qtrue;
 }
 
 
@@ -169,6 +171,8 @@ VALUE AsyncEngine_run_uv_once(VALUE self)
   rb_thread_call_without_gvl(run_uv_once_without_gvl, NULL, NULL, NULL);
 
   AE_DEBUG("function terminates");
+
+  return Qtrue;
 }
 
 
@@ -180,6 +184,26 @@ VALUE AsyncEngine_stop_uv(VALUE self)
 }
 
 
+VALUE AsyncEngine_is_ready_for_handles(VALUE self)
+{
+  AE_TRACE();
+
+  return is_ae_ready ? Qtrue : Qfalse;
+}
+
+
+VALUE AsyncEngine_ensure_AE_is_ready_for_handles(VALUE self)
+{
+  AE_TRACE();
+
+  if (is_ae_ready)
+    return Qtrue;
+  else {
+    rb_raise(eAsyncEngineError, "AsyncEngine is not ready yet");
+  }
+}
+
+
 
 
 void Init_asyncengine_ext()
@@ -187,11 +211,14 @@ void Init_asyncengine_ext()
   AE_TRACE();
 
   mAsyncEngine = rb_define_module("AsyncEngine");
+  eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
 
   rb_define_module_function(mAsyncEngine, "init", AsyncEngine_init, 0);
   rb_define_module_function(mAsyncEngine, "run_uv", AsyncEngine_run_uv, 0);
   rb_define_module_function(mAsyncEngine, "run_uv_once", AsyncEngine_run_uv_once, 0);
   rb_define_module_function(mAsyncEngine, "stop_uv", AsyncEngine_stop_uv, 0);
+  rb_define_module_function(mAsyncEngine, "ready_for_handles?", AsyncEngine_is_ready_for_handles, 0);
+  rb_define_module_function(mAsyncEngine, "ensure_AE_is_ready_for_handles", AsyncEngine_ensure_AE_is_ready_for_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
 
   att_handles = rb_intern("@_handles");

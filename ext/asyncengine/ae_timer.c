@@ -68,7 +68,7 @@ void init_ae_timer()
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
 
   rb_define_alloc_func(cAsyncEngineTimer, AsyncEngineTimer_alloc);
-  rb_define_private_method(cAsyncEngineTimer, "uv_init", AsyncEngineTimer_uv_init, 3);
+  rb_define_private_method(cAsyncEngineTimer, "uv_handle_init", AsyncEngineTimer_uv_handle_init, 3);
   rb_define_method(cAsyncEngineTimer, "stop", AsyncEngineTimer_stop, 0);
   rb_define_private_method(cAsyncEngineTimer, "_c_restart", AsyncEngineTimer_c_restart, 2);
   rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
@@ -121,7 +121,7 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
 }
 
 
-VALUE AsyncEngineTimer_uv_init(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block)
+VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block)
 {
   AE_TRACE();
 

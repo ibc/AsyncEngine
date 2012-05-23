@@ -7,62 +7,63 @@ require "eventmachine-le"
 require "benchmark"
 
 
-TIMES = 3000
+TIMER_TIMES = 3000
+NEXT_TICK_TIMES = 600000
 
 
-puts "PID = #{$$}"
-sleep 0.5
+puts "1) Periodic timer with interval 0.001 seconds fires #{TIMER_TIMES} times:"
 puts
 
-puts
-printf "1) AE::PeriodicTimer: "
-puts Benchmark.realtime {
-  $i = 0
-  AE.run do
-    AE::PeriodicTimer.new(0.001) do
-      $i += 1
-      AE.stop  if $i == TIMES
-    end
-  end
-}
-
-puts
-printf "2) EM::PeriodicTimer: "
+printf "- EM::PeriodicTimer: "
 puts Benchmark.realtime {
   $i = 0
   EM.run do
     #t = EM::PeriodicTimer.new(0.001) do
     EM.add_periodic_timer(0.001) do
       $i += 1
-      EM.stop  if $i == TIMES
+      EM.stop  if $i == TIMER_TIMES
     end
   end
-}
+}.to_s + " seconds"
 
-puts
-printf "3) AE::next_tick: "
+printf "- AE::PeriodicTimer: "
 puts Benchmark.realtime {
   $i = 0
   AE.run do
-    (TIMES*100).times do
-      AE.next_tick do
-        $i+=1
-        AE.stop  if $i == TIMES
-      end
+    AE::PeriodicTimer.new(0.001) do
+      $i += 1
+      AE.stop  if $i == TIMER_TIMES
     end
   end
-}
+}.to_s + " seconds"
+
 
 puts
-printf "4) EM::next_tick: "
+puts "2) Next tick gives #{NEXT_TICK_TIMES} ticks:"
+puts
+
+printf "- EM::next_tick: "
 puts Benchmark.realtime {
   $i = 0
   EM.run do
-    (TIMES*100).times do
+    (NEXT_TICK_TIMES).times do
       EM.next_tick do
         $i += 1
-        EM.stop  if $i == TIMES
+        EM.stop  if $i == NEXT_TICK_TIMES
       end
     end
   end
-}
+}.to_s + " seconds"
+
+printf "- AE::next_tick: "
+puts Benchmark.realtime {
+  $i = 0
+  AE.run do
+    (NEXT_TICK_TIMES).times do
+      AE.next_tick do
+        $i+=1
+        AE.stop  if $i == NEXT_TICK_TIMES
+      end
+    end
+  end
+}.to_s + " seconds"

@@ -1,6 +1,8 @@
 module AsyncEngine
 
   def self.open_udp_socket bind_ip, bind_port, klass=AsyncEngine::UDPSocket, *args
+    ensure_AE_is_ready_for_handles()
+
     raise AsyncEngine::Error, "klass must inherit from AsyncEngine::UDPSocket" unless
       klass <= AsyncEngine::UDPSocket
 
@@ -8,7 +10,7 @@ module AsyncEngine
     sock = klass.allocate
 
     # Set the UV UDP handler and bind.
-    sock.send :uv_init, bind_ip, bind_port
+    sock.send :uv_handle_init, bind_ip, bind_port
 
     # Call the usual initialize() method as defined by the user.
     sock.send :initialize, *args

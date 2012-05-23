@@ -50,10 +50,10 @@
 
 
 VALUE mAsyncEngine;
+VALUE eAsyncEngineError;
 
 VALUE AE_handles;
 VALUE AE_blocks;
-VALUE AE_next_ticks;
 VALUE AE_UV_ERRNOS;
 
 
