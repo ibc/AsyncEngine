@@ -152,7 +152,8 @@ VALUE AsyncEngine_run_uv_once(VALUE self)
   AE_TRACE();
 
   /* There MUST NOT be UV active handles at this time, we enter here just to
-   * iterate once for freeing closed UV handles not freed yet.
+   * iterate once for freeing closed UV handles not freed yet (it's required
+   * a UV iteration for uv_close callbacks to be called).
    * NOTE: If the blocks just contains a next_tick and raises, next_tick idle is
    * not removed by AE.destroy_ae_handles:
    *    AE.run { AE.next_tick { } ; RAISE_1 }
