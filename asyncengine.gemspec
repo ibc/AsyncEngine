@@ -15,6 +15,7 @@ Gem::Specification.new do |spec|
 
   files = %w{
     asyncengine.gemspec
+    Rakefile
     README.markdown
     lib/**/**
     ext/asyncengine/{*.c,*.h,*.rb}

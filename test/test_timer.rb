@@ -56,8 +56,8 @@ class TestTimer < AETest
         pt1.restart (pt1_interval *= 2)
       end
 
-      # So check that pt1 is terminated after 0.016 seconds (it should).
-      AE.add_timer(0.016) { assert_false pt1.alive? }
+      # So check that pt1 is terminated after 0.05 seconds (it should).
+      AE.add_timer(0.05) { assert_false pt1.alive? }
     end
 
     assert_equal 4, pt1_ticks
