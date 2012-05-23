@@ -40,7 +40,6 @@ module AsyncEngine
       return true
     else
       unless clean?
-        puts "WARN: AE.run(): not running but clean? => false !!!"  # TODO
         raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
       end
     end
