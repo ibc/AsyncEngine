@@ -57,16 +57,17 @@ module AsyncEngine
       released = false
       begin
         init()
-        #add_timer(0, block)  # NOTE: EM does it, do I need?
-        # NOTE: Yes, otherwise I "enable" AE handlers before running uv_run(), is that what I want? Maybe a next_tick? Not needed IMHO.
-        #block.call
         next_tick(block)
         run_uv()
+        # run_uv() can exit due:
+        # - AE.stop, so there are handles alive that would be closed in the ensure block.
+        # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
+        #   timers, so the release block will close them).
+        # - An exception/interrupt occurs (run_uv() does not exit in fact) so the
+        #   ensure block will close handles.
       ensure
         # We must prevent an interrupt while in the ensure block. So let's add another ensure.
         begin
-          # Even if uv_run() terminated by itself, non active handles (i.e. stopped timers) could
-          # remain in @_handles, so destroy them.
           release()
           released = true
         ensure
