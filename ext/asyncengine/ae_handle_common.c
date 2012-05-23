@@ -109,7 +109,7 @@ VALUE ae_get_last_uv_error(void)
 
   VALUE ae_uv_error;
 
-  if (NIL_P(ae_uv_error = rb_hash_aref(AE_UV_ERRNOS, INT2FIX(uv_last_error(uv_default_loop()).code))))
+  if (NIL_P(ae_uv_error = rb_hash_aref(AE_UV_ERRNOS, INT2FIX(uv_last_error(AE_uv_loop).code))))
     ae_uv_error = rb_hash_aref(AE_UV_ERRNOS, INT2FIX(-1));
 
   return ae_uv_error;

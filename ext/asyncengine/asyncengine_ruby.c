@@ -22,7 +22,7 @@ long _uv_num_active_handlers(void)
 {
   ngx_queue_t *q;
   long num_active_handlers = 0;
-  ngx_queue_foreach(q, &uv_default_loop()->active_handles) {
+  ngx_queue_foreach(q, &AE_uv_loop->active_handles) {
     num_active_handlers++;
   }
   return num_active_handlers;
@@ -61,7 +61,7 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
   AE_TRACE();
 
-  // TODO: testing
+  // TODO: testing, can be error?
   AE_ASSERT(! status);
 
   uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
@@ -86,7 +86,7 @@ void ae_ubf(void)
 
   uv_async_t* ae_ubf_uv_async = ALLOC(uv_async_t);
 
-  AE_ASSERT(! uv_async_init(uv_default_loop(), ae_ubf_uv_async, ae_ubf_uv_async_callback));
+  AE_ASSERT(! uv_async_init(AE_uv_loop, ae_ubf_uv_async, ae_ubf_uv_async_callback));
   AE_ASSERT(! uv_async_send(ae_ubf_uv_async));
 }
 
@@ -96,21 +96,14 @@ VALUE run_uv_without_gvl(void)
 {
   AE_TRACE();
 
-  /* Run UV loop (it blocks if there were handles in the given block). */
-  AE_DEBUG("uv_run() starts...");
+  /* Run UV loop until there are no more active handles or do_stop
+   * has been set to 1 (by AsyncEngine.stop). */
+  AE_DEBUG("uv_run_once() loop starts...");
 
-  //uv_run(uv_default_loop());
+  while(!do_stop && uv_run_once(AE_uv_loop));
+  do_stop = 1;
 
-  // Quiero poder parar si externamente seteo do_stop a 1. Y luego haré la limpieza de handles.
-  // TEST Saghul (funca).
-  // TODO: El día que cambien la estructura interna esto se va a la porra.
-  uv_loop_t *loop =  uv_default_loop();
-  while(!do_stop && (!ngx_queue_empty(&loop->active_handles) || !ngx_queue_empty(&loop->active_reqs))) {
-    uv_run_once(loop);
-  }
-  do_stop = 0;
-
-  AE_DEBUG("uv_run() terminates");
+  AE_DEBUG("uv_run_once() loop terminates");
 
   is_ae_ready = 0;
 
@@ -139,9 +132,9 @@ VALUE run_uv_once_without_gvl(void)
   unload_ae_next_tick_uv_idle();
 
   /* Run UV loop (it blocks if there were handles in the given block). */
-  AE_DEBUG("uv_run() starts...");
-  uv_run_once(uv_default_loop());
-  AE_DEBUG("uv_run() terminates");
+  AE_DEBUG("uv_run_once() starts...");
+  uv_run_once(AE_uv_loop);
+  AE_DEBUG("uv_run_once() terminates");
 
   is_ae_ready = 0;
 
@@ -159,13 +152,12 @@ VALUE AsyncEngine_run_uv_once(VALUE self)
   AE_TRACE();
 
   /* There MUST NOT be UV active handles at this time, we enter here just to
-   * iterate once for freeing closed UV handles not freed yet. */
-  //AE_ASSERT(ngx_queue_empty(&uv_default_loop()->active_handles));
-  // NOTE: If the blocks just contains a next_tick and raises, next_tick idle is
-  // not removed by AE.destroy_ae_handles, so this assert would fail:
-  //   AE.run { AE.next_tick { } ; RAISE_1 }
-  // TODO: We need to assert that there are 1 or 0 active handles.
-  // NOTE: uv_default_loop()->active_handles will be removed soon, so...
+   * iterate once for freeing closed UV handles not freed yet.
+   * NOTE: If the blocks just contains a next_tick and raises, next_tick idle is
+   * not removed by AE.destroy_ae_handles:
+   *    AE.run { AE.next_tick { } ; RAISE_1 }
+   * Therefore here we check that there are 0 or 1 UV active handles.
+   */
   AE_ASSERT(_uv_num_active_handlers() <= 1);
 
   rb_thread_call_without_gvl(run_uv_once_without_gvl, NULL, NULL, NULL);
@@ -231,4 +223,7 @@ void Init_asyncengine_ext()
   init_ae_next_tick();
   init_ae_udp();
   init_ae_ip_utils();
+
+  /* Set the UV loop. */
+  AE_uv_loop = uv_default_loop();
 }

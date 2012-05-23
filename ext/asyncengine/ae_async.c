@@ -53,7 +53,7 @@ VALUE AsyncEngine_c_call_from_other_thread(VALUE self, VALUE block)
 
   uv_async_t* _uv_async = ALLOC(uv_async_t);
 
-  AE_ASSERT(! uv_async_init(uv_default_loop(), _uv_async, _uv_async_callback));
+  AE_ASSERT(! uv_async_init(AE_uv_loop, _uv_async, _uv_async_callback));
 
   // Store just the block id in the handle data field.
   _uv_async->data = (void *)ae_store_block(block);

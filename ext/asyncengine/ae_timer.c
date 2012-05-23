@@ -151,7 +151,7 @@ VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE rb_delay, VALUE rb_inter
   cdata->ae_handle_id = ae_store_handle(self);
 
   // Initialize the UV handle.
-  uv_timer_init(uv_default_loop(), cdata->_uv_handle);
+  uv_timer_init(AE_uv_loop, cdata->_uv_handle);
 
   // Store the cdata within the UV handle.
   cdata->_uv_handle->data = cdata;

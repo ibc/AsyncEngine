@@ -35,8 +35,8 @@ void load_ae_next_tick_uv_idle()
 
   AE_DEBUG("ae_next_tick_uv_idle = ALLOC(uv_idle_t);");
   ae_next_tick_uv_idle = ALLOC(uv_idle_t);
-  AE_DEBUG("uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle);");
-  AE_ASSERT(! uv_idle_init(uv_default_loop(), ae_next_tick_uv_idle));
+  AE_DEBUG("uv_idle_init(AE_uv_loop, ae_next_tick_uv_idle);");
+  AE_ASSERT(! uv_idle_init(AE_uv_loop, ae_next_tick_uv_idle));
 #ifdef AE_UV_IDLE_DO_REF_UNREF
   AE_DEBUG("uv_unref((uv_handle_t *)ae_next_tick_uv_idle);");
   uv_unref((uv_handle_t *)ae_next_tick_uv_idle);

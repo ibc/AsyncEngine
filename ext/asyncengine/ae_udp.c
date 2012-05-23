@@ -199,7 +199,7 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
   cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
 
-  AE_ASSERT(! uv_udp_init(uv_default_loop(), cdata->_uv_handle));
+  AE_ASSERT(! uv_udp_init(AE_uv_loop, cdata->_uv_handle));
 
   // NOTE: If we set the data field *before* uv_udp_init() then such a function set data to NULL !!!
   cdata->_uv_handle->data = cdata;
@@ -207,14 +207,14 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
   switch(ip_type) {
     case ip_type_ipv4:
       if (uv_udp_bind(cdata->_uv_handle, uv_ip4_addr(bind_ip, bind_port), 0)) {
-        terminate(cdata);
+        destroy(cdata);
         ae_raise_last_uv_error();
       }
       break;
     case ip_type_ipv6:
       // TODO: UDP flags en IPv6 puede ser que si. Solo vale 0 o UV_UDP_IPV6ONLY.
       if (uv_udp_bind6(cdata->_uv_handle, uv_ip6_addr(bind_ip, bind_port), UV_UDP_IPV6ONLY)) {
-        terminate(cdata);
+        destroy(cdata);
         ae_raise_last_uv_error();
       }
       break;
@@ -339,7 +339,7 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
   Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
 
   if (cdata->_uv_handle) {
-    terminate(cdata);
+    destroy(cdata);
     return Qtrue;
   }
   else
