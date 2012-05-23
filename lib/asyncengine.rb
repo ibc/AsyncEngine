@@ -45,6 +45,12 @@ module AsyncEngine
       end
     end
 
+    # TODO: debug
+    if @_mutex_run.locked?
+      puts "NOTICE: AE.run(): @_mutex_run is locked"
+    end
+
+    # TODO: has this Mutex any effect? I don't feel it.
     @_mutex_run.synchronize do
       ensure_no_handles()  # TODO: for testing
 
@@ -79,29 +85,17 @@ module AsyncEngine
   end
 
   def self.release
-    destroy_ae_handles()
-
     # TODO: needed?
     Thread.exclusive do
-      run_uv_once()
-      @_thread = nil
-      @_running = false
-    end
-  end
-
-  def self.destroy_ae_handles
-    #puts "NOTICE: AE.destroy_ae_handles() starts..."
-
-    # TODO: needed?
-    Thread.exclusive do
-      #puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
       @_handles.each_value { |handle| handle.send :destroy }
       # NOTE: #destroy removes the AE handle itself from @_handles.
       @_blocks.clear
       @_next_ticks.clear
-    end
 
-    #puts "NOTICE: AE.destroy_ae_handles() terminates"
+      run_uv_once()
+      @_thread = nil
+      @_running = false
+    end
   end
 
   def self.clean?
@@ -112,13 +106,7 @@ module AsyncEngine
   def self.stop
     return false  unless ready_for_handles?()
 
-    if running_thread?
-      stop_uv()
-    else
-      call_from_other_thread do
-        stop_uv()  unless ready_for_handles?()
-      end
-    end
+    call_from_other_thread { stop_uv() }
     true
   end
 
@@ -141,8 +129,8 @@ module AsyncEngine
     if @_exception_handler
       @_exception_handler.call e
     else
-      # TODO: dbg
-      puts "WARN: AE.handle_exception(e = #{e.class}: #{e})"
+      # TODO: debug
+      #puts "WARN: AE.handle_exception(e = #{e.class}: #{e})"
       raise e
     end
   end
@@ -179,7 +167,6 @@ module AsyncEngine
     private :num_uv_active_handles
     private :release
     private :clean?
-    private :destroy_ae_handles
     private :handle_exception
   end
 
