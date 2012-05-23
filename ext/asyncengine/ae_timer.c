@@ -158,7 +158,6 @@ VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE rb_delay, VALUE rb_inter
 
   // Run the timer.
   uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
-
   return self;
 }
 
@@ -206,7 +205,6 @@ VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE rb_delay, VALUE rb_interval)
   }
 
   uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
-
   return Qtrue;
 }
 
@@ -267,7 +265,6 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
     uv_timer_stop(cdata->_uv_handle);
 
   destroy(cdata);
-
   return Qtrue;
 }
 

@@ -60,20 +60,16 @@ module AsyncEngine
         next_tick(block)
         run_uv()
         # run_uv() can exit due:
-        # - AE.stop, so there are handles alive that would be closed in the ensure block.
+        # - AE.stop, so there are AE handles alive that will be closed in release() function.
         # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
-        #   timers, so the release block will close them).
+        #   timers, so release() function will close them).
         # - An exception/interrupt occurs (run_uv() does not exit in fact) so the
-        #   ensure block will close handles.
+        #   ensure block will close the existing handles.
+        release()
+        released = true
       ensure
-        # We must prevent an interrupt while in the ensure block. So let's add another ensure.
-        begin
-          release()
-          released = true
-        ensure
-          release()  unless released
-          ensure_no_handles()  # TODO: for testing
-        end
+        release()  unless released
+        ensure_no_handles()  # TODO: for testing
       end
     end  # @_mutex_run.synchronize
   end
@@ -84,9 +80,13 @@ module AsyncEngine
 
   def self.release
     destroy_ae_handles()
-    run_uv_once()
-    @_thread = nil
-    @_running = false
+
+    # TODO: needed?
+    Thread.exclusive do
+      run_uv_once()
+      @_thread = nil
+      @_running = false
+    end
   end
 
   def self.clean?
@@ -114,7 +114,7 @@ module AsyncEngine
     Thread.exclusive do
       #puts "NOTICE: AE.destroy_ae_handles(): @_handles:#{@_handles.size}, @_blocks:#{@_blocks.size}, @_next_ticks:#{@_next_ticks.size}"
       @_handles.each_value { |handle| handle.send :destroy }
-      #@_handles.clear  # NOTE: #destroy removes itself from @_handles so no need for it.
+      # NOTE: #destroy removes the AE handle itself from @_handles.
       @_blocks.clear
       @_next_ticks.clear
     end

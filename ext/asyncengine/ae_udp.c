@@ -100,26 +100,6 @@ void destroy(struct_ae_udp_socket_cdata* cdata)
 }
 
 
-/*
- * This private method MUST be called by AE over all the
- * existing handles in the hash when the user invokes AE.stop or when an
- * exception raises. It allows uv_run() to exit.
- */
-VALUE AsyncEngineUdpSocket_destroy(VALUE self)
-{
-  AE_TRACE();
-
-  struct_ae_udp_socket_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
-
-  destroy(cdata);
-  return Qtrue;
-}
-
-
 static
 uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 {
@@ -221,7 +201,6 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
   }
 
   AE_ASSERT(! uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback));
-
   return self;
 }
 
@@ -337,11 +316,29 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
   struct_ae_udp_socket_cdata* cdata;
 
   Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
-
-  if (cdata->_uv_handle) {
-    destroy(cdata);
-    return Qtrue;
-  }
-  else
+  if (! cdata->_uv_handle)
     return Qfalse;
+
+  destroy(cdata);
+  return Qtrue;
+}
+
+
+/*
+ * This private method MUST be called by AE over all the
+ * existing handles in the hash when the user invokes AE.stop or when an
+ * exception raises. It allows uv_run() to exit.
+ */
+VALUE AsyncEngineUdpSocket_destroy(VALUE self)
+{
+  AE_TRACE();
+
+  struct_ae_udp_socket_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
+
+  destroy(cdata);
+  return Qtrue;
 }
