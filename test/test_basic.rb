@@ -148,4 +148,21 @@ class TestBasic < AETest
     assert_true AE.run {}
   end
 
+  def test_07_stop_is_the_first
+    @var = false
+    AE.run do
+      AE.add_timer(0.1) { @var = true }
+      AE.stop
+    end
+
+    assert_false @var
+
+    @var = false
+    AE.run do
+      AE.add_timer(0.11) { @var = true }
+      AE.next_tick { AE.stop }
+    end
+
+    assert_false @var
+  end
 end

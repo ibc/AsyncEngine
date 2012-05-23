@@ -100,11 +100,14 @@ VALUE run_uv_without_gvl(void)
    * has been set to 1 (by AsyncEngine.stop). */
   AE_DEBUG("uv_run_once() loop starts...");
 
+  // TODO: for testing.
+  AE_ASSERT(do_stop == 0);
+
   while(!do_stop && uv_run_once(AE_uv_loop));
-  do_stop = 1;
 
   AE_DEBUG("uv_run_once() loop terminates");
 
+  do_stop = 0;
   is_ae_ready = 0;
 
   return Qtrue;
@@ -136,6 +139,7 @@ VALUE run_uv_once_without_gvl(void)
   uv_run_once(AE_uv_loop);
   AE_DEBUG("uv_run_once() terminates");
 
+  do_stop = 0;
   is_ae_ready = 0;
 
   return Qtrue;
