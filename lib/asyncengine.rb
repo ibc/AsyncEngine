@@ -38,7 +38,9 @@ module AsyncEngine
         #puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
         call_from_other_thread(block)
       end
-      return true
+      # Return nil, which tells the user that the block has been integrated in the
+      # already existing AsyncEngine reactor.
+      return nil
     else
       unless clean?
         #release()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
