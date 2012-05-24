@@ -23,7 +23,11 @@ module AsyncEngine
 
     alias orig_to_s to_s
     def to_s
-      "#{self.orig_to_s} (delay: #{delay})"
+      if alive?
+        "#{self.orig_to_s} (delay: #{delay().to_f/1000})"
+      else
+        "#{self.orig_to_s} (cancelled)"
+      end
     end
     alias :inspect :to_s
   end
@@ -45,7 +49,11 @@ module AsyncEngine
     end
 
     def to_s
-      "#{self.orig_to_s} (delay: #{delay}, interval: #{interval})"
+      if alive?
+        "#{self.orig_to_s} (delay: #{delay().to_f/1000}}, interval: #{interval().to_f/1000})"
+      else
+        "#{self.orig_to_s} (cancelled)"
+      end
     end
     alias :inspect :to_s
   end
