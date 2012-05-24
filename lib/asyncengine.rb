@@ -17,17 +17,18 @@ module AsyncEngine
   @_mutex_run = Mutex.new
   @_mutex_run = Mutex.new
 
-  # TMP: No hará falta, solo para AE.debug.
-  @_handles = {}
-  @_blocks = {}
-  @_next_ticks = []
-
   def self.run pr=nil, &bl
     raise ArgumentError, "no block given"  unless (block = pr || bl)
     raise ArgumentError, "not a block or Proc"  unless block.is_a? Proc
 
-    # TODO: Not true: https://github.com/joyent/libuv/issues/423
+    # NOTE: For now avoid forking.
     raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
+
+    @_handles ||= {}
+    @_blocks ||= {}
+    @_next_ticks ||= []
+
+    init();
 
     if @_running
       if running_thread?
@@ -40,7 +41,9 @@ module AsyncEngine
       return true
     else
       unless clean?
-        raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
+        #release()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
+        puts "ERROR: AsyncEngine not running but not clean"
+        #raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
       end
     end
 
@@ -49,23 +52,18 @@ module AsyncEngine
       puts "NOTICE: AE.run(): @_mutex_run is locked"
     end
 
-    # TODO: has this Mutex any effect? I don't feel it.
     @_mutex_run.synchronize do
       ensure_no_handles()  # TODO: for testing
-
-      @_handles = {}
-      @_blocks = {}
-      @_next_ticks = []
 
       released = false
       begin
         @_thread = Thread.current
         @_running = true
-        init()
+        pre_run()
         next_tick(block)
         run_uv()
         # run_uv() can exit due:
-        # - AE.stop (which also called to release() so there should be no more handles).
+        # - AE.stop, which also called to release() so there should be no more handles.
         # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
         #   timers, so release() function will close them).
         # - An exception/interrupt occurs (run_uv() does not exit in fact) so the
@@ -90,7 +88,6 @@ module AsyncEngine
       @_handles.each_value { |handle| handle.send :destroy }
       @_blocks.clear
       @_next_ticks.clear
-
       run_uv_once()
       @_thread = nil
       @_running = false
@@ -112,7 +109,7 @@ module AsyncEngine
       call_from_other_thread do
         stop_uv()
         release()
-      end
+      end if ready_for_handles?()
     end
     true
   end
@@ -155,22 +152,23 @@ module AsyncEngine
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running: #{running?}"
     puts "- UV active handles: #{num_uv_active_handles()}"
-    puts "- @_handles (#{@_handles.size}):\n"
+    puts "- @_handles (#{(@_handles ||= {}).size}):\n"
       @_handles.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_blocks (#{@_blocks.size}):\n"
+    puts "- @_blocks (#{(@_blocks ||= {}).size}):\n"
       @_blocks.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_next_ticks (#{@_next_ticks.size}):\n"
+    puts "- @_next_ticks (#{(@_next_ticks ||= []).size}):\n"
       @_next_ticks[0..10].each {|n| puts "  - #{n.inspect}"}
     puts
   end
 
   class << self
     private :init
+    private :pre_run
     private :run_uv
     private :run_uv_once
     private :stop_uv
     private :ready_for_handles?
-    private :ensure_AE_is_ready_for_handles
+    private :ensure_ready_for_handles
     private :num_uv_active_handles
     private :release
     private :clean?

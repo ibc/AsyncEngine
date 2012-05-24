@@ -11,17 +11,22 @@ static ID att_handles;
 static ID att_blocks;
 static ID const_UV_ERRNOS;
 
-static int is_ae_ready;
+static int initialized;
+static int is_ready_for_handles;
 static int do_stop;
 
 
 // TODO: Temporal function for debugging purposes, since active_handles
 // will be removed soon from UV.
 static
-long _uv_num_active_handlers(void)
+long ae_uv_num_active_handlers(void)
 {
   ngx_queue_t *q;
   long num_active_handlers = 0;
+
+  if (! initialized)
+    return 0;
+
   ngx_queue_foreach(q, &AE_uv_loop->active_handles) {
     num_active_handlers++;
   }
@@ -33,7 +38,7 @@ VALUE AsyncEngine_num_uv_active_handles(VALUE self)
 {
   AE_TRACE();
 
-  return LONG2FIX(_uv_num_active_handlers());
+  return LONG2FIX(ae_uv_num_active_handlers());
 }
 
 
@@ -41,18 +46,33 @@ VALUE AsyncEngine_init(VALUE self)
 {
   AE_TRACE();
 
+  if (initialized)
+    return Qfalse;
+
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
   AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
 
+  /* Set the UV loop. */
+  AE_uv_loop = uv_default_loop();
+
+  initialized = 1;
+  return Qtrue;
+}
+
+
+VALUE AsyncEngine_pre_run(VALUE self)
+{
+  AE_TRACE();
+
   /* Load the UV idle (next tick) now. */
   load_ae_next_tick_uv_idle();
 
-  /* Set is_ae_ready=1 so handles can be added. */
-  is_ae_ready = 1;
+  /* Set is_ready_for_handles=1 so handles can be added. */
+  is_ready_for_handles = 1;
   do_stop = 0;
 
-  return Qnil;
+  return Qtrue;
 }
 
 
@@ -108,7 +128,7 @@ VALUE run_uv_without_gvl(void)
   AE_DEBUG("uv_run_once() loop terminates");
 
   do_stop = 0;
-  is_ae_ready = 0;
+  is_ready_for_handles = 0;
 
   return Qtrue;
 }
@@ -139,7 +159,7 @@ VALUE run_uv_once_without_gvl(void)
    *    AE.run { AE.next_tick { } ; RAISE_1 }
    * Therefore here we check that there are 0 or 1 UV active handles.
    */
-  AE_ASSERT(_uv_num_active_handlers() <= 1);
+  AE_ASSERT(ae_uv_num_active_handlers() <= 1);
 
   /* Run UV loop (it blocks if there were handles in the given block). */
   AE_DEBUG("uv_run_once() starts...");
@@ -150,7 +170,7 @@ VALUE run_uv_once_without_gvl(void)
   unload_ae_next_tick_uv_idle();
 
   do_stop = 0;
-  is_ae_ready = 0;
+  is_ready_for_handles = 0;
 
   return Qtrue;
 }
@@ -181,23 +201,33 @@ VALUE AsyncEngine_stop_uv(VALUE self)
 }
 
 
+static
+int ae_is_ready_for_handles(void)
+{
+  AE_TRACE();
+
+  // TODO: Not sure which is better, theorically second one is "safer".
+  //return is_ready_for_handles;
+  return (is_ready_for_handles && !do_stop);
+}
+
+
 VALUE AsyncEngine_is_ready_for_handles(VALUE self)
 {
   AE_TRACE();
 
-  return is_ae_ready ? Qtrue : Qfalse;
+  return ae_is_ready_for_handles();
 }
 
 
-VALUE AsyncEngine_ensure_AE_is_ready_for_handles(VALUE self)
+VALUE AsyncEngine_ensure_ready_for_handles(VALUE self)
 {
   AE_TRACE();
 
-  if (is_ae_ready)
+  if (ae_is_ready_for_handles())
     return Qtrue;
-  else {
+  else
     rb_raise(eAsyncEngineError, "AsyncEngine is not ready yet");
-  }
 }
 
 
@@ -211,11 +241,12 @@ void Init_asyncengine_ext()
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
 
   rb_define_module_function(mAsyncEngine, "init", AsyncEngine_init, 0);
+  rb_define_module_function(mAsyncEngine, "pre_run", AsyncEngine_pre_run, 0);
   rb_define_module_function(mAsyncEngine, "run_uv", AsyncEngine_run_uv, 0);
   rb_define_module_function(mAsyncEngine, "run_uv_once", AsyncEngine_run_uv_once, 0);
   rb_define_module_function(mAsyncEngine, "stop_uv", AsyncEngine_stop_uv, 0);
   rb_define_module_function(mAsyncEngine, "ready_for_handles?", AsyncEngine_is_ready_for_handles, 0);
-  rb_define_module_function(mAsyncEngine, "ensure_AE_is_ready_for_handles", AsyncEngine_ensure_AE_is_ready_for_handles, 0);
+  rb_define_module_function(mAsyncEngine, "ensure_ready_for_handles", AsyncEngine_ensure_ready_for_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
 
   att_handles = rb_intern("@_handles");
@@ -229,6 +260,8 @@ void Init_asyncengine_ext()
   init_ae_udp();
   init_ae_ip_utils();
 
-  /* Set the UV loop. */
-  AE_uv_loop = uv_default_loop();
+  initialized = 0;
+  is_ready_for_handles = 0;
+  do_stop = 0;
+  AE_uv_loop = NULL;
 }
