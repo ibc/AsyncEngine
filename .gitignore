@@ -1,7 +1,8 @@
 asyncengine-*.gem
 NOTES
 BORRAME
-get_coredump.sh
+*.sh
+notes/
 
 ext/asyncengine/libuv/
 ext/asyncengine/_OLD/
@@ -12,3 +13,5 @@ ext/asyncengine/*.a
 ext/asyncengine/mkmf.log
 
 lib/asyncengine/*.so
+
+test/others/
