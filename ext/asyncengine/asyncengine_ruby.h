@@ -12,8 +12,6 @@
 #define AE_DO_WARN
 #define AE_DO_ASSERT
 
-// TODO: Pongo los fprintf() a escribir en stderr en vez de stderr, ya que si no peta
-// un montón, no lo entiendo !!!
 
 #ifdef AE_DO_TRACE
   #define AE_TRACE()  fprintf(stderr, "AE_TRACE: %s:%d:%s (GVL:%d)\n", __FILE__, __LINE__, __FUNCTION__, ruby_thread_has_gvl_p())

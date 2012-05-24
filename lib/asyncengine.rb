@@ -29,7 +29,7 @@ module AsyncEngine
     # TODO: Not true: https://github.com/joyent/libuv/issues/423
     raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
 
-    if running?
+    if @_running
       if running_thread?
         #puts "NOTICE: AE.run() called while AsyncEngine already running => block.call"
         block.call
@@ -65,12 +65,12 @@ module AsyncEngine
         next_tick(block)
         run_uv()
         # run_uv() can exit due:
-        # - AE.stop, so there are AE handles alive that will be closed in release() function.
+        # - AE.stop (which also called to release() so there should be no more handles).
         # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
         #   timers, so release() function will close them).
         # - An exception/interrupt occurs (run_uv() does not exit in fact) so the
         #   ensure block will close the existing handles.
-        release()
+        release()  if @_running
         released = true
       ensure
         release()  unless released
@@ -86,8 +86,8 @@ module AsyncEngine
   def self.release
     # TODO: needed?
     Thread.exclusive do
+      # AE handle's destroy() removes the AE handle itself from @_handles.
       @_handles.each_value { |handle| handle.send :destroy }
-      # NOTE: #destroy removes the AE handle itself from @_handles.
       @_blocks.clear
       @_next_ticks.clear
 
@@ -105,7 +105,15 @@ module AsyncEngine
   def self.stop
     return false  unless ready_for_handles?()
 
-    call_from_other_thread { stop_uv() }
+    if running_thread?
+      stop_uv()
+      release()
+    else
+      call_from_other_thread do
+        stop_uv()
+        release()
+      end
+    end
     true
   end
 

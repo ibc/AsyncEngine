@@ -92,9 +92,6 @@ VALUE AsyncEngine_c_next_tick(VALUE self)
 {
   AE_TRACE();
 
-  // TODO: Ok, let's load and unload the idle from main file, but then we must
-  // check wheter AE is running or not (for all the handles better !).
-  //load_ae_next_tick_uv_idle();
   AE_ASSERT(ae_next_tick_uv_idle != NULL);
 
   if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {

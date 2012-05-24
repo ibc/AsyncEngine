@@ -131,13 +131,23 @@ VALUE run_uv_once_without_gvl(void)
 {
   AE_TRACE();
 
-  /* Close the UV idle (next tick) now. */
-  unload_ae_next_tick_uv_idle();
+  /* There MUST NOT be UV active handles at this time, we enter here just to
+   * iterate once for freeing closed UV handles not freed yet (it's required
+   * a UV iteration for uv_close callbacks to be called).
+   * NOTE: If the blocks just contains a next_tick and raises, next_tick idle is
+   * not removed by AE.destroy_ae_handles:
+   *    AE.run { AE.next_tick { } ; RAISE_1 }
+   * Therefore here we check that there are 0 or 1 UV active handles.
+   */
+  AE_ASSERT(_uv_num_active_handlers() <= 1);
 
   /* Run UV loop (it blocks if there were handles in the given block). */
   AE_DEBUG("uv_run_once() starts...");
   uv_run_once(AE_uv_loop);
   AE_DEBUG("uv_run_once() terminates");
+
+  /* Close the UV idle (next tick) now. */
+  unload_ae_next_tick_uv_idle();
 
   do_stop = 0;
   is_ae_ready = 0;
@@ -154,16 +164,6 @@ VALUE run_uv_once_without_gvl(void)
 VALUE AsyncEngine_run_uv_once(VALUE self)
 {
   AE_TRACE();
-
-  /* There MUST NOT be UV active handles at this time, we enter here just to
-   * iterate once for freeing closed UV handles not freed yet (it's required
-   * a UV iteration for uv_close callbacks to be called).
-   * NOTE: If the blocks just contains a next_tick and raises, next_tick idle is
-   * not removed by AE.destroy_ae_handles:
-   *    AE.run { AE.next_tick { } ; RAISE_1 }
-   * Therefore here we check that there are 0 or 1 UV active handles.
-   */
-  AE_ASSERT(_uv_num_active_handlers() <= 1);
 
   rb_thread_call_without_gvl(run_uv_once_without_gvl, NULL, NULL, NULL);
 

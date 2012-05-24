@@ -117,6 +117,7 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
   AE_TRACE();
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
+  // TODO: UTF8? sure?
   VALUE rb_datagram = RB_STR_TAINTED_UTF8_NEW(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread);
 
   return rb_funcall2(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, &rb_datagram);
@@ -229,7 +230,7 @@ void _uv_udp_send_callback(uv_udp_send_t* req, int status)
   // It could crash:
   // (1) rb_hash_delete() can call Ruby's #hash method for each elements.
   // (2) If another thread access to the hash simultaneously, it will be crash.
-  // But in my case I use Fixnum as hash key, so no problem :)
+  // It MUST be fixed since the Hash can be manipulated from two threads at same time.
   if (! NIL_P(send_data->rb_on_send_error_block_id)) {
     rb_on_send_error_block = ae_remove_block(send_data->rb_on_send_error_block_id);
     if (status)
