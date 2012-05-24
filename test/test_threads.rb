@@ -44,4 +44,26 @@ class TestThreads < AETest
     assert_equal "12abcd", str
   end
 
+  def test_03_run_and_stop_are_thread_safe
+    summ = 0
+
+    th1 = Thread.new do
+      AE.run { AE.add_timer(0.1) { AE.stop } }
+    end
+
+    th2 = Thread.new do
+      sleep 0.01
+      AE.run { summ+=1 }
+    end
+
+    th3 = Thread.new do
+      sleep 0.01
+      AE.run { AE.add_timer(0) { summ+=1 } }
+    end
+
+    th1.join ; th2.join ; th3.join
+
+    assert_equal 2, summ
+  end
+
 end
