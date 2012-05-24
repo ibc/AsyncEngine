@@ -72,12 +72,12 @@ class TestBasic < AETest
     AE.run do
       num+=1
       AE.run { num+=1 }
-      AE.run { AE.run { num+=1 } }
+      AE.run { AE.run { num+=1 } } # Wont' occur.
       AE.next_tick { num+=1 }
       AE.next_tick { AE.next_tick { num+=1 } }  # Won't occur.
       AE.next_tick { AE.stop }
     end
-    assert_equal 4, num
+    assert_equal 3, num
   end
 
   def test_04_multiple_stop

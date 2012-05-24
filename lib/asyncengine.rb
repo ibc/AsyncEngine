@@ -32,8 +32,8 @@ module AsyncEngine
 
     if @_running
       if running_thread?
-        #puts "NOTICE: AE.run() called while AsyncEngine already running => block.call"
-        block.call
+        #puts "NOTICE: AE.run() called while AsyncEngine already running => next_tick(block)"
+        next_tick(block)
       else
         #puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
         call_from_other_thread(block)
