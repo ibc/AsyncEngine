@@ -1,7 +1,7 @@
 module AsyncEngine
 
   def self.next_tick pr=nil, &bl
-    ensure_AE_is_ready_for_handles()
+    ensure_ready_for_handles()
 
     @_next_ticks << (pr || bl)
     _c_next_tick

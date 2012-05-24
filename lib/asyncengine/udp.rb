@@ -1,7 +1,7 @@
 module AsyncEngine
 
   def self.open_udp_socket bind_ip, bind_port, klass=AsyncEngine::UDPSocket, *args
-    ensure_AE_is_ready_for_handles()
+    ensure_ready_for_handles()
 
     raise AsyncEngine::Error, "klass must inherit from AsyncEngine::UDPSocket" unless
       klass <= AsyncEngine::UDPSocket
