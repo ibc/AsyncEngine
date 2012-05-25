@@ -16,13 +16,13 @@ typedef struct {
 } struct_ae_timer_cdata;
 
 
-typedef struct {
+struct timer_callback_data {
   uv_timer_t* handle;
-} struct_timer_callback_data;
+};
 
 
 // Used for storing information about the last timer callback.
-static struct_timer_callback_data last_timer_callback_data;
+static struct timer_callback_data last_timer_callback_data;
 
 
 static void AsyncEngineTimer_mark(void *ptr)
@@ -35,6 +35,8 @@ static void AsyncEngineTimer_mark(void *ptr)
   // continues alive in Ruby land.
   if (cdata->_uv_handle)
     rb_gc_mark(cdata->block);
+
+  // NOTE: No need to cdata->mark ae_handle_id since it's a Fixnum (unmutable).
 }
 
 
@@ -75,6 +77,7 @@ void init_ae_timer()
   rb_define_method(cAsyncEngineTimer, "delay", AsyncEngineTimer_delay, 0);
   rb_define_method(cAsyncEngineTimer, "interval", AsyncEngineTimer_interval, 0);
   rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
+  rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
   rb_define_private_method(cAsyncEngineTimer, "destroy", AsyncEngineTimer_destroy, 0);
 }
 
@@ -117,7 +120,7 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
 
   last_timer_callback_data.handle = handle;
 
-  ae_execute_function_with_gvl_and_protect(ae_timer_callback, Qnil);
+  ae_execute_in_ruby_land(ae_timer_callback);
 }
 
 
@@ -209,20 +212,6 @@ VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE rb_delay, VALUE rb_interval)
 }
 
 
-VALUE AsyncEngineTimer_is_alive(VALUE self)
-{
-  AE_TRACE();
-
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
-
-  return Qtrue;
-}
-
-
 VALUE AsyncEngineTimer_delay(VALUE self)
 {
   AE_TRACE();
@@ -265,6 +254,20 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
     uv_timer_stop(cdata->_uv_handle);
 
   destroy(cdata);
+  return Qtrue;
+}
+
+
+VALUE AsyncEngineTimer_is_alive(VALUE self)
+{
+  AE_TRACE();
+
+  struct_ae_timer_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
+
   return Qtrue;
 }
 

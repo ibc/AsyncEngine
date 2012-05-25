@@ -2,17 +2,17 @@
 #include "ae_ip_utils.h"
 
 
-static VALUE mAsyncEngineUtils;
+static VALUE mAsyncEngineIpUtils;
 
 
 void init_ae_ip_utils()
 {
   AE_TRACE();
 
-  mAsyncEngineUtils = rb_define_module_under(mAsyncEngine, "Utils");
+  mAsyncEngineIpUtils = rb_define_module_under(mAsyncEngine, "IpUtils");
 
-  rb_define_module_function(mAsyncEngineUtils, "ip_type", AsyncEngineUtils_ip_type, 1);
-  rb_define_module_function(mAsyncEngineUtils, "compare_ips", AsyncEngineUtils_compare_ips, -1);
+  rb_define_module_function(mAsyncEngineIpUtils, "ip_type", AsyncEngineIpUtils_ip_type, 1);
+  rb_define_module_function(mAsyncEngineIpUtils, "compare_ips", AsyncEngineIpUtils_compare_ips, -1);
 
   symbol_ipv4 = ID2SYM(rb_intern("ipv4"));
   symbol_ipv6 = ID2SYM(rb_intern("ipv6"));
@@ -20,7 +20,7 @@ void init_ae_ip_utils()
 }
 
 
-VALUE AsyncEngineUtils_ip_type(VALUE self, VALUE string)
+VALUE AsyncEngineIpUtils_ip_type(VALUE self, VALUE string)
 {
   AE_TRACE();
 
@@ -106,7 +106,7 @@ int compare_pure_ips(char *ip1, size_t len1, enum_ip_type ip1_type, char *ip2, s
  *
  * Returns nil if at least one of the IP's is not valid IPv4, IPv6 or IPv6 reference.
  */
-VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
+VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
 
@@ -164,4 +164,15 @@ VALUE AsyncEngineUtils_compare_ips(int argc, VALUE *argv, VALUE self)
     return Qtrue;
   else
     return Qfalse;
+}
+
+
+int ae_ip_utils_is_valid_port(int port)
+{
+  AE_TRACE();
+
+  if (port >= 0 && port <= 65535)
+    return 1;
+  else
+    return 0;
 }

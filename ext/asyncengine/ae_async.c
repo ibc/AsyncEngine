@@ -3,13 +3,13 @@
 #include "ae_async.h"
 
 
-typedef struct {
+struct async_callback_data {
   uv_async_t* handle;
-} struct_async_callback_data;
+};
 
 
 // Used for storing information about the last async callback.
-static struct_async_callback_data last_async_callback_data;
+static struct async_callback_data last_async_callback_data;
 
 
 void init_ae_async()
@@ -43,7 +43,7 @@ void _uv_async_callback(uv_async_t* handle, int status)
 
   last_async_callback_data.handle = handle;
 
-  ae_execute_function_with_gvl_and_protect(ae_async_callback, Qnil);
+  ae_execute_in_ruby_land(ae_async_callback);
 }
 
 

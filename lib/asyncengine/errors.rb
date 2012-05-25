@@ -14,8 +14,7 @@ module AsyncEngine
     end
   end
 
-  class NotRunning < Error ; end
-
+  # TODO: Update this list according to uv.h.
   UV_ERRNOS = {
     -1 => UvError.new(-1, :UNKNOWN, "unknown error"),
     0 => UvError.new(0, :OK, "success"),

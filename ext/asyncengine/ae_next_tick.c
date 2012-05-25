@@ -12,7 +12,7 @@ static uv_idle_t* ae_next_tick_uv_idle;
 static ID method_execute_next_ticks;
 
 
-void init_ae_next_tick()
+void init_ae_next_tick(void)
 {
   AE_TRACE();
 
@@ -24,7 +24,7 @@ void init_ae_next_tick()
 }
 
 
-void load_ae_next_tick_uv_idle()
+void load_ae_next_tick_uv_idle(void)
 {
   AE_TRACE();
 
@@ -44,7 +44,7 @@ void load_ae_next_tick_uv_idle()
 }
 
 
-void unload_ae_next_tick_uv_idle()
+void unload_ae_next_tick_uv_idle(void)
 {
   AE_TRACE();
 
@@ -64,7 +64,7 @@ void unload_ae_next_tick_uv_idle()
 
 
 static
-void ae_next_tick_callback_with_gvl()
+void ae_next_tick_callback_with_gvl(void)
 {
   AE_TRACE();
 

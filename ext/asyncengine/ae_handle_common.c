@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
 
@@ -152,44 +153,15 @@ VALUE ae_block_call_1(VALUE rb_block, VALUE param)
 }
 
 
-typedef struct {
-  function_with_gvl_and_protect function;
-  VALUE rb_param;
-} struct_function_with_gvl_and_protect;
-
-
-// TODO: jsut for considering it... due to the bug in bug_uv_run_2.rb
-// static
-// void ae_handle_exception(int exception_tag)
-// {
-//   AE_TRACE();
-//   
-//   // rb_errinfo() gives the current exception object in this thread.
-//   VALUE exception = rb_errinfo();
-//   
-//   // Just check the exception in the user provided AE.exception_handler block if
-//   // it is a StandardError or LoadError. Otherwise raise it and terminate.
-//   if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue ||
-//     rb_obj_is_kind_of(exception, rb_eLoadError) == Qtrue)
-//   {
-//     rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
-//     // Dissable the current thread exception.
-//     rb_set_errinfo(Qnil);
-//   }
-//   else
-//     rb_jump_tag(exception_tag);
-// }
-
-
 static
-VALUE execute_function_with_protect(struct_function_with_gvl_and_protect *data)
+VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect function)
 {
   AE_TRACE();
 
   int exception_tag;
   VALUE ret;
 
-  ret = rb_protect(data->function, data->rb_param, &exception_tag);
+  ret = rb_protect(function, Qnil, &exception_tag);
 
   // If an exception occurred then call AsyncEngine.handle_exception(exception).
   if (exception_tag) {
@@ -214,16 +186,11 @@ VALUE execute_function_with_protect(struct_function_with_gvl_and_protect *data)
 
 
 /*
- * Executes the given function taking the GVL and using rb_protect(), and passes
- * rb_param as a single argument to the given function.
+ * Executes the given function taking the GVL and using rb_protect().
  */
-VALUE ae_execute_function_with_gvl_and_protect(function_with_gvl_and_protect function, VALUE rb_param)
+VALUE ae_execute_in_ruby_land(function_with_gvl_and_protect function)
 {
   AE_TRACE();
 
-  struct_function_with_gvl_and_protect data;
-  data.function = function;
-  data.rb_param = rb_param;
-
-  return rb_thread_call_with_gvl(execute_function_with_protect, &data);
+  return rb_thread_call_with_gvl(execute_function_with_glv_and_rb_protect, function);
 }

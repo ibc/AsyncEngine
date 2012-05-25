@@ -2,8 +2,7 @@
 #define AE_HANDLE_COMMON_H
 
 
-#define RB_STR_UTF8_NEW(s, len) (rb_enc_str_new(s, len, rb_utf8_encoding()))
-#define RB_STR_TAINTED_UTF8_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_utf8_encoding()))
+#include "utilities.h"
 
 
 void init_ae_handle_common(void);
@@ -26,7 +25,7 @@ VALUE ae_block_call_0(VALUE rb_block);
 VALUE ae_block_call_1(VALUE rb_block, VALUE param);
 
 typedef VALUE (*function_with_gvl_and_protect)(VALUE rb_param);
-VALUE ae_execute_function_with_gvl_and_protect(function_with_gvl_and_protect function, VALUE rb_param);
+VALUE ae_execute_in_ruby_land(function_with_gvl_and_protect function);
 
 
 #endif  /* AE_HANDLE_COMMON_H */

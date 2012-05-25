@@ -22,33 +22,38 @@ typedef struct {
   enum_ip_type ip_type;
   VALUE rb_ae_udp_socket;
   VALUE rb_ae_udp_socket_id;
+  enum_string_encoding encoding;
 } struct_ae_udp_socket_cdata;
 
-
-typedef struct {
-  char *datagram;
-  VALUE rb_on_send_error_block_id;
-} struct_ae_udp_socket_send_data;
-
-
-typedef struct {
+struct udp_recv_callback_data {
   uv_udp_t* handle;
   ssize_t nread;
   uv_buf_t buf;
   struct sockaddr* addr;
   unsigned flags;
-} struct_ae_udp_socket_recv_callback_data;
+};
+
+typedef struct {
+  char *datagram;
+  VALUE rb_on_send_block_id;
+} struct_udp_send_data;
+
+struct udp_send_callback_data {
+  VALUE rb_on_send_block_id;
+  int status;
+};
 
 
 // Used for storing information about the last UDP recv callback.
-static struct_ae_udp_socket_recv_callback_data last_udp_recv_callback_data;
+static struct udp_recv_callback_data last_udp_recv_callback_data;
+
+// Used for storing information about the last UDP send callback.
+static struct udp_send_callback_data last_udp_send_callback_data;
 
 
 static void AsyncEngineUdpSocket_free(void *cdata)
 {
   AE_TRACE();
-
-  printf("DBG: AsyncEngineUdpSocket_free()\n");
 
   xfree(((struct_ae_udp_socket_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
@@ -58,6 +63,9 @@ static void AsyncEngineUdpSocket_free(void *cdata)
 VALUE AsyncEngineUdpSocket_alloc(VALUE klass)
 {
   AE_TRACE();
+
+  // NOTE: No need to mark cdata->rb_ae_udp_socket since points to ourself, neither
+  // cdata->rb_ae_udp_socket_id since it's a Fixnum.
 
   struct_ae_udp_socket_cdata* cdata = ALLOC(struct_ae_udp_socket_cdata);
   cdata->recv_buffer = uv_buf_init(ALLOC_N(char, AE_UDP_DATAGRAM_MAX_SIZE), AE_UDP_DATAGRAM_MAX_SIZE);
@@ -76,6 +84,10 @@ void init_ae_udp()
   rb_define_private_method(cAsyncEngineUdpSocket, "uv_handle_init", AsyncEngineUdpSocket_uv_handle_init, 2);
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, 3);
   rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "alive?", AsyncEngineUdpSocket_is_alive, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "set_encoding_external", AsyncEngineUdpSocket_set_encoding_external, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "set_encoding_utf8", AsyncEngineUdpSocket_set_encoding_utf8, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "set_encoding_ascii", AsyncEngineUdpSocket_set_encoding_ascii, 0);
   rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
 
   att_bind_ip = rb_intern("@_bind_ip");
@@ -91,7 +103,6 @@ void destroy(struct_ae_udp_socket_cdata* cdata)
 {
   AE_TRACE();
 
-  // Close the UDP handle so it's unreferenced by uv.
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
   // Set the handle field to NULL.
   cdata->_uv_handle = NULL;
@@ -105,8 +116,6 @@ uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 {
   AE_TRACE();
 
-  //printf("DBG: uv_alloc_cb: suggested_size = %d\n", (int)suggested_size);
-
   return ((struct_ae_udp_socket_cdata*)handle->data)->recv_buffer;
 }
 
@@ -117,8 +126,9 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
   AE_TRACE();
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
-  // TODO: UTF8? sure?
-  VALUE rb_datagram = RB_STR_TAINTED_UTF8_NEW(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread);
+
+  // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
+  VALUE rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
 
   return rb_funcall2(cdata->rb_ae_udp_socket, method_on_received_datagram, 1, &rb_datagram);
 }
@@ -146,7 +156,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
   last_udp_recv_callback_data.addr = addr;
   last_udp_recv_callback_data.flags = flags;
 
-  ae_execute_function_with_gvl_and_protect(ae_udp_socket_recv_callback, Qnil);
+  ae_execute_in_ruby_land(ae_udp_socket_recv_callback);
 }
 
 
@@ -170,6 +180,9 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
       rb_raise(rb_eTypeError, "not valid IPv4 or IPv6");
   }
 
+  if (! ae_ip_utils_is_valid_port(bind_port))
+    rb_raise(rb_eArgError, "invalid port value");
+
   rb_ivar_set(self, att_bind_ip, rb_bind_ip);
   rb_ivar_set(self, att_bind_port, rb_bind_port);
 
@@ -179,6 +192,7 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
   cdata->rb_ae_udp_socket = self;
   cdata->rb_ae_udp_socket_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
+  cdata->encoding = string_encoding_external;
 
   AE_ASSERT(! uv_udp_init(AE_uv_loop, cdata->_uv_handle));
 
@@ -207,11 +221,22 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE rb_bind_ip, VALUE rb
 
 
 static
-VALUE ae_udp_send_error_callback(VALUE rb_on_send_error_block)
+VALUE ae_udp_send_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  return ae_block_call_1(rb_on_send_error_block, ae_get_last_uv_error());
+  VALUE rb_on_send_block = ae_remove_block(last_udp_send_callback_data.rb_on_send_block_id);
+
+  if (! NIL_P(rb_on_send_block)) {
+    if (! last_udp_send_callback_data.status)
+      return ae_block_call_1(rb_on_send_block, Qnil);
+    else
+      return ae_block_call_1(rb_on_send_block, ae_get_last_uv_error());
+  }
+  else {
+    AE_WARN("ae_remove_block(last_udp_send_callback_data.rb_on_send_block_id) returned Qnil");
+    return Qnil;
+  }
 }
 
 
@@ -220,29 +245,22 @@ void _uv_udp_send_callback(uv_udp_send_t* req, int status)
 {
   AE_TRACE();
 
-  //printf("DBG: _uv_udp_send_callback(): status = %i\n", status);
+  struct_udp_send_data* send_data = req->data;
+  int do_on_send = 0;
 
-  struct_ae_udp_socket_send_data* send_data = req->data;
-  VALUE rb_on_send_error_block;
-  int do_error = 0;
-
-  // TODO: Ojo, estoy eliminando un elemento de un Hash sin tener el GVL !!!
-  // It could crash:
-  // (1) rb_hash_delete() can call Ruby's #hash method for each elements.
-  // (2) If another thread access to the hash simultaneously, it will be crash.
-  // It MUST be fixed since the Hash can be manipulated from two threads at same time.
-  if (! NIL_P(send_data->rb_on_send_error_block_id)) {
-    rb_on_send_error_block = ae_remove_block(send_data->rb_on_send_error_block_id);
-    if (status)
-      do_error = 1;
+  // Block was provided so must call it with success or error param.
+  if (! NIL_P(send_data->rb_on_send_block_id)) {
+    last_udp_send_callback_data.rb_on_send_block_id = send_data->rb_on_send_block_id;
+    last_udp_send_callback_data.status = status;
+    do_on_send = 1;
   }
 
+  xfree(req);
   xfree(send_data->datagram);
   xfree(send_data);
-  xfree(req);
 
-  if (do_error)
-    ae_execute_function_with_gvl_and_protect(ae_udp_send_error_callback, rb_on_send_error_block);
+  if (do_on_send)
+    ae_execute_in_ruby_land(ae_udp_send_callback);
 }
 
 
@@ -256,7 +274,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip,
   char *datagram;
   int datagram_len;
   uv_udp_send_t* _uv_req;
-  struct_ae_udp_socket_send_data* send_data;
+  struct_udp_send_data* send_data;
   struct_ae_udp_socket_cdata* cdata;
 
   Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
@@ -273,20 +291,22 @@ VALUE AsyncEngineUdpSocket_send_datagram(VALUE self, VALUE rb_data, VALUE rb_ip,
   if (cdata->ip_type != ae_ip_parser_execute(RSTRING_PTR(rb_ip), RSTRING_LEN(rb_ip)))
     rb_raise(rb_eTypeError, "invalid destination IP family");
 
+  if (! ae_ip_utils_is_valid_port(port))
+    rb_raise(rb_eArgError, "invalid port value");
+
   Check_Type(rb_data, T_STRING);
 
   datagram_len = RSTRING_LEN(rb_data);
   datagram = ALLOC_N(char, datagram_len);
   memcpy(datagram, RSTRING_PTR(rb_data), datagram_len);
 
-  send_data = ALLOC(struct_ae_udp_socket_send_data);
+  send_data = ALLOC(struct_udp_send_data);
   send_data->datagram = datagram;
 
-  // TODO
   if (rb_block_given_p())
-    send_data->rb_on_send_error_block_id = ae_store_block(rb_block_proc());
+    send_data->rb_on_send_block_id = ae_store_block(rb_block_proc());
   else
-    send_data->rb_on_send_error_block_id = Qnil;
+    send_data->rb_on_send_block_id = Qnil;
 
   _uv_req = ALLOC(uv_udp_send_t);
   _uv_req->data = send_data;
@@ -325,11 +345,60 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
 }
 
 
-/*
- * This private method MUST be called by AE over all the
- * existing handles in the hash when the user invokes AE.stop or when an
- * exception raises. It allows uv_run() to exit.
- */
+VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
+{
+  AE_TRACE();
+
+  struct_ae_udp_socket_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
+
+  return Qtrue;
+}
+
+
+static
+VALUE ae_set_external_encoding(VALUE self, enum_string_encoding encoding)
+{
+  AE_TRACE();
+
+  struct_ae_udp_socket_cdata* cdata;
+
+  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
+  if (! cdata->_uv_handle)
+    return Qfalse;
+
+  cdata->encoding = encoding;
+  return Qtrue;
+}
+
+
+VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self)
+{
+  AE_TRACE();
+
+  return ae_set_external_encoding(self, string_encoding_external);
+}
+
+
+VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self)
+{
+  AE_TRACE();
+
+  return ae_set_external_encoding(self, string_encoding_utf8);
+}
+
+
+VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self)
+{
+  AE_TRACE();
+
+  return ae_set_external_encoding(self, string_encoding_ascii);
+}
+
+
 VALUE AsyncEngineUdpSocket_destroy(VALUE self)
 {
   AE_TRACE();
