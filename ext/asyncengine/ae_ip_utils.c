@@ -1,5 +1,6 @@
 #include "asyncengine_ruby.h"
 #include "ae_ip_utils.h"
+#include "utilities.h"
 
 
 static VALUE mAsyncEngineIpUtils;
@@ -20,18 +21,18 @@ void init_ae_ip_utils()
 }
 
 
-VALUE AsyncEngineIpUtils_ip_type(VALUE self, VALUE string)
+VALUE AsyncEngineIpUtils_ip_type(VALUE self, VALUE _rb_str)
 {
   AE_TRACE();
 
   char *str;
   long len;
 
-  if (TYPE(string) != T_STRING)
+  if (TYPE(_rb_str) != T_STRING)
     rb_raise(rb_eTypeError, "argument must be a String");
 
-  str = RSTRING_PTR(string);
-  len = RSTRING_LEN(string);
+  str = RSTRING_PTR(_rb_str);
+  len = RSTRING_LEN(_rb_str);
 
   switch(ae_ip_parser_execute(str, len)) {
     case(ip_type_ipv4):
@@ -116,13 +117,12 @@ VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self)
   int allow_ipv6_reference = 0;
   int ipv6_references_found = 0;
 
-  if (argc < 2)
-    rb_raise(rb_eArgError, "at least two arguments are required");
+  AE_RB_CHECK_NUM_ARGS(2,3);
 
   if (TYPE(argv[0]) != T_STRING || TYPE(argv[1]) != T_STRING)
     rb_raise(rb_eTypeError, "first and second arguments must be String");
 
-  if (argc >= 3 && TYPE(argv[2]) == T_TRUE)
+  if (argc == 3 && TYPE(argv[2]) == T_TRUE)
     allow_ipv6_reference = 1;
 
   str1 = RSTRING_PTR(argv[0]);

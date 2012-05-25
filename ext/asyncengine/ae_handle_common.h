@@ -5,6 +5,10 @@
 #include "utilities.h"
 
 
+// Get this uv_errno when the socket is not connected.
+#define AE_UV_ERRNO_SOCKET_NOT_CONNECTED  31
+
+
 void init_ae_handle_common(void);
 
 VALUE ae_store_handle(VALUE);

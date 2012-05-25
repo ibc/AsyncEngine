@@ -8,7 +8,7 @@ static VALUE cAsyncEngineTimer;
 
 typedef struct {
   VALUE ae_handle_id;
-  VALUE block;
+  VALUE on_fire_block;
   uv_timer_t *_uv_handle;
   int periodic;
   long delay;
@@ -31,10 +31,10 @@ static void AsyncEngineTimer_mark(void *ptr)
 
   struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)ptr;
 
-  // This tells Ruby not to GC cdata->block if the Timer instance
+  // This tells Ruby not to GC cdata->on_fire_block if the Timer instance
   // continues alive in Ruby land.
   if (cdata->_uv_handle)
-    rb_gc_mark(cdata->block);
+    rb_gc_mark(cdata->on_fire_block);
 
   // NOTE: No need to cdata->mark ae_handle_id since it's a Fixnum (unmutable).
 }
@@ -55,7 +55,7 @@ VALUE AsyncEngineTimer_alloc(VALUE klass)
   struct_ae_timer_cdata* cdata = ALLOC(struct_ae_timer_cdata);
 
   /* IMPORTANT: Set the _uv_handle to NULL right now since GC could
-   * call our mark() function before cdata->block is set.
+   * call our mark() function before cdata->on_fire_block is set.
    */
   cdata->_uv_handle = NULL;
 
@@ -106,7 +106,7 @@ VALUE ae_timer_callback(VALUE ignore)
   if (cdata->periodic == 0)
     destroy(cdata);
 
-  return ae_block_call_0(cdata->block);
+  return ae_block_call_0(cdata->on_fire_block);
 }
 
 
@@ -124,7 +124,8 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
 }
 
 
-VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE rb_delay, VALUE rb_interval, VALUE block)
+// TODO: check that _rb_block is a Proc.
+VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE _rb_delay, VALUE _rb_interval, VALUE _rb_block)
 {
   AE_TRACE();
 
@@ -132,22 +133,22 @@ VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE rb_delay, VALUE rb_inter
 
   Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
 
-  if ((cdata->delay = NUM2LONG(rb_delay)) <= 0)
+  if ((cdata->delay = NUM2LONG(_rb_delay)) <= 0)
     cdata->delay = 1;
 
-  if (NIL_P(rb_interval)) {
+  if (NIL_P(_rb_interval)) {
     cdata->interval = 0;
     cdata->periodic = 0;
   }
   else {
-    if (! NIL_P(rb_interval)) {
-      if ((cdata->interval = NUM2LONG(rb_interval)) <= 0)
+    if (! NIL_P(_rb_interval)) {
+      if ((cdata->interval = NUM2LONG(_rb_interval)) <= 0)
         cdata->interval = 1;
     }
     cdata->periodic = 1;
   }
 
-  cdata->block = block;
+  cdata->on_fire_block = _rb_block;
   cdata->_uv_handle = ALLOC(uv_timer_t);
 
   // Avoid GC.
@@ -184,7 +185,7 @@ VALUE AsyncEngineTimer_stop(VALUE self)
 }
 
 
-VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE rb_delay, VALUE rb_interval)
+VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE _rb_delay, VALUE _rb_interval)
 {
   AE_TRACE();
 
@@ -197,13 +198,13 @@ VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE rb_delay, VALUE rb_interval)
   if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
     uv_timer_stop(cdata->_uv_handle);
 
-  if (! NIL_P(rb_delay)) {
-    if ((cdata->delay = NUM2LONG(rb_delay)) <= 0)
+  if (! NIL_P(_rb_delay)) {
+    if ((cdata->delay = NUM2LONG(_rb_delay)) <= 0)
       cdata->delay = 1;
   }
 
-  if (! NIL_P(rb_interval)) {
-    if ((cdata->interval = NUM2LONG(rb_interval)) <= 0)
+  if (! NIL_P(_rb_interval)) {
+    if ((cdata->interval = NUM2LONG(_rb_interval)) <= 0)
       cdata->interval = 1;
   }
 

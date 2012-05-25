@@ -2,7 +2,7 @@ asyncengine-*.gem
 NOTES
 BORRAME
 *.sh
-notes/
+not_git/
 
 ext/asyncengine/libuv/
 ext/asyncengine/_OLD/

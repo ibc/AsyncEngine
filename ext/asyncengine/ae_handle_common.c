@@ -15,7 +15,7 @@ static ID method_raise;
 static long block_long_id;
 
 
-void init_ae_handle_common()
+void init_ae_handle_common(void)
 {
   AE_TRACE();
 
@@ -127,29 +127,29 @@ void ae_raise_last_uv_error(void)
 }
 
 
-VALUE ae_block_call_0(VALUE rb_block)
+VALUE ae_block_call_0(VALUE _rb_block)
 {
   AE_TRACE();
 
   // This could occur if for example the user calls AE.stop and inmediatelly sets a UV async. The
   // UV async callback would not find it block since it has been removed by AE.stop.
-  if (NIL_P(rb_block)) {
-    AE_WARN("called with nil as rb_block");
+  if (NIL_P(_rb_block)) {
+    AE_WARN("called with nil as _rb_block");
     return Qfalse;
   }
-  return rb_funcall2(rb_block, method_call, 0, NULL);
+  return rb_funcall2(_rb_block, method_call, 0, NULL);
 }
 
 
-VALUE ae_block_call_1(VALUE rb_block, VALUE param)
+VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 {
   AE_TRACE();
 
-  if (NIL_P(rb_block)) {
-    AE_WARN("called with nil as rb_block");
+  if (NIL_P(_rb_block)) {
+    AE_WARN("called with nil as _rb_block");
     return Qfalse;
   }
-  return rb_funcall2(rb_block, method_call, 1, &param);
+  return rb_funcall2(_rb_block, method_call, 1, &param);
 }
 
 
