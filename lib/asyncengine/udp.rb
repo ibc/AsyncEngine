@@ -28,24 +28,15 @@ module AsyncEngine
       @_ip_type
     end
 
-    def bind_ip
-      @_bind_ip
-    end
-    alias :local_ip :bind_ip
-
-    def bind_port
-      @_bind_port
-    end
-    alias :local_port :bind_port
-
     alias orig_to_s to_s
     def to_s
-      "#{self.orig_to_s} (#{@_ip_type} : #{@_bind_ip} : #{@_bind_port})"
+      ip, port = local_address()
+      "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port})"
     end
     alias :inspect :to_s
 
     def on_received_datagram datagram
-      puts "INFO: received datagram: #{datagram.inspect}"
+      puts "#{inspect}: received datagram: #{datagram.inspect}"
     end
 
     class << self

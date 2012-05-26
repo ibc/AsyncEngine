@@ -2,7 +2,7 @@
 #define IP_COMMON_H
 
 
-/* Temporary hack: libuv should provide uv_inet_pton and uv_inet_ntop. */
+/* TODO: Temporary hack: libuv should provide uv_inet_pton and uv_inet_ntop. */
 //#ifdef AE_WINDOWS
 //  #include <inet_net_pton.h>
 //  #include <inet_ntop.h>
