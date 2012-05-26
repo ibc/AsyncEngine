@@ -3,6 +3,16 @@
 #include "ae_timer.h"
 
 
+#define GET_CDATA_FROM_SELF \
+  struct_ae_timer_cdata* cdata;  \
+  Data_Get_Struct(self, struct_ae_timer_cdata, cdata)
+
+#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS \
+  GET_CDATA_FROM_SELF;  \
+  if (! cdata->_uv_handle)  \
+    return Qfalse;
+
+
 static VALUE cAsyncEngineTimer;
 
 
@@ -88,7 +98,6 @@ void destroy(struct_ae_timer_cdata* cdata)
   AE_TRACE();
 
   uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
-  // Set the handle field to NULL.
   cdata->_uv_handle = NULL;
   // Let the GC work.
   ae_remove_handle(cdata->ae_handle_id);
@@ -170,11 +179,7 @@ VALUE AsyncEngineTimer_stop(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (uv_is_active((uv_handle_t*)cdata->_uv_handle)) {
     uv_timer_stop(cdata->_uv_handle);
@@ -189,11 +194,7 @@ VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE _rb_delay, VALUE _rb_interval
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
     uv_timer_stop(cdata->_uv_handle);
@@ -217,11 +218,7 @@ VALUE AsyncEngineTimer_delay(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   return LONG2NUM(cdata->delay);
 }
@@ -231,11 +228,7 @@ VALUE AsyncEngineTimer_interval(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   return LONG2NUM((long)uv_timer_get_repeat(cdata->_uv_handle));
 }
@@ -245,11 +238,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
     uv_timer_stop(cdata->_uv_handle);
@@ -263,11 +252,7 @@ VALUE AsyncEngineTimer_is_alive(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   return Qtrue;
 }
@@ -277,11 +262,7 @@ VALUE AsyncEngineTimer_destroy(VALUE self)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
-  if (! cdata->_uv_handle)
-    return Qfalse;
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   destroy(cdata);
   return Qtrue;
