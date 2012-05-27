@@ -140,6 +140,7 @@ class TestUdp < AETest
       def sock.on_datagram_received datagram
         RECEIVED_DATAGRAMS << datagram
         close()  if RECEIVED_DATAGRAMS.size == 2
+        set_encoding_ascii()
       end
 
       assert_equal sock.encoding, :encoding_external
@@ -148,11 +149,7 @@ class TestUdp < AETest
       assert_equal sock.encoding, :encoding_utf8
       sock.send_datagram "\x80", local_ip, local_port
 
-      AE.add_timer(0.1) do
-        sock.set_encoding_ascii
-        assert_equal sock.encoding, :encoding_ascii
-        sock.send_datagram "\x80", local_ip, local_port
-      end
+      sock.send_datagram "\x80", local_ip, local_port
     end
 
     assert_equal RECEIVED_DATAGRAMS[0].encoding, Encoding::UTF_8
