@@ -77,7 +77,7 @@ void init_ae_timer()
 {
   AE_TRACE();
 
-  cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", rb_cObject);
+  cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", cAsyncEngineHandle);
 
   rb_define_alloc_func(cAsyncEngineTimer, AsyncEngineTimer_alloc);
   rb_define_private_method(cAsyncEngineTimer, "uv_handle_init", AsyncEngineTimer_uv_handle_init, 3);

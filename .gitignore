@@ -1,4 +1,6 @@
 asyncengine-*.gem
+doc/
+.yardoc/
 NOTES
 BORRAME
 *.sh

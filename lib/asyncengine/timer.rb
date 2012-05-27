@@ -9,7 +9,7 @@ module AsyncEngine
   end
 
 
-  class Timer
+  class Timer < Handle
     def initialize delay, pr=nil, &bl
       AsyncEngine.send :ensure_ready_for_handles
 

@@ -238,6 +238,7 @@ void Init_asyncengine_ext()
   AE_TRACE();
 
   mAsyncEngine = rb_define_module("AsyncEngine");
+  cAsyncEngineHandle = rb_define_class_under(mAsyncEngine, "Handle", rb_cObject);
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
 
   rb_define_module_function(mAsyncEngine, "init", AsyncEngine_init, 0);

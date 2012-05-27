@@ -23,7 +23,7 @@ module AsyncEngine
   end
 
 
-  class UDPSocket
+  class UDPSocket < Handle
     def ip_type
       @_ip_type
     end

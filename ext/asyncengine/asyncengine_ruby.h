@@ -8,6 +8,7 @@
 
 
 VALUE mAsyncEngine;
+VALUE cAsyncEngineHandle;
 VALUE eAsyncEngineError;
 
 uv_loop_t *AE_uv_loop;

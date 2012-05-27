@@ -100,7 +100,7 @@ void init_ae_udp()
 {
   AE_TRACE();
 
-  cAsyncEngineUdpSocket = rb_define_class_under(mAsyncEngine, "UDPSocket", rb_cObject);
+  cAsyncEngineUdpSocket = rb_define_class_under(mAsyncEngine, "UDPSocket", cAsyncEngineHandle);
 
   rb_define_alloc_func(cAsyncEngineUdpSocket, AsyncEngineUdpSocket_alloc);
   rb_define_private_method(cAsyncEngineUdpSocket, "uv_handle_init", AsyncEngineUdpSocket_uv_handle_init, 2);
