@@ -20,7 +20,7 @@ static VALUE cAsyncEngineUdpSocket;
 
 static ID att_ip_type;
 
-static ID method_on_received_datagram;
+static ID method_on_datagram_received;
 
 
 typedef struct {
@@ -28,6 +28,7 @@ typedef struct {
   uv_buf_t recv_buffer;
   enum_ip_type ip_type;
   int do_receive;
+  int do_send;
   VALUE ae_handle;
   VALUE ae_handle_id;
   enum_string_encoding encoding;
@@ -107,8 +108,12 @@ void init_ae_udp()
   rb_define_method(cAsyncEngineUdpSocket, "local_address", AsyncEngineUdpSocket_local_address, 0);
   rb_define_method(cAsyncEngineUdpSocket, "peer_address", AsyncEngineUdpSocket_peer_address, 0);
   rb_define_method(cAsyncEngineUdpSocket, "reply_datagram", AsyncEngineUdpSocket_reply_datagram, -1);
-  rb_define_method(cAsyncEngineUdpSocket, "stop_receiving", AsyncEngineUdpSocket_stop_receiving, 0);
-  rb_define_method(cAsyncEngineUdpSocket, "restart_receiving", AsyncEngineUdpSocket_restart_receiving, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "set_receiving", AsyncEngineUdpSocket_set_receiving, 1);
+  rb_define_method(cAsyncEngineUdpSocket, "receiving?", AsyncEngineUdpSocket_is_receiving, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "set_sending", AsyncEngineUdpSocket_set_sending, 1);
+  rb_define_method(cAsyncEngineUdpSocket, "sending?", AsyncEngineUdpSocket_is_sending, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "pause", AsyncEngineUdpSocket_pause, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "resume", AsyncEngineUdpSocket_resume, 0);
   rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
   rb_define_method(cAsyncEngineUdpSocket, "alive?", AsyncEngineUdpSocket_is_alive, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_external", AsyncEngineUdpSocket_set_encoding_external, 0);
@@ -118,7 +123,7 @@ void init_ae_udp()
 
   att_ip_type = rb_intern("@_ip_type");
 
-  method_on_received_datagram = rb_intern("on_received_datagram");
+  method_on_datagram_received = rb_intern("on_datagram_received");
 
   // Set it to 0 to avoid reply_datagram() when no datagram have been received.
   any_datagram_received = 0;
@@ -156,7 +161,7 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
   VALUE rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
 
-  return rb_funcall2(cdata->ae_handle, method_on_received_datagram, 1, &rb_datagram);
+  return rb_funcall2(cdata->ae_handle, method_on_datagram_received, 1, &rb_datagram);
 }
 
 
@@ -167,8 +172,8 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 
   if (nread == 0) return;
 
+  // uv.h: -1 if a transmission error was detected. So ignore it.
   if (nread == -1) {
-    // TODO: So what? when can it occur?
     AE_WARN("nread == -1");
     return;
   }
@@ -195,7 +200,7 @@ VALUE ae_udp_socket_recv_start(struct_ae_udp_socket_cdata *cdata)
   AE_TRACE();
 
   if (cdata->do_receive)
-    return Qfalse;
+    return Qtrue;
 
   if (uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback))
     ae_raise_last_uv_error();
@@ -234,7 +239,8 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.
   cdata->ip_type = ip_type;
-  cdata->do_receive = 0;
+  cdata->do_receive = 0;  // It's set below.
+  cdata->do_send = 1;
   cdata->encoding = string_encoding_external;
 
   AE_ASSERT(! uv_udp_init(AE_uv_loop, cdata->_uv_handle));
@@ -336,6 +342,9 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
       ae_block_call_1(_rb_block, ae_get_uv_error(AE_UV_ERRNO_SOCKET_NOT_CONNECTED));
     return Qfalse;
   }
+
+  if (! cdata->do_send)
+    return Qfalse;
 
   _rb_datagram = argv[0];
   _rb_ip = argv[1];
@@ -461,6 +470,105 @@ VALUE AsyncEngineUdpSocket_reply_datagram(int argc, VALUE *argv, VALUE self)
 }
 
 
+VALUE AsyncEngineUdpSocket_set_receiving(VALUE self, VALUE allow)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (TYPE(allow) == T_TRUE)
+    return ae_udp_socket_recv_start(cdata);
+  else {
+    if (! cdata->do_receive)
+      return Qtrue;
+    if (uv_udp_recv_stop(cdata->_uv_handle))
+      ae_raise_last_uv_error();
+    cdata->do_receive = 0;
+    return Qtrue;
+  }
+}
+
+
+VALUE AsyncEngineUdpSocket_is_receiving(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (cdata->do_receive)
+    return Qtrue;
+  else
+    return Qfalse;
+}
+
+
+VALUE AsyncEngineUdpSocket_set_sending(VALUE self, VALUE allow)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (TYPE(allow) == T_TRUE) {
+    if (cdata->do_send)
+      return Qtrue;
+    cdata->do_send = 1;
+    return Qtrue;
+  }
+  else {
+    if (! cdata->do_send)
+      return Qtrue;
+    cdata->do_send = 0;
+    return Qtrue;
+  }
+}
+
+
+VALUE AsyncEngineUdpSocket_is_sending(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (cdata->do_send)
+    return Qtrue;
+  else
+    return Qfalse;
+}
+
+
+VALUE AsyncEngineUdpSocket_pause(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (cdata->do_receive) {
+    if (uv_udp_recv_stop(cdata->_uv_handle))
+      ae_raise_last_uv_error();
+    cdata->do_receive = 0;
+  }
+  if (cdata->do_send)
+    cdata->do_send = 0;
+
+  return Qtrue;
+}
+
+
+VALUE AsyncEngineUdpSocket_resume(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  if (! cdata->do_receive)
+    ae_udp_socket_recv_start(cdata);
+  if (! cdata->do_send)
+    cdata->do_send = 1;
+
+  return Qtrue;
+}
+
+
 VALUE AsyncEngineUdpSocket_close(VALUE self)
 {
   AE_TRACE();
@@ -468,35 +576,6 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   destroy(cdata);
-  return Qtrue;
-}
-
-
-VALUE AsyncEngineUdpSocket_stop_receiving(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  if (! cdata->do_receive)
-    return Qfalse;
-
-  if (uv_udp_recv_stop(cdata->_uv_handle))
-    ae_raise_last_uv_error();
-
-  cdata->do_receive = 0;
-
-  return Qtrue;
-}
-
-
-VALUE AsyncEngineUdpSocket_restart_receiving(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  ae_udp_socket_recv_start(cdata);
   return Qtrue;
 }
 

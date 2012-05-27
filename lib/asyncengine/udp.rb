@@ -28,6 +28,9 @@ module AsyncEngine
       @_ip_type
     end
 
+    alias :receiving= :set_receiving
+    alias :sending= :set_sending
+
     alias orig_to_s to_s
     def to_s
       ip, port = local_address()
@@ -35,8 +38,8 @@ module AsyncEngine
     end
     alias :inspect :to_s
 
-    def on_received_datagram datagram
-      puts "#{inspect}: received datagram: #{datagram.inspect}"
+    def on_datagram_received datagram
+      puts "#{inspect}: received datagram from #{peer_address()}: #{datagram.inspect}"
     end
 
     class << self
