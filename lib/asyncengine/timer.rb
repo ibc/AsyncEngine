@@ -26,7 +26,7 @@ module AsyncEngine
       if alive?
         "#{self.orig_to_s} (delay: #{delay().to_f/1000})"
       else
-        "#{self.orig_to_s} (cancelled)"
+        "#{self.orig_to_s} (not alive)"
       end
     end
     alias :inspect :to_s
@@ -52,7 +52,7 @@ module AsyncEngine
       if alive?
         "#{self.orig_to_s} (delay: #{delay().to_f/1000}}, interval: #{interval().to_f/1000})"
       else
-        "#{self.orig_to_s} (cancelled)"
+        "#{self.orig_to_s} (not alive)"
       end
     end
     alias :inspect :to_s
