@@ -70,15 +70,13 @@ class TestUdp < AETest
       # This will be sent and received.
       assert_true sock.send_datagram("1", local_ip, local_port)
 
-      # TODO: This fails due to UV:
-      #   https://github.com/joyent/libuv/issues/431
-#       AE.add_timer(0.02) do
-#         sock.receiving = false
-#         assert_false sock.receiving?
-#
-#         # This will be sent but not received.
-#         assert_true sock.send_datagram("2", local_ip, local_port)
-#       end
+      AE.add_timer(0.02) do
+        sock.receiving = false
+        assert_false sock.receiving?
+
+        # This will be sent but not received.
+        assert_true sock.send_datagram("2", local_ip, local_port)
+      end
 
       AE.add_timer(0.04) do
         sock.sending = false

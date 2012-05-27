@@ -10,10 +10,13 @@
   struct_ae_udp_socket_cdata* cdata;  \
   Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata)
 
-#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS \
-  GET_CDATA_FROM_SELF;  \
+#define ENSURE_UV_HANDLE_EXISTS \
   if (! cdata->_uv_handle)  \
     return Qfalse;
+
+#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS \
+  GET_CDATA_FROM_SELF;  \
+  ENSURE_UV_HANDLE_EXISTS
 
 
 static VALUE cAsyncEngineUdpSocket;
@@ -159,9 +162,10 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
 
-  // TODO: No ocurre nunca, quitarlo.
+  ENSURE_UV_HANDLE_EXISTS;
+
   if (! cdata->do_receive)
-    AE_WARN("datagram received while cdata->do_receive == 0");
+    return Qnil;
 
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
   VALUE rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
@@ -200,21 +204,6 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 }
 
 
-VALUE ae_udp_socket_recv_start(struct_ae_udp_socket_cdata *cdata)
-{
-  AE_TRACE();
-
-  if (cdata->do_receive)
-    return Qtrue;
-
-  if (uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback))
-    ae_raise_last_uv_error();
-
-  cdata->do_receive = 1;
-  return Qtrue;
-}
-
-
 VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _rb_bind_port)
 {
   AE_TRACE();
@@ -222,7 +211,8 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   char *bind_ip = StringValueCStr(_rb_bind_ip);
   int bind_port = FIX2INT(_rb_bind_port);
   enum_ip_type ip_type;
-  struct_ae_udp_socket_cdata* cdata;
+
+  GET_CDATA_FROM_SELF;
 
   switch(ip_type = ae_ip_parser_execute(RSTRING_PTR(_rb_bind_ip), RSTRING_LEN(_rb_bind_ip))) {
     case ip_type_ipv4:
@@ -237,8 +227,6 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 
   if (! ae_ip_utils_is_valid_port(bind_port))
     rb_raise(rb_eArgError, "invalid port value");
-
-  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata);
 
   cdata->_uv_handle = ALLOC(uv_udp_t);
   cdata->ae_handle = self;
@@ -269,7 +257,11 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
       break;
   }
 
-  ae_udp_socket_recv_start(cdata);
+  // Start receiving.
+  if (uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback))
+    ae_raise_last_uv_error();
+  cdata->do_receive = 1;
+
   return self;
 }
 
@@ -482,15 +474,11 @@ VALUE AsyncEngineUdpSocket_set_receiving(VALUE self, VALUE allow)
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (TYPE(allow) == T_TRUE)
-    return ae_udp_socket_recv_start(cdata);
-  else {
-    if (! cdata->do_receive)
-      return Qtrue;
-    if (uv_udp_recv_stop(cdata->_uv_handle))
-      ae_raise_last_uv_error();
+    cdata->do_receive = 1;
+  else
     cdata->do_receive = 0;
-    return Qtrue;
-  }
+
+  return Qtrue;
 }
 
 
@@ -513,18 +501,12 @@ VALUE AsyncEngineUdpSocket_set_sending(VALUE self, VALUE allow)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  if (TYPE(allow) == T_TRUE) {
-    if (cdata->do_send)
-      return Qtrue;
+  if (TYPE(allow) == T_TRUE)
     cdata->do_send = 1;
-    return Qtrue;
-  }
-  else {
-    if (! cdata->do_send)
-      return Qtrue;
+  else
     cdata->do_send = 0;
-    return Qtrue;
-  }
+
+  return Qtrue;
 }
 
 
@@ -547,13 +529,8 @@ VALUE AsyncEngineUdpSocket_pause(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  if (cdata->do_receive) {
-    if (uv_udp_recv_stop(cdata->_uv_handle))
-      ae_raise_last_uv_error();
-    cdata->do_receive = 0;
-  }
-  if (cdata->do_send)
-    cdata->do_send = 0;
+  cdata->do_receive = 0;
+  cdata->do_send = 0;
 
   return Qtrue;
 }
@@ -565,10 +542,8 @@ VALUE AsyncEngineUdpSocket_resume(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  if (! cdata->do_receive)
-    ae_udp_socket_recv_start(cdata);
-  if (! cdata->do_send)
-    cdata->do_send = 1;
+  cdata->do_receive = 1;
+  cdata->do_send = 1;
 
   return Qtrue;
 }

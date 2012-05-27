@@ -3,14 +3,17 @@
 #include "ae_timer.h"
 
 
-#define GET_CDATA_FROM_SELF \
+#define GET_CDATA_FROM_SELF  \
   struct_ae_timer_cdata* cdata;  \
   Data_Get_Struct(self, struct_ae_timer_cdata, cdata)
 
-#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS \
-  GET_CDATA_FROM_SELF;  \
+#define ENSURE_UV_HANDLE_EXISTS  \
   if (! cdata->_uv_handle)  \
     return Qfalse;
+
+#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS  \
+  GET_CDATA_FROM_SELF;  \
+  ENSURE_UV_HANDLE_EXISTS
 
 
 static VALUE cAsyncEngineTimer;
@@ -111,6 +114,8 @@ VALUE ae_timer_callback(VALUE ignore)
 
   struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)last_timer_callback_data.handle->data;
 
+  ENSURE_UV_HANDLE_EXISTS;
+
   // Terminate the timer if it is not periodic.
   if (cdata->periodic == 0)
     destroy(cdata);
@@ -138,9 +143,7 @@ VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE _rb_delay, VALUE _rb_int
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata;
-
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata);
+  GET_CDATA_FROM_SELF;
 
   if ((cdata->delay = NUM2LONG(_rb_delay)) <= 0)
     cdata->delay = 1;
