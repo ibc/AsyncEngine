@@ -20,6 +20,7 @@ VALUE AsyncEngineUdpSocket_is_alive(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self);
+VALUE AsyncEngineUdpSocket_encoding(VALUE self);
 VALUE AsyncEngineUdpSocket_destroy(VALUE self);
 
 

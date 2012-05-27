@@ -75,6 +75,9 @@ class TestException < AETest
       AE.run { AE::Timer.new(0) { 1/0 } }
     end
     assert_false AE.running?
+
+    # Dissable the exception handler again.
+    AE.unset_exception_handler
   end
 
 end

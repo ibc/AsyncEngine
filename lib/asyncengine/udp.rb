@@ -34,7 +34,11 @@ module AsyncEngine
     alias orig_to_s to_s
     def to_s
       ip, port = local_address()
-      "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port})"
+      if alive?
+        "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port})"
+      else
+        "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port}) (not alive)"
+      end
     end
     alias :inspect :to_s
 

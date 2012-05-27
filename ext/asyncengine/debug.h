@@ -1,8 +1,8 @@
-#ifndef DEBUG_H
-#define DEBUG_H
+#ifndef _AE_DEBUG_H
+#define _AE_DEBUG_H
 
 
-// Uncomment these lines for debugging and developming.
+/* NOTE: Uncomment these lines for debugging during development. */
 //#define AE_DO_TRACE
 //#define AE_DO_DEBUG
 #define AE_DO_WARN
@@ -43,4 +43,4 @@
 #endif
 
 
-#endif  /* DEBUG_H */
+#endif  /* _AE_DEBUG_H */

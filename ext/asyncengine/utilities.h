@@ -1,5 +1,5 @@
-#ifndef UTILITIES_H
-#define UTILITIES_H
+#ifndef _AE_UTILITIES_H
+#define _AE_UTILITIES_H
 
 
 /*
@@ -30,7 +30,15 @@ typedef enum {
 } enum_string_encoding;
 
 
+VALUE symbol_encoding_external;
+VALUE symbol_encoding_utf8;
+VALUE symbol_encoding_ascii;
+
+
+void init_utilities(void);
+
 VALUE ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted);
+VALUE ae_get_rb_encoding(enum_string_encoding encoding);
 
 
-#endif  /* UTILITIES_H */
+#endif  /* _AE_UTILITIES_H */

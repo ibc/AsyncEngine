@@ -119,6 +119,7 @@ void init_ae_udp()
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_external", AsyncEngineUdpSocket_set_encoding_external, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_utf8", AsyncEngineUdpSocket_set_encoding_utf8, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_ascii", AsyncEngineUdpSocket_set_encoding_ascii, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "encoding", AsyncEngineUdpSocket_encoding, 0);
   rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
 
   att_ip_type = rb_intern("@_ip_type");
@@ -157,6 +158,10 @@ VALUE ae_udp_socket_recv_callback(VALUE ignore)
   AE_TRACE();
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
+
+  // TODO: No ocurre nunca, quitarlo.
+  if (! cdata->do_receive)
+    AE_WARN("datagram received while cdata->do_receive == 0");
 
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
   VALUE rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
@@ -623,6 +628,16 @@ VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self)
   AE_TRACE();
 
   return ae_set_external_encoding(self, string_encoding_ascii);
+}
+
+
+VALUE AsyncEngineUdpSocket_encoding(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  return ae_get_rb_encoding(cdata->encoding);
 }
 
 

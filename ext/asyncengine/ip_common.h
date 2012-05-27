@@ -1,5 +1,5 @@
-#ifndef IP_COMMON_H
-#define IP_COMMON_H
+#ifndef _AE_IP_COMMON_H
+#define _AE_IP_COMMON_H
 
 
 /* TODO: Temporary hack: libuv should provide uv_inet_pton and uv_inet_ntop. */
@@ -23,4 +23,4 @@ typedef enum {
 } enum_ip_type;
 
 
-#endif  /* IP_COMMON_H */
+#endif  /* _AE_IP_COMMON_H */
