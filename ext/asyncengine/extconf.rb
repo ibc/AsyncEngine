@@ -6,12 +6,19 @@ require "fileutils"
 def sys cmd
   puts "system command in #{File.expand_path(File.dirname(__FILE__))}:  #{cmd}"
   unless ret = xsystem(cmd)
-    raise "system command `#{cmd}' failed, please report to https://github.com/ibc/AsyncEngine/issues"
+    abort "system command `#{cmd}' failed, please report to https://github.com/ibc/AsyncEngine/issues"
   end
   ret
 end
 
 
+# TODO: Copied from EventMachine. Is this really good?
+def add_define(name)
+  $defs.push("-D#{name}")
+end
+
+
+# TODO: Changes needed for Windows, and lot of testing needed here.
 case host_os = RbConfig::CONFIG["host_os"]
 
   when /solaris/i
@@ -22,14 +29,17 @@ case host_os = RbConfig::CONFIG["host_os"]
       RbConfig::CONFIG["CCDLFLAGS"] = "-fPIC"
     end
     ldflags = ""
+    add_define "AE_OS_UNIX"
 
   when /darwin|mac os/i
     cflags = "-shared -fPIC"
     ldflags = "-framework CoreServices"
+    add_define "AE_OS_UNIX"
 
   else
     cflags = "-shared -fPIC"
     ldflags = ""
+    add_define "AE_OS_UNIX"
 end
 
 $CFLAGS = RbConfig::CONFIG["CFLAGS"] = " #{cflags} "

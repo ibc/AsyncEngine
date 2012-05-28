@@ -4,16 +4,16 @@
 
 
 /* TODO: Temporary hack: libuv should provide uv_inet_pton and uv_inet_ntop. */
-//#ifdef AE_WINDOWS
-//#include <inet_net_pton.h>
-//#include <inet_ntop.h>
-//#define ae_inet_pton ares_inet_pton
-//#define ae_inet_ntop ares_inet_ntop
-//#else /* __POSIX__ */
-#include <arpa/inet.h>
-#define ae_inet_pton inet_pton
-#define ae_inet_ntop inet_ntop
-//#endif
+#ifdef AE_OS_WINDOWS
+  #include <inet_net_pton.h>
+  #include <inet_ntop.h>
+  #define ae_inet_pton ares_inet_pton
+  #define ae_inet_ntop ares_inet_ntop
+#else /* AE_OS_UNIX */
+  #include <arpa/inet.h>
+  #define ae_inet_pton inet_pton
+  #define ae_inet_ntop inet_ntop
+#endif
 
 
 static VALUE mAsyncEngineIpUtils;
