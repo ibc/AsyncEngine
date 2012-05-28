@@ -12,6 +12,7 @@ module AsyncEngine
   class Timer < Handle
     def initialize delay, pr=nil, &bl
       AsyncEngine.send :ensure_ready_for_handles
+      raise TypeError, "argument 2 is not a Proc"  if pr and not pr.is_a?(Proc)
 
       uv_handle_init (delay = (delay*1000).to_i), nil, pr || bl
     end
@@ -24,7 +25,7 @@ module AsyncEngine
     alias orig_to_s to_s
     def to_s
       if alive?
-        "#{orig_to_s} (delay: #{delay().to_f/1000})"
+        "#{orig_to_s} (delay: #{delay()})"
       else
         "#{orig_to_s} (not alive)"
       end
@@ -36,6 +37,7 @@ module AsyncEngine
   class PeriodicTimer < Timer
     def initialize interval, delay=nil, pr=nil, &bl
       AsyncEngine.send :ensure_ready_for_handles
+      raise TypeError, "argument 3 is not a Proc"  if pr and not pr.is_a?(Proc)
 
       interval = (interval*1000).to_i
       delay = ( delay ? (delay*1000).to_i : interval )
@@ -50,7 +52,7 @@ module AsyncEngine
 
     def to_s
       if alive?
-        "#{orig_to_s} (delay: #{delay().to_f/1000}}, interval: #{interval().to_f/1000})"
+        "#{orig_to_s} (delay: #{delay()}, interval: #{interval()})"
       else
         "#{orig_to_s} (not alive)"
       end

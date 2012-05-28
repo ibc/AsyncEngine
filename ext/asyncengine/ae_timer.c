@@ -223,7 +223,7 @@ VALUE AsyncEngineTimer_delay(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  return LONG2NUM(cdata->delay);
+  return rb_float_new((double)(cdata->delay / 1000.0));
 }
 
 
@@ -233,7 +233,7 @@ VALUE AsyncEngineTimer_interval(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  return LONG2NUM((long)uv_timer_get_repeat(cdata->_uv_handle));
+  return rb_float_new((double)(uv_timer_get_repeat(cdata->_uv_handle) / 1000.0));
 }
 
 
