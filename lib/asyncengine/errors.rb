@@ -10,7 +10,7 @@ module AsyncEngine
       @uv_type = uv_type
       @uv_description = uv_description
 
-      super "#{@uv_type.to_s}, #{@uv_description} (UV_ERRNO: #{@uv_errno})"
+      super "#{@uv_type.inspect}, #{@uv_description} (UV_ERRNO: #{@uv_errno})"
     end
   end
 
