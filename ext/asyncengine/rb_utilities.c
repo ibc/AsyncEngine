@@ -1,7 +1,8 @@
 #include <ruby.h>
 #include <ruby/encoding.h>
-#include "rb_utilities.h"
 #include "debug.h"
+#include "rb_utilities.h"
+
 
 
 #define AE_RB_STR_EXTERNAL_NEW(s, len) (rb_enc_str_new(s, len, rb_default_external_encoding()))

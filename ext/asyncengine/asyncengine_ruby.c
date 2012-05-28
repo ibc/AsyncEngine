@@ -22,6 +22,9 @@ static int do_stop;
 static
 int ae_uv_num_active_handlers(void)
 {
+  if (! initialized)
+    return 0;
+
   return AE_uv_loop->active_handles;
 }
 
