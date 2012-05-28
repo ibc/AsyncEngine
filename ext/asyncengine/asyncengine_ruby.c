@@ -17,21 +17,12 @@ static int is_ready_for_handles;
 static int do_stop;
 
 
-// TODO: Temporal function for debugging purposes, since active_handles
-// will be removed soon from UV.
+// TODO: Temporal function for debugging purposes, since loop->active_handles
+// will be removed soon from UV (or it's not public API).
 static
-long ae_uv_num_active_handlers(void)
+int ae_uv_num_active_handlers(void)
 {
-  ngx_queue_t *q;
-  long num_active_handlers = 0;
-
-  if (! initialized)
-    return 0;
-
-  ngx_queue_foreach(q, &AE_uv_loop->active_handles) {
-    num_active_handlers++;
-  }
-  return num_active_handlers;
+  return AE_uv_loop->active_handles;
 }
 
 
@@ -39,7 +30,7 @@ VALUE AsyncEngine_num_uv_active_handles(VALUE self)
 {
   AE_TRACE();
 
-  return LONG2FIX(ae_uv_num_active_handlers());
+  return INT2FIX(ae_uv_num_active_handlers());
 }
 
 
