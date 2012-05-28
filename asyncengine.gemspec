@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
     asyncengine.gemspec
     Rakefile
     README.markdown
-    lib/**/**
+    lib/**/**/**
     ext/asyncengine/{*.c,*.h,*.rb}
     ext/asyncengine/libuv/**/**/**/**/**/**/**/**/**
     test/{ae_test_helper.rb}

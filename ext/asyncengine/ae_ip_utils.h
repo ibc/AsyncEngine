@@ -10,7 +10,7 @@ VALUE symbol_ipv6;
 VALUE symbol_ipv6_reference;
 
 
-void init_ae_ip_utils();
+void init_ae_ip_utils(void);
 
 VALUE AsyncEngineIpUtils_ip_type(VALUE self, VALUE _rb_str);
 VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self);

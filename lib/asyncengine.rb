@@ -9,6 +9,7 @@ require "asyncengine/next_tick.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/udp.rb"
+require "asyncengine/utils/network_interface.rb"
 
 
 module AsyncEngine
@@ -183,3 +184,7 @@ end
 
 # Let's allow AE.xxxxx usage.
 AE = AsyncEngine
+
+
+# Declare Utils module.
+module AsyncEngine::Utils ; end
