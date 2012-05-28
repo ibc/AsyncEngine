@@ -14,6 +14,7 @@ require "asyncengine/next_tick.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/udp.rb"
+require "asyncengine/tcp.rb"
 require "asyncengine/utils.rb"
 
 
