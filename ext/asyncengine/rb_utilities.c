@@ -4,7 +4,6 @@
 #include "rb_utilities.h"
 
 
-
 #define AE_RB_STR_EXTERNAL_NEW(s, len) (rb_enc_str_new(s, len, rb_default_external_encoding()))
 #define AE_RB_STR_TAINTED_EXTERNAL_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_default_external_encoding()))
 #define AE_RB_STR_UTF8_NEW(s, len) (rb_enc_str_new(s, len, rb_utf8_encoding()))
