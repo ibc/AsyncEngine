@@ -28,7 +28,7 @@
 #endif
 
 #ifdef AE_DO_DEBUG
-#define AE_DEBUG(desc)  fprintf(stderr, "AE_DEBUG: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
+#define AE_DEBUG(desc)  fprintf(stdout, "AE_DEBUG: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
 #else
 #define AE_DEBUG(desc)
 #endif
