@@ -1,3 +1,8 @@
+unless RUBY_VERSION >= "1.9.2"
+  raise LoadError, "AsyncEngine requires Ruby version >= 1.9.2 (current version is #{RUBY_VERSION})"
+end
+
+
 require "mkmf"
 require "rbconfig"
 require "fileutils"
@@ -16,6 +21,11 @@ end
 def add_define(name)
   $defs.push("-D#{name}")
 end
+
+
+# Ruby checks.
+raise "rb_thread_call_with_gvl() not present"  unless have_func("rb_thread_call_with_gvl")
+raise "rb_thread_call_without_gvl() not present"  unless have_func("rb_thread_call_without_gvl")
 
 
 # TODO: Changes needed for Windows, and lot of testing needed here.
