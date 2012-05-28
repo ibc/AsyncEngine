@@ -33,4 +33,17 @@ class TestUtils < AETest
     end
   end
 
+  def test_06_cpu_info
+    AE::Utils.get_cpu_info.each do |cpu|
+      assert_true (cpu.is_a? AE::Utils::CpuInfo)
+      assert_true (cpu.model.is_a? String)
+      assert_true (cpu.speed.is_a? Fixnum)
+      assert_true (cpu.time_sys.is_a? Fixnum)
+      assert_true (cpu.time_user.is_a? Fixnum)
+      assert_true (cpu.time_idle.is_a? Fixnum)
+      assert_true (cpu.time_irq.is_a? Fixnum)
+      assert_true (cpu.time_nice.is_a? Fixnum)
+    end
+  end
+
 end
