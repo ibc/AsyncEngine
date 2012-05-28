@@ -1,3 +1,8 @@
+unless RUBY_VERSION >= "1.9.2"
+  raise LoadError, "AsyncEngine requires Ruby version >= 1.9.2 (current version is #{RUBY_VERSION})"
+end
+
+
 # AsyncEngine native C extension.
 require "asyncengine/asyncengine_ext.so"
 
@@ -16,7 +21,6 @@ module AsyncEngine
 
   @_pid = Process.pid
   @_exception_handler = nil
-  @_mutex_run = Mutex.new
   @_mutex_run = Mutex.new
 
   def self.run pr=nil, &bl
