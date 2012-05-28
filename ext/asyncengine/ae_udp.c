@@ -67,14 +67,6 @@ static struct sockaddr_storage last_peer_addr;
 static int any_datagram_received;
 
 
-static void AsyncEngineTimer_free(void *cdata)
-{
-  AE_TRACE();
-
-  xfree(cdata);
-}
-
-
 static void AsyncEngineUdpSocket_free(void *cdata)
 {
   AE_TRACE();
