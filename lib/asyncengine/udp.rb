@@ -30,6 +30,7 @@ module AsyncEngine
 
     alias :receiving= :set_receiving
     alias :sending= :set_sending
+    #alias :broadcast= :set_broadcast
 
     alias orig_to_s to_s
     def to_s

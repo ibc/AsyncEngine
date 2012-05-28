@@ -27,13 +27,13 @@ class AETest < Test::Unit::TestCase
 
   def self.get_host_ipv4 loopback
     remote_ip = ( loopback ? "127.0.0.1" : "1.2.3.4" )
-    orig, ::Socket.do_not_reverse_lookup = Socket.do_not_reverse_lookup, true  # turn off reverse DNS resolution temporarily
+    orig, ::Socket.do_not_reverse_lookup = Socket.do_not_reverse_lookup, true
     ::UDPSocket.open(::Socket::AF_INET) do |s|
       s.connect remote_ip, 1
       s.addr.last
     end
   rescue => e
-    warn "WARN: cannot get host #{loopback ? "loopback " : ""}IPv4 in this host, some tests will be skipped"
+    warn "WARN: ae_test_helper.rb: cannot get IPv4 #{loopback ? "loopback " : ""}address in this host, some tests will be skipped"
     false
   ensure
     ::Socket.do_not_reverse_lookup = orig
@@ -41,17 +41,18 @@ class AETest < Test::Unit::TestCase
 
   def self.get_host_ipv6 loopback
     remote_ip = ( loopback ? "::1" : "2001::1" )
-    orig, ::Socket.do_not_reverse_lookup = Socket.do_not_reverse_lookup, true  # turn off reverse DNS resolution temporarily
+    orig, ::Socket.do_not_reverse_lookup = Socket.do_not_reverse_lookup, true
     ::UDPSocket.open(::Socket::AF_INET6) do |s|
       s.connect remote_ip, 1
       s.addr.last
     end
   rescue => e
-    warn "WARN: cannot get host #{loopback ? "loopback " : ""}IPv6 in this host, some tests will be skipped"
+    warn "WARN: ae_test_helper.rb: cannot get IPv6 #{loopback ? "loopback " : ""}address in this host, some tests will be skipped"
     false
   ensure
     ::Socket.do_not_reverse_lookup = orig
   end
+
 
   @@host_loopback_ipv4 = get_host_ipv4 loopback=true
   @@host_ipv4 = get_host_ipv4 loopback=false

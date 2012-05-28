@@ -4,6 +4,7 @@
 
 #include <ruby.h>
 #include "libuv/include/uv.h"
+#include "utilities.h"
 #include "debug.h"
 
 

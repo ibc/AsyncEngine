@@ -260,6 +260,7 @@ void Init_asyncengine_ext()
   init_ae_timer();
   init_ae_next_tick();
   init_ae_udp();
+  init_ae_utils();
   init_ae_ip_utils();
   init_utilities();
 

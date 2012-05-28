@@ -2,7 +2,7 @@
 #define AE_TIMER_H
 
 
-void init_ae_timer();
+void init_ae_timer(void);
 
 VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE _rb_delay, VALUE _rb_interval, VALUE _rb_block);
 VALUE AsyncEngineTimer_stop(VALUE self);

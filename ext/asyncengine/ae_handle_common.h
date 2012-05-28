@@ -2,9 +2,6 @@
 #define AE_HANDLE_COMMON_H
 
 
-#include "utilities.h"
-
-
 // Get this uv_errno when the socket is not connected.
 #define AE_UV_ERRNO_SOCKET_NOT_CONNECTED  31
 
@@ -23,6 +20,7 @@ void ae_uv_handle_close_callback(uv_handle_t*);
 
 VALUE ae_get_uv_error(int uv_errno);
 VALUE ae_get_last_uv_error(void);
+void ae_raise_uv_error(int uv_errno);
 void ae_raise_last_uv_error(void);
 
 VALUE ae_block_call_0(VALUE rb_block);

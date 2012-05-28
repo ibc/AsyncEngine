@@ -2,7 +2,7 @@
 #define AE_UDP_H
 
 
-void init_ae_udp();
+void init_ae_udp(void);
 
 VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _rb_bind_port);
 VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self);
@@ -21,6 +21,7 @@ VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self);
 VALUE AsyncEngineUdpSocket_encoding(VALUE self);
+//VALUE AsyncEngineUdpSocket_set_broadcast(VALUE self, VALUE on);
 VALUE AsyncEngineUdpSocket_destroy(VALUE self);
 
 

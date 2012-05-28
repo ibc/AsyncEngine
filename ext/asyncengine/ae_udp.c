@@ -123,6 +123,7 @@ void init_ae_udp()
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_utf8", AsyncEngineUdpSocket_set_encoding_utf8, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_ascii", AsyncEngineUdpSocket_set_encoding_ascii, 0);
   rb_define_method(cAsyncEngineUdpSocket, "encoding", AsyncEngineUdpSocket_encoding, 0);
+  //rb_define_method(cAsyncEngineUdpSocket, "set_broadcast", AsyncEngineUdpSocket_set_broadcast, 1);
   rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
 
   att_ip_type = rb_intern("@_ip_type");
@@ -279,6 +280,7 @@ VALUE ae_udp_send_callback(VALUE ignore)
     else
       return ae_block_call_1(rb_on_send_block, ae_get_last_uv_error());
   }
+  // This can occur if the UDP handle is closed or destroyed before the send callback.
   else {
     AE_WARN("ae_remove_block(last_udp_send_callback_data.on_send_block_id) returned Qnil");
     return Qnil;
@@ -377,10 +379,6 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
 
   buffer = uv_buf_init(datagram, datagram_len);
 
-  // TODO uv_udp_send() parece que devuelve siempre 0 aunque le pases un puerto destino 0 (que
-  // luego se traduce en error en el callback).
-  // Segun los src solo devuelve error si el handle no esta bindeado (el nuestro ya lo está) o si no hay
-  // más memoria para un alloc que hace, bufff. Un AE_ASSERT y va que arde.
   switch(cdata->ip_type) {
     case ip_type_ipv4:
       AE_ASSERT(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
@@ -400,13 +398,17 @@ VALUE AsyncEngineUdpSocket_local_address(VALUE self)
 
   struct sockaddr_storage local_addr;
   int len = sizeof(local_addr);
+  VALUE _rb_array_ip_port;
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (uv_udp_getsockname(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len))
     ae_raise_last_uv_error();
 
-  return ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type);
+  if (! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type)))
+    return _rb_array_ip_port;
+  else
+    rb_raise(eAsyncEngineError, "error getting local address");
 }
 
 
@@ -414,12 +416,17 @@ VALUE AsyncEngineUdpSocket_peer_address(VALUE self)
 {
   AE_TRACE();
 
+  VALUE _rb_array_ip_port;
+
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
   if (! any_datagram_received)
     return Qnil;
 
-  return ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type);
+  if (! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type)))
+    return _rb_array_ip_port;
+  else
+    rb_raise(eAsyncEngineError, "error getting peer address");
 }
 
 
@@ -450,7 +457,8 @@ VALUE AsyncEngineUdpSocket_reply_datagram(int argc, VALUE *argv, VALUE self)
   if (! any_datagram_received)
     return Qfalse;
 
-  _rb_array_ip_port = ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type);
+  if (NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type)))
+    rb_raise(eAsyncEngineError, "error getting local address");
 
   send_argv[0] = argv[0];  // datagram
   send_argv[1] = rb_ary_entry(_rb_array_ip_port, 0);  // ip
@@ -614,6 +622,28 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 
   return ae_get_rb_encoding(cdata->encoding);
 }
+
+
+// TODO: No idea how this stuf works.
+// VALUE AsyncEngineUdpSocket_set_broadcast(VALUE self, VALUE on)
+// {
+//   AE_TRACE();
+// 
+//   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+// 
+//   if (TYPE(on) == T_TRUE) {
+//     if (uv_udp_set_broadcast(cdata->_uv_handle, 1))
+//       return Qtrue;
+//     else
+//       ae_raise_last_uv_error();
+//   }
+//   else {
+//     if (uv_udp_set_broadcast(cdata->_uv_handle, 0))
+//       return Qtrue;
+//     else
+//       ae_raise_last_uv_error();
+//   }
+// }
 
 
 VALUE AsyncEngineUdpSocket_destroy(VALUE self)

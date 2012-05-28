@@ -117,6 +117,16 @@ VALUE ae_get_last_uv_error(void)
 }
 
 
+void ae_raise_uv_error(int uv_errno)
+{
+  AE_TRACE();
+
+  VALUE ae_uv_error = ae_get_uv_error(uv_errno);
+
+  rb_funcall2(mKernel, method_raise, 1, &ae_uv_error);
+}
+
+
 void ae_raise_last_uv_error(void)
 {
   AE_TRACE();
