@@ -36,9 +36,9 @@ module AsyncEngine
     def to_s
       ip, port = local_address()
       if alive?
-        "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port})"
+        "#{orig_to_s} (#{@_ip_type} : #{ip} : #{port})"
       else
-        "#{self.orig_to_s} (#{@_ip_type} : #{ip} : #{port}) (not alive)"
+        "#{orig_to_s} (#{@_ip_type} : #{ip} : #{port}) (not alive)"
       end
     end
     alias :inspect :to_s
