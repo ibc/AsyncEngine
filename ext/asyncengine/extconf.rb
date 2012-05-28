@@ -46,7 +46,6 @@ Dir.chdir(libuv_dir) do
   FileUtils.mv "uv.a", "../libuv.a"
 end
 
-#dir_config("uv", File.expand_path("../libuv/include", __FILE__), File.expand_path("../libuv", __FILE__))
 have_library("uv") or raise "have_library('uv') returns false"
 
 create_makefile("asyncengine/asyncengine_ext")

@@ -1,4 +1,5 @@
 #include "ip_parser.h"
+#include "debug.h"
 
 
 /** machine **/
@@ -46,8 +47,10 @@
 
 
 /** Exec **/
-enum_ip_type ae_ip_parser_execute(const char *str, size_t len)
+enum_ip_type ae_ip_parser_execute(const char *str, int len)
 {
+  AE_TRACE();
+
   int cs = 0;
   const char *p, *pe;
   enum_ip_type ip_type = ip_type_error;

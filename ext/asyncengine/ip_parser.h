@@ -2,10 +2,15 @@
 #define _AE_IP_PARSER_H_H
 
 
-#include "ip_common.h"
+typedef enum {
+  ip_type_ipv4 = 1,
+  ip_type_ipv6,
+  ip_type_ipv6_reference,
+  ip_type_error
+} enum_ip_type;
 
 
-enum_ip_type ae_ip_parser_execute(const char *str, size_t len);
+enum_ip_type ae_ip_parser_execute(const char *str, int len);
 
 
 #endif  /* _AE_IP_PARSER_H */

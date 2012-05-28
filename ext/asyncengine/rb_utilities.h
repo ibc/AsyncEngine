@@ -1,5 +1,5 @@
-#ifndef _AE_UTILITIES_H
-#define _AE_UTILITIES_H
+#ifndef _AE_RB_UTILITIES_H
+#define _AE_RB_UTILITIES_H
 
 
 /*
@@ -41,4 +41,4 @@ VALUE ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted);
 VALUE ae_get_rb_encoding(enum_string_encoding encoding);
 
 
-#endif  /* _AE_UTILITIES_H */
+#endif  /* _AE_RB_UTILITIES_H */

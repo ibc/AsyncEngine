@@ -141,10 +141,10 @@ class TestUdp < AETest
         set_encoding_ascii()
       end
 
-      assert_equal sock.encoding, :encoding_external
+      assert_equal sock.encoding, :external
 
       sock.set_encoding_utf8
-      assert_equal sock.encoding, :encoding_utf8
+      assert_equal sock.encoding, :utf8
       sock.send_datagram "\x80", local_ip, local_port
 
       sock.send_datagram "\x80", local_ip, local_port

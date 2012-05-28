@@ -4,8 +4,8 @@
 #include "ae_timer.h"
 #include "ae_next_tick.h"
 #include "ae_udp.h"
+#include "ae_utils.h"
 #include "ae_ip_utils.h"
-#include "utilities.h"
 
 
 static ID att_handles;
@@ -262,7 +262,7 @@ void Init_asyncengine_ext()
   init_ae_udp();
   init_ae_utils();
   init_ae_ip_utils();
-  init_utilities();
+  init_rb_utilities();
 
   initialized = 0;
   is_ready_for_handles = 0;

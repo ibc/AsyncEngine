@@ -1,6 +1,6 @@
 #include "asyncengine_ruby.h"
-#include "ae_utils.h"
 #include "ae_ip_utils.h"
+#include "ae_utils.h"
 
 
 VALUE mAsyncEngineUtils;

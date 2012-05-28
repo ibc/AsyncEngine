@@ -1,6 +1,6 @@
 #include <ruby.h>
 #include <ruby/encoding.h>
-#include "utilities.h"
+#include "rb_utilities.h"
 #include "debug.h"
 
 
@@ -12,13 +12,13 @@
 #define AE_RB_STR_TAINTED_ASCII_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_ascii8bit_encoding()))
 
 
-void init_utilities(void)
+void init_rb_utilities(void)
 {
   AE_TRACE();
 
-  symbol_encoding_external = ID2SYM(rb_intern("encoding_external"));
-  symbol_encoding_utf8 = ID2SYM(rb_intern("encoding_utf8"));
-  symbol_encoding_ascii = ID2SYM(rb_intern("encoding_ascii"));
+  symbol_encoding_external = ID2SYM(rb_intern("external"));
+  symbol_encoding_utf8 = ID2SYM(rb_intern("utf8"));
+  symbol_encoding_ascii = ID2SYM(rb_intern("ascii"));
 }
 
 

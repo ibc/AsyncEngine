@@ -1,4 +1,3 @@
-#include <stdarg.h>
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
 
