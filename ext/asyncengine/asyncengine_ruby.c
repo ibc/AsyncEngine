@@ -1,11 +1,12 @@
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
-#include "ae_async.h"
-#include "ae_timer.h"
-#include "ae_next_tick.h"
-#include "ae_udp.h"
 #include "ae_utils.h"
 #include "ae_ip_utils.h"
+#include "ae_async.h"
+#include "ae_next_tick.h"
+#include "ae_timer.h"
+#include "ae_udp.h"
+#include "ae_tcp_connection.h"
 
 
 static ID att_handles;
@@ -250,13 +251,14 @@ void Init_asyncengine_ext()
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
   init_ae_handle_common();
-  init_ae_async();
-  init_ae_timer();
-  init_ae_next_tick();
-  init_ae_udp();
   init_ae_utils();
   init_ae_ip_utils();
   init_rb_utilities();
+  init_ae_async();
+  init_ae_next_tick();
+  init_ae_timer();
+  init_ae_udp();
+  init_ae_tcp_connection();
 
   initialized = 0;
   is_ready_for_handles = 0;
