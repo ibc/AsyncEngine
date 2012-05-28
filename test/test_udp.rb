@@ -141,7 +141,8 @@ class TestUdp < AETest
         set_encoding_ascii()
       end
 
-      assert_equal sock.encoding, :external
+      # Default UDP receiving encoding is ASCII_8BIT.
+      assert_equal sock.encoding, :ascii
 
       sock.set_encoding_utf8
       assert_equal sock.encoding, :utf8

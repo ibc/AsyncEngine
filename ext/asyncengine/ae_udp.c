@@ -235,7 +235,7 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   cdata->ip_type = ip_type;
   cdata->do_receive = 0;  // It's set below.
   cdata->do_send = 1;
-  cdata->encoding = string_encoding_external;
+  cdata->encoding = string_encoding_ascii;
 
   AE_ASSERT(! uv_udp_init(AE_uv_loop, cdata->_uv_handle));
 
