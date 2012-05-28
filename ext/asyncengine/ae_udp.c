@@ -109,13 +109,13 @@ void init_ae_udp()
   rb_define_method(cAsyncEngineUdpSocket, "sending?", AsyncEngineUdpSocket_is_sending, 0);
   rb_define_method(cAsyncEngineUdpSocket, "pause", AsyncEngineUdpSocket_pause, 0);
   rb_define_method(cAsyncEngineUdpSocket, "resume", AsyncEngineUdpSocket_resume, 0);
-  rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
-  rb_define_method(cAsyncEngineUdpSocket, "alive?", AsyncEngineUdpSocket_is_alive, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_external", AsyncEngineUdpSocket_set_encoding_external, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_utf8", AsyncEngineUdpSocket_set_encoding_utf8, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_encoding_ascii", AsyncEngineUdpSocket_set_encoding_ascii, 0);
   rb_define_method(cAsyncEngineUdpSocket, "encoding", AsyncEngineUdpSocket_encoding, 0);
   //rb_define_method(cAsyncEngineUdpSocket, "set_broadcast", AsyncEngineUdpSocket_set_broadcast, 1);
+  rb_define_method(cAsyncEngineUdpSocket, "alive?", AsyncEngineUdpSocket_is_alive, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "close", AsyncEngineUdpSocket_close, 0);
   rb_define_private_method(cAsyncEngineUdpSocket, "destroy", AsyncEngineUdpSocket_destroy, 0);
 
   att_ip_type = rb_intern("@_ip_type");
@@ -149,7 +149,7 @@ uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 
 
 static
-VALUE ae_udp_socket_recv_callback(VALUE ignore)
+VALUE ae_udp_recv_callback(VALUE ignore)
 {
   AE_TRACE();
 
@@ -193,7 +193,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
   if (! any_datagram_received)
     any_datagram_received = 1;
 
-  ae_execute_in_ruby_land(ae_udp_socket_recv_callback);
+  ae_execute_in_ruby_land(ae_udp_recv_callback);
 }
 
 
@@ -320,7 +320,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   uv_buf_t buffer;
   char *datagram;
   int datagram_len;
-  uv_udp_send_t* _uv_req;
+  uv_udp_send_t* _uv_udp_send_req;
   struct_udp_send_data* send_data;
   VALUE _rb_datagram, _rb_ip, _rb_port, _rb_block;
 
@@ -366,17 +366,17 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   else
     send_data->on_send_block_id = Qnil;
 
-  _uv_req = ALLOC(uv_udp_send_t);
-  _uv_req->data = send_data;
+  _uv_udp_send_req = ALLOC(uv_udp_send_t);
+  _uv_udp_send_req->data = send_data;
 
   buffer = uv_buf_init(datagram, datagram_len);
 
   switch(cdata->ip_type) {
     case ip_type_ipv4:
-      AE_ASSERT(! uv_udp_send(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
+      AE_ASSERT(! uv_udp_send(_uv_udp_send_req, cdata->_uv_handle, &buffer, 1, uv_ip4_addr(ip, port), _uv_udp_send_callback));
       break;
     case ip_type_ipv6:
-      AE_ASSERT(! uv_udp_send6(_uv_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), _uv_udp_send_callback));
+      AE_ASSERT(! uv_udp_send6(_uv_udp_send_req, cdata->_uv_handle, &buffer, 1, uv_ip6_addr(ip, port), _uv_udp_send_callback));
       break;
   }
 
@@ -549,27 +549,6 @@ VALUE AsyncEngineUdpSocket_resume(VALUE self)
 }
 
 
-VALUE AsyncEngineUdpSocket_close(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  destroy(cdata);
-  return Qtrue;
-}
-
-
-VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  return Qtrue;
-}
-
-
 static
 VALUE ae_set_external_encoding(VALUE self, enum_string_encoding encoding)
 {
@@ -636,6 +615,27 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 //       ae_raise_last_uv_error();
 //   }
 // }
+
+
+VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  return Qtrue;
+}
+
+
+VALUE AsyncEngineUdpSocket_close(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  destroy(cdata);
+  return Qtrue;
+}
 
 
 VALUE AsyncEngineUdpSocket_destroy(VALUE self)

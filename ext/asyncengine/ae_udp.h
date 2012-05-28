@@ -15,13 +15,13 @@ VALUE AsyncEngineUdpSocket_set_sending(VALUE self, VALUE allow);
 VALUE AsyncEngineUdpSocket_is_sending(VALUE self);
 VALUE AsyncEngineUdpSocket_pause(VALUE self);
 VALUE AsyncEngineUdpSocket_resume(VALUE self);
-VALUE AsyncEngineUdpSocket_close(VALUE self);
-VALUE AsyncEngineUdpSocket_is_alive(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self);
 VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self);
 VALUE AsyncEngineUdpSocket_encoding(VALUE self);
 //VALUE AsyncEngineUdpSocket_set_broadcast(VALUE self, VALUE on);
+VALUE AsyncEngineUdpSocket_is_alive(VALUE self);
+VALUE AsyncEngineUdpSocket_close(VALUE self);
 VALUE AsyncEngineUdpSocket_destroy(VALUE self);
 
 

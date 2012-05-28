@@ -89,8 +89,8 @@ void init_ae_timer()
   rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
   rb_define_method(cAsyncEngineTimer, "delay", AsyncEngineTimer_delay, 0);
   rb_define_method(cAsyncEngineTimer, "interval", AsyncEngineTimer_interval, 0);
-  rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
   rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
+  rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
   rb_define_private_method(cAsyncEngineTimer, "destroy", AsyncEngineTimer_destroy, 0);
 }
 
@@ -237,6 +237,16 @@ VALUE AsyncEngineTimer_interval(VALUE self)
 }
 
 
+VALUE AsyncEngineTimer_is_alive(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+
+  return Qtrue;
+}
+
+
 VALUE AsyncEngineTimer_cancel(VALUE self)
 {
   AE_TRACE();
@@ -247,16 +257,6 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
     uv_timer_stop(cdata->_uv_handle);
 
   destroy(cdata);
-  return Qtrue;
-}
-
-
-VALUE AsyncEngineTimer_is_alive(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
   return Qtrue;
 }
 
