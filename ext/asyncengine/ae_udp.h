@@ -7,8 +7,6 @@ void init_ae_udp(void);
 VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _rb_bind_port);
 VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self);
 VALUE AsyncEngineUdpSocket_local_address(VALUE self);
-VALUE AsyncEngineUdpSocket_peer_address(VALUE self);
-VALUE AsyncEngineUdpSocket_reply_datagram(int argc, VALUE *argv, VALUE self);
 VALUE AsyncEngineUdpSocket_set_receiving(VALUE self, VALUE allow);
 VALUE AsyncEngineUdpSocket_is_receiving(VALUE self);
 VALUE AsyncEngineUdpSocket_set_sending(VALUE self, VALUE allow);

@@ -62,10 +62,6 @@ static struct udp_recv_callback_data last_udp_recv_callback_data;
 // Used for storing information about the last UDP send callback.
 static struct udp_send_callback_data last_udp_send_callback_data;
 
-// Fields to store the sockaddr of the last peer address.
-static struct sockaddr_storage last_peer_addr;
-static int any_datagram_received;
-
 
 static void AsyncEngineUdpSocket_free(void *cdata)
 {
@@ -101,8 +97,6 @@ void init_ae_udp()
   rb_define_private_method(cAsyncEngineUdpSocket, "uv_handle_init", AsyncEngineUdpSocket_uv_handle_init, 2);
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, -1);
   rb_define_method(cAsyncEngineUdpSocket, "local_address", AsyncEngineUdpSocket_local_address, 0);
-  rb_define_method(cAsyncEngineUdpSocket, "peer_address", AsyncEngineUdpSocket_peer_address, 0);
-  rb_define_method(cAsyncEngineUdpSocket, "reply_datagram", AsyncEngineUdpSocket_reply_datagram, -1);
   rb_define_method(cAsyncEngineUdpSocket, "set_receiving", AsyncEngineUdpSocket_set_receiving, 1);
   rb_define_method(cAsyncEngineUdpSocket, "receiving?", AsyncEngineUdpSocket_is_receiving, 0);
   rb_define_method(cAsyncEngineUdpSocket, "set_sending", AsyncEngineUdpSocket_set_sending, 1);
@@ -121,9 +115,6 @@ void init_ae_udp()
   att_ip_type = rb_intern("@_ip_type");
 
   method_on_datagram_received = rb_intern("on_datagram_received");
-
-  // Set it to 0 to avoid reply_datagram() when no datagram have been received.
-  any_datagram_received = 0;
 }
 
 
@@ -154,9 +145,7 @@ VALUE ae_udp_recv_callback(VALUE ignore)
   AE_TRACE();
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
-  VALUE _rb_datagram;
-
-  ENSURE_UV_HANDLE_EXISTS;
+  VALUE _rb_datagram, _rb_array_ip_port, _rb_src_ip, _rb_src_port;
 
   if (! cdata->do_receive)
     return Qnil;
@@ -164,7 +153,10 @@ VALUE ae_udp_recv_callback(VALUE ignore)
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
   _rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
 
-  return rb_funcall2(cdata->ae_handle, method_on_datagram_received, 1, &_rb_datagram);
+  AE_ASSERT(! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port((struct sockaddr_storage *)last_udp_recv_callback_data.addr, cdata->ip_type)));
+
+  return rb_funcall(cdata->ae_handle, method_on_datagram_received, 3, _rb_datagram,
+                    rb_ary_entry(_rb_array_ip_port, 0), rb_ary_entry(_rb_array_ip_port, 1));
 }
 
 
@@ -187,12 +179,6 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
   last_udp_recv_callback_data.buf = buf;
   last_udp_recv_callback_data.addr = addr;
   last_udp_recv_callback_data.flags = flags;
-
-  // Copy the callback addr into our static struct last_peer_addr.
-  memcpy(&last_peer_addr, addr, sizeof(struct sockaddr_storage));
-
-  if (! any_datagram_received)
-    any_datagram_received = 1;
 
   ae_execute_in_ruby_land(ae_udp_recv_callback);
 }
@@ -418,69 +404,6 @@ VALUE AsyncEngineUdpSocket_local_address(VALUE self)
     return _rb_array_ip_port;
   else
     rb_raise(eAsyncEngineError, "error getting local address");
-}
-
-
-VALUE AsyncEngineUdpSocket_peer_address(VALUE self)
-{
-  AE_TRACE();
-
-  VALUE _rb_array_ip_port;
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  if (! any_datagram_received)
-    return Qnil;
-
-  if (! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type)))
-    return _rb_array_ip_port;
-  else
-    rb_raise(eAsyncEngineError, "error getting peer address");
-}
-
-
-/*
- * Arguments:
- * 1) datagram
- * 2) proc (optional)
- */
-VALUE AsyncEngineUdpSocket_reply_datagram(int argc, VALUE *argv, VALUE self)
-{
-  AE_TRACE();
-
-  VALUE _rb_datagram, _rb_block;
-  int send_argc;
-  VALUE send_argv[4];
-  VALUE _rb_array_ip_port;
-
-  AE_RB_CHECK_NUM_ARGS(1,2);
-  AE_RB_GET_BLOCK_OR_PROC(2, _rb_block);
-
-  GET_CDATA_FROM_SELF;
-  if (! cdata->_uv_handle) {
-    if (! NIL_P(_rb_block))
-      ae_block_call_1(_rb_block, ae_get_uv_error(AE_UV_ERRNO_SOCKET_NOT_CONNECTED));
-    return Qfalse;
-  }
-
-  if (! any_datagram_received)
-    return Qfalse;
-
-  if (NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&last_peer_addr, cdata->ip_type)))
-    rb_raise(eAsyncEngineError, "error getting local address");
-
-  send_argv[0] = argv[0];  // datagram
-  send_argv[1] = rb_ary_entry(_rb_array_ip_port, 0);  // ip
-  send_argv[2] = rb_ary_entry(_rb_array_ip_port, 1);  // port
-
-  if (! NIL_P(_rb_block)) {
-    send_argc = 4;
-    send_argv[3] = _rb_block;  // proc
-  }
-  else
-    send_argc = 3;
-
-  return AsyncEngineUdpSocket_send_datagram(send_argc, send_argv, self);
 }
 
 

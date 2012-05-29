@@ -5,6 +5,12 @@ class TestUdp < AETest
 
   RECEIVED_DATAGRAMS = []
 
+  class MyUDP < AE::UDPSocket
+    def initialize
+      @local_ip, @local_port = local_address()
+    end
+  end
+
   def setup
     RECEIVED_DATAGRAMS.clear
   end
@@ -39,14 +45,14 @@ class TestUdp < AETest
     private_test_03_send_callback ip
   end
 
-  def test_04_reply_datagram_ipv4
+  def test_04_datagram_source_address_ipv4
     return false  unless (ip = host_loopback_ipv4)
-    private_test_04_reply_datagram ip
+    private_test_04_datagram_source_address ip
   end
 
-  def test_04_reply_datagram_ipv6
+  def test_04_datagram_source_address_ipv6
     return false  unless (ip = host_loopback_ipv6)
-    private_test_04_reply_datagram ip
+    private_test_04_datagram_source_address ip
   end
 
 
@@ -57,7 +63,7 @@ class TestUdp < AETest
       sock = AE.open_udp_socket ip, 0
       local_ip, local_port = sock.local_address()
 
-      def sock.on_datagram_received datagram
+      def sock.on_datagram_received datagram, ip, port
         RECEIVED_DATAGRAMS << datagram
       end
 
@@ -135,7 +141,7 @@ class TestUdp < AETest
       sock = AE.open_udp_socket ip, 0
       local_ip, local_port = sock.local_address()
 
-      def sock.on_datagram_received datagram
+      def sock.on_datagram_received datagram, ip, port
         RECEIVED_DATAGRAMS << datagram
         close()  if RECEIVED_DATAGRAMS.size == 2
         set_encoding_ascii()
@@ -165,7 +171,7 @@ class TestUdp < AETest
       sock = AE.open_udp_socket ip, 4444
       local_ip, local_port = sock.local_address()
 
-      def sock.on_datagram_received datagram
+      def sock.on_datagram_received datagram, ip, port
         RECEIVED_DATAGRAMS << datagram
       end
 
@@ -193,25 +199,29 @@ class TestUdp < AETest
     assert_equal 1, send_cb_error
   end
 
-  def private_test_04_reply_datagram ip
+  def private_test_04_datagram_source_address ip
     sock = nil
+    local_ip = nil
+    local_port = nil
 
     AE.run do
       sock = AE.open_udp_socket ip, 0
       local_ip, local_port = sock.local_address()
 
-      def sock.on_datagram_received datagram
+      def sock.on_datagram_received datagram, src_ip, src_port
         RECEIVED_DATAGRAMS << datagram
+        @last_src_ip = src_ip
+        @last_src_port = src_port
 
         case RECEIVED_DATAGRAMS.size
         when 1
-          reply_datagram "reply1"
+          send_datagram "reply1", src_ip, src_port
         when 2
-          reply_datagram "reply2" do |error|
+          send_datagram "reply2", src_ip, src_port do |error|
             error ? (@reply_cb_error += 1) : (@reply_cb_ok += 1)
           end
         when 3
-          reply_datagram("reply3", proc do |error|
+          send_datagram("reply3", src_ip, src_port, proc do |error|
             error ? (@reply_cb_error += 1) : (@reply_cb_ok += 1)
           end)
         when 4
@@ -229,6 +239,8 @@ class TestUdp < AETest
     assert_equal ["hello", "reply1", "reply2", "reply3"], RECEIVED_DATAGRAMS
     assert_equal 2, sock.instance_variable_get(:@reply_cb_ok)
     assert_equal 0, sock.instance_variable_get(:@reply_cb_error)
+    assert_equal sock.instance_variable_get(:@last_src_ip), local_ip
+    assert_equal sock.instance_variable_get(:@last_src_port), local_port
   end
 
 end

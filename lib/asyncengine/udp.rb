@@ -43,8 +43,11 @@ module AsyncEngine
     end
     alias :inspect :to_s
 
-    def on_datagram_received datagram
-      puts "#{inspect}: received datagram from #{peer_address()}: #{datagram.inspect}"
+
+    private
+
+    def on_datagram_received datagram, src_ip, src_port
+      puts "#{inspect}: received datagram from #{src_ip} : #{src_port}: #{datagram.inspect}"
     end
 
     class << self
