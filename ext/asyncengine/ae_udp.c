@@ -154,6 +154,7 @@ VALUE ae_udp_recv_callback(VALUE ignore)
   AE_TRACE();
 
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
+  VALUE _rb_datagram;
 
   ENSURE_UV_HANDLE_EXISTS;
 
@@ -161,9 +162,9 @@ VALUE ae_udp_recv_callback(VALUE ignore)
     return Qnil;
 
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
-  VALUE rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
+  _rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
 
-  return rb_funcall2(cdata->ae_handle, method_on_datagram_received, 1, &rb_datagram);
+  return rb_funcall2(cdata->ae_handle, method_on_datagram_received, 1, &_rb_datagram);
 }
 
 
@@ -201,11 +202,20 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 {
   AE_TRACE();
 
-  char *bind_ip = StringValueCStr(_rb_bind_ip);
-  int bind_port = FIX2INT(_rb_bind_port);
+  char *bind_ip;
+  int bind_port;
   enum_ip_type ip_type;
 
   GET_CDATA_FROM_SELF;
+
+  if (TYPE(_rb_bind_ip) != T_STRING) {
+    destroy(cdata);
+    rb_raise(rb_eTypeError, "bind IP must be a String");
+  }
+  if (TYPE(_rb_bind_port) != T_FIXNUM) {
+    destroy(cdata);
+    rb_raise(rb_eTypeError, "bind port must be a Fixnum");
+  }
 
   switch(ip_type = ae_ip_parser_execute(RSTRING_PTR(_rb_bind_ip), RSTRING_LEN(_rb_bind_ip))) {
     case ip_type_ipv4:
@@ -215,11 +225,17 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
       rb_ivar_set(self, att_ip_type, symbol_ipv6);
       break;
     default:
+      destroy(cdata);
       rb_raise(rb_eTypeError, "not valid IPv4 or IPv6");
   }
 
-  if (! ae_ip_utils_is_valid_port(bind_port))
-    rb_raise(rb_eArgError, "invalid port value");
+  bind_ip = StringValueCStr(_rb_bind_ip);
+  bind_port = FIX2INT(_rb_bind_port);
+
+  if (! ae_ip_utils_is_valid_port(bind_port)) {
+    destroy(cdata);
+    rb_raise(rb_eArgError, "invalid bind port value");
+  }
 
   cdata->_uv_handle = ALLOC(uv_udp_t);
   cdata->ae_handle = self;
@@ -251,8 +267,10 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   }
 
   // Start receiving.
-  if (uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback))
+  if (uv_udp_recv_start(cdata->_uv_handle, _uv_udp_recv_alloc_callback, _uv_udp_recv_callback)) {
+    destroy(cdata);
     ae_raise_last_uv_error();
+  }
   cdata->do_receive = 1;
 
   return self;
@@ -264,13 +282,13 @@ VALUE ae_udp_send_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  VALUE rb_on_send_block = ae_remove_block(last_udp_send_callback_data.on_send_block_id);
+  VALUE _rb_on_send_block = ae_remove_block(last_udp_send_callback_data.on_send_block_id);
 
-  if (! NIL_P(rb_on_send_block)) {
+  if (! NIL_P(_rb_on_send_block)) {
     if (! last_udp_send_callback_data.status)
-      return ae_block_call_1(rb_on_send_block, Qnil);
+      return ae_block_call_1(_rb_on_send_block, Qnil);
     else
-      return ae_block_call_1(rb_on_send_block, ae_get_last_uv_error());
+      return ae_block_call_1(_rb_on_send_block, ae_get_last_uv_error());
   }
   // This can occur if the UDP handle is closed or destroyed before the send callback.
   else {
@@ -341,6 +359,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   _rb_ip = argv[1];
   _rb_port = argv[2];
 
+  Check_Type(_rb_datagram, T_STRING);
   Check_Type(_rb_ip, T_STRING);
 
   if (cdata->ip_type != ae_ip_parser_execute(RSTRING_PTR(_rb_ip), RSTRING_LEN(_rb_ip)))
@@ -350,9 +369,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   port = FIX2INT(_rb_port);
 
   if (! ae_ip_utils_is_valid_port(port))
-    rb_raise(rb_eArgError, "invalid port value");
-
-  Check_Type(_rb_datagram, T_STRING);
+    rb_raise(rb_eArgError, "invalid destination port value");
 
   datagram_len = RSTRING_LEN(_rb_datagram);
   datagram = ALLOC_N(char, datagram_len);
