@@ -90,6 +90,14 @@ void ae_uv_handle_close_callback(uv_handle_t* handle)
 }
 
 
+int ae_get_last_uv_error_int(void)
+{
+  AE_TRACE();
+
+  return uv_last_error(AE_uv_loop).code;
+}
+
+
 VALUE ae_get_uv_error(int uv_errno)
 {
   AE_TRACE();

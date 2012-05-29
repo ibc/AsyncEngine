@@ -18,6 +18,7 @@ VALUE ae_remove_block(VALUE);
 
 void ae_uv_handle_close_callback(uv_handle_t*);
 
+int ae_get_last_uv_error_int(void);
 VALUE ae_get_uv_error(int uv_errno);
 VALUE ae_get_last_uv_error(void);
 void ae_raise_uv_error(int uv_errno);
