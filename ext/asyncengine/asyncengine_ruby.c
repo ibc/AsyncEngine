@@ -6,7 +6,7 @@
 #include "ae_next_tick.h"
 #include "ae_timer.h"
 #include "ae_udp.h"
-#include "ae_tcp_connection.h"
+#include "ae_tcp.h"
 
 
 static ID att_handles;
@@ -258,7 +258,7 @@ void Init_asyncengine_ext()
   init_ae_next_tick();
   init_ae_timer();
   init_ae_udp();
-  init_ae_tcp_connection();
+  init_ae_tcp();
 
   initialized = 0;
   is_ready_for_handles = 0;
