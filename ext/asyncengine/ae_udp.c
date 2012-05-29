@@ -147,9 +147,6 @@ VALUE ae_udp_recv_callback(VALUE ignore)
   struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
   VALUE _rb_datagram, _rb_array_ip_port, _rb_src_ip, _rb_src_port;
 
-  if (! cdata->do_receive)
-    return Qnil;
-
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
   _rb_datagram = ae_rb_str_new(last_udp_recv_callback_data.buf.base, last_udp_recv_callback_data.nread, cdata->encoding, 1);
 
@@ -165,6 +162,8 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 {
   AE_TRACE();
 
+  struct_ae_udp_socket_cdata* cdata = handle->data;
+
   if (nread == 0) return;
 
   // uv.h: -1 if a transmission error was detected. So ignore it.
@@ -172,6 +171,8 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
     AE_WARN("nread == -1");
     return;
   }
+
+  if (! cdata->do_receive) return;
 
   // Store UDP recv information in the last_udp_recv_callback_data struct.
   last_udp_recv_callback_data.handle = handle;
