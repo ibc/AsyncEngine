@@ -140,7 +140,7 @@ uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 
 
 static
-VALUE ae_udp_recv_callback(VALUE ignore)
+VALUE ae_udp_recv_callback(void)
 {
   AE_TRACE();
 
@@ -265,7 +265,7 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 
 
 static
-VALUE ae_udp_send_callback(VALUE ignore)
+VALUE ae_udp_send_callback(void)
 {
   AE_TRACE();
 
