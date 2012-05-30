@@ -80,4 +80,19 @@ class TestException < AETest
     AE.unset_exception_handler
   end
 
+  def test_04_exception_handler_in_next_tick_allows_executes_all_next_ticks
+    AE.set_exception_handler {|e| assert e.is_a? ::StandardError }
+
+    num = 0
+    AE.run do
+      AE.next_tick { num+=1 }
+      AE.next_tick { num+=1 }
+      AE.next_tick { bumpppp }
+      AE.next_tick { num+=1 }
+      AE.next_tick { num+=1 }
+    end
+
+    assert_equal 4, num
+  end
+
 end

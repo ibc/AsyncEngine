@@ -27,8 +27,7 @@ void ae_raise_last_uv_error(void);
 VALUE ae_block_call_0(VALUE rb_block);
 VALUE ae_block_call_1(VALUE rb_block, VALUE param);
 
-typedef VALUE (*function_with_gvl_and_protect)(VALUE rb_param);
-VALUE ae_execute_in_ruby_land(function_with_gvl_and_protect function);
+VALUE ae_execute_in_ruby_land(void* function);
 
 
 #endif  /* AE_HANDLE_COMMON_H */

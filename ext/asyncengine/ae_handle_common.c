@@ -203,7 +203,7 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 
 
 static
-VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect function)
+VALUE execute_function_with_glv_and_rb_protect(void* function)
 {
   AE_TRACE();
 
@@ -214,14 +214,25 @@ VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect fun
 
   // If an exception occurred then call AsyncEngine.handle_exception(exception).
   if (exception_tag) {
+    if (exception_tag == 8) AE_WARN("************ exception_tag == 8");
+
     VALUE exception = rb_errinfo();
+
+    //printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(exception));
+    //if (exception == INT2FIX(8)) AE_WARN("************ exception == INT2FIX(8)");
 
     // Dissable the current thread exception.
     rb_set_errinfo(Qnil);
     // Call AsyncEngine.handle_exception().
     rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
 
-    return exception;
+    // TODO: This makes no sense and sometimes it returns Fixnum:8
+    //   https://github.com/ibc/AsyncEngine/issues/4
+    //return exception;
+
+    //Let's try:
+    // TODO: This does not solve #4.
+    return Qnil;
   }
   // Otherwise just return the VALUE returned by rb_protec() above.
   else
@@ -232,7 +243,7 @@ VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect fun
 /*
  * Executes the given function taking the GVL and using rb_protect().
  */
-VALUE ae_execute_in_ruby_land(function_with_gvl_and_protect function)
+VALUE ae_execute_in_ruby_land(void* function)
 {
   AE_TRACE();
 
