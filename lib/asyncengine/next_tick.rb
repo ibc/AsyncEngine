@@ -12,7 +12,7 @@ module AsyncEngine
     ticks.each do |cb|
       begin
         cb.call
-      rescue StandardError, LoadError => e
+      rescue StandardError => e
         AsyncEngine.send :handle_exception, e
       end
     end
