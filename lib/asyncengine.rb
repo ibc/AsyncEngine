@@ -72,19 +72,19 @@ module AsyncEngine
         pre_run()
         next_tick(block)
         run_uv()
+        #puts "DBG: AE.run_uv() exits ok" # TODO
         # run_uv() can exit due:
-        # - All the handles have been closed.
-        # - AE.stop, which also called to release() so there should be no more handles.
-        # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
-        #   timers, so release() function will close them).
+        # - UV has no *active* handles so it exits (but it could have inactive handles, i.e. stopped
+        #   timers, so release() function will close them since @_running is still true).
+        # - AE.stop, which also called to release() so @_running is now false.
         release()  if @_running
+        #puts "DBG: 'AE.release() if @_running' executed"  if @_running  # TODO
         released = true
       ensure
         release()  unless released
         ensure_no_handles()  # TODO: for testing
         if @_exit_exception
-          # TODO
-          #puts "AE.run: there is @_exit_exception (#{@_exit_exception.inspect}), raise it !!!"
+          #puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect}), raise it !!!"  # TODO
           e, @_exit_exception = @_exit_exception, nil
           raise e
         end
@@ -108,21 +108,19 @@ module AsyncEngine
         @_handles.each_value { |handle| handle.send :destroy }
       rescue Exception => e
         @_handles.each_value { |handle| handle.send :destroy }
-        @_exit_exception = e
+        @_exit_exception ||= e
       end
       # Call to run_uv_release() so UV can execute uv_close callbacks and reqs callbacks.
       run_uv_release()
       begin
         @_blocks.clear
-        #@_handles.clear  # TODO: NO
-        # Reset attributes since AE is no longer running.
         @_thread = nil
         @_running = false
       rescue Exception => e
         @_blocks.clear
         @_thread = nil
         @_running = false
-        @_exit_exception = e
+        @_exit_exception ||= e
       end
     end
   end
@@ -163,16 +161,17 @@ module AsyncEngine
   end
 
   def self.handle_exception e
-    if @_exception_handler and (e.is_a? StandardError or e.is_a? LoadError)
+    if @_exception_handler and e.is_a? StandardError
       begin
         @_exception_handler.call e
       rescue Exception => e2
+        puts "ERROR: exception #{e2.inspect} during AE.handle_exception(#{e.inspect}) (with exception_handler defined by user)"  # TODO: debug
         @_exit_exception = e2
         release()
       end
     else
       # TODO: sometimes I get (e = Fixnum: 8) again: https://github.com/ibc/AsyncEngine/issues/4
-      #puts "WARN: AE.handle_exception(e = #{e.class}: #{e})"
+      #puts "WARN: AE.handle_exception(#{e.inspect}) (no exception_handler defined by user)"
       @_exit_exception = e
       release()
     end
@@ -191,6 +190,7 @@ module AsyncEngine
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running: #{running?}"
     puts "- UV active handles: #{num_uv_active_handles()}"
+    puts "- UV active reqs: #{num_uv_active_reqs()}"
     puts "- @_handles (#{(@_handles ||= {}).size}):\n"
       @_handles.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
     puts "- @_blocks (#{(@_blocks ||= {}).size}):\n"
