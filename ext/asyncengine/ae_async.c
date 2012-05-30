@@ -21,7 +21,7 @@ void init_ae_async()
 
 
 static
-VALUE ae_async_callback(VALUE ignore)
+VALUE ae_async_callback(void)
 {
   AE_TRACE();
 

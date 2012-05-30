@@ -108,7 +108,7 @@ void destroy(struct_ae_timer_cdata* cdata)
 
 
 static
-VALUE ae_timer_callback(VALUE ignore)
+VALUE ae_timer_callback(void)
 {
   AE_TRACE();
 
