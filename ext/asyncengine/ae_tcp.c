@@ -56,12 +56,13 @@ struct tcp_read_callback_data {
 
 typedef struct {
   char *data;
-  VALUE on_write_block_id;
+  VALUE *on_write_block;
 } struct_tcp_write_data;
 
 struct tcp_write_callback_data {
-  VALUE on_write_block_id;
+  VALUE *on_write_block;
   int status;
+  int handle_destroyed;  // Added in the _uv_write_callback after checking the handle status.
 };
 
 
@@ -124,7 +125,6 @@ void _uv_handle_close_callback(uv_handle_t* handle)
 {
   AE_TRACE();
 
-  // TODO: 
   xfree(handle->data);
   xfree(handle);
 }
@@ -148,7 +148,7 @@ void destroy(struct_ae_tcp_socket_cdata* cdata)
 
 
 static
-VALUE ae_tcp_connect_callback(VALUE ignore)
+VALUE ae_tcp_connect_callback(void)
 {
   AE_TRACE();
 
@@ -163,7 +163,9 @@ VALUE ae_tcp_connect_callback(VALUE ignore)
   else {
     error = ae_get_last_uv_error();
     rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
-    destroy(cdata);
+    // NOTE: Check it since the user could have destroyed the AE handle in the "on_connection_error" callback.
+    if (! _uv_handle_data->destroyed)
+      destroy(cdata);
     return Qnil;
   }
 }
@@ -180,6 +182,8 @@ void _uv_tcp_connect_callback(uv_connect_t* req, int status)
 
   xfree(req);
 
+  // NOTE: Don't execute the "on_connected" or "on_connection_error" method if the
+  // handle was closed by the user.
   if (! _uv_handle_data->destroyed) {
     last_tcp_connect_callback_data.handle = _uv_handle;
     last_tcp_connect_callback_data.status = status;
@@ -198,14 +202,14 @@ uv_buf_t _uv_tcp_read_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 
 
 static
-VALUE ae_tcp_read_callback(VALUE ignore)
+VALUE ae_tcp_read_callback(void)
 {
   AE_TRACE();
 
   uv_tcp_t *_uv_handle = (uv_tcp_t *)last_tcp_read_callback_data.stream;
   struct_uv_tcp_t_data *_uv_handle_data = _uv_handle->data;
   struct_ae_tcp_socket_cdata *cdata = _uv_handle_data->cdata;
-  VALUE _rb_data;
+  VALUE ae_handle, _rb_data;
 
   // Data received.
   if (last_tcp_read_callback_data.nread > 0) {
@@ -221,8 +225,9 @@ VALUE ae_tcp_read_callback(VALUE ignore)
   else {
     // TODO: Habrá que pasar algún parámetro para decir que es desconexión remota.
     rb_funcall2(cdata->ae_handle, method_on_disconnected, 0, NULL);
-    destroy(cdata);
-    printf("/////////// after destroy(cdata); ////////\n");
+    // NOTE: Check it since the user could have destroyed the AE handle in the "on_disconnected" callback.
+    if (! _uv_handle_data->destroyed)
+      destroy(cdata);
   }
 
   return Qnil;
@@ -374,20 +379,16 @@ VALUE AsyncEngineTcpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   // Connect.
   _uv_tcp_connect_req = ALLOC(uv_connect_t);
 
-  // TODO: Si falla uv_tcp_connect(), ¿debo free el req? Lo mismo para TCP/UDP al hacer el bind.
-  // Pues parece que no, ya que si lo pongo se hace doble free() y peta!!!
   switch(ip_type) {
     case ip_type_ipv4:
       if (uv_tcp_connect(_uv_tcp_connect_req, cdata->_uv_handle, uv_ip4_addr(dest_ip, dest_port), _uv_tcp_connect_callback)) {
         destroy(cdata);
-        //xfree(_uv_tcp_connect_req);
         ae_raise_last_uv_error();
       }
       break;
     case ip_type_ipv6:
       if (uv_tcp_connect6(_uv_tcp_connect_req, cdata->_uv_handle, uv_ip6_addr(dest_ip, dest_port), _uv_tcp_connect_callback)) {
         destroy(cdata);
-        //xfree(_uv_tcp_connect_req);
         ae_raise_last_uv_error();
       }
       break;
@@ -396,7 +397,6 @@ VALUE AsyncEngineTcpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   // Start receiving.
   if (uv_read_start((uv_stream_t*)cdata->_uv_handle, _uv_tcp_read_alloc_callback, _uv_tcp_read_callback)) {
     destroy(cdata);
-    //xfree(_uv_tcp_connect_req);
     ae_raise_last_uv_error();
   }
   cdata->do_receive = 1;
@@ -406,23 +406,26 @@ VALUE AsyncEngineTcpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 
 
 static
-VALUE ae_tcp_write_callback(VALUE ignore)
+VALUE ae_tcp_write_callback(void)
 {
   AE_TRACE();
 
-  VALUE rb_on_write_block = ae_remove_block(last_tcp_write_callback_data.on_write_block_id);
+  VALUE rb_on_write_block = *(last_tcp_write_callback_data.on_write_block);
 
-  if (! NIL_P(rb_on_write_block)) {
-    if (! last_tcp_write_callback_data.status)
-      return ae_block_call_1(rb_on_write_block, Qnil);
-    else
-      return ae_block_call_1(rb_on_write_block, ae_get_last_uv_error());
-  }
-  // This can occur if the TCP handle is closed or destroyed before the write callback.
-  else {
-    AE_WARN("ae_remove_block(last_tcp_write_callback_data.on_write_block_id) returned Qnil");
-    return Qnil;
-  }
+  //printf("--- ae_tcp_write_callback():  last_tcp_write_callback_data.on_write_block = %x\n", last_tcp_write_callback_data.on_write_block);
+
+  rb_gc_unregister_address(last_tcp_write_callback_data.on_write_block);
+  xfree(last_tcp_write_callback_data.on_write_block);
+
+  // If the handle has been destroyed between the TCP write req creation and its callback,
+  // don't call the user provided block.
+  if (last_tcp_write_callback_data.handle_destroyed)
+    return Qfalse;
+
+  if (! last_tcp_write_callback_data.status)
+    return ae_block_call_1(rb_on_write_block, Qnil);
+  else
+    return ae_block_call_1(rb_on_write_block, ae_get_last_uv_error());
 }
 
 
@@ -436,12 +439,12 @@ void _uv_write_callback(uv_write_t* req, int status)
   struct_tcp_write_data* write_data = req->data;
   int do_on_write = 0;
 
-  AE_DEBUG("...");
-
   // Block was provided so must call it with success or error param.
-  if (! NIL_P(write_data->on_write_block_id)) {
-    last_tcp_write_callback_data.on_write_block_id = write_data->on_write_block_id;
+  if (write_data->on_write_block) {
+    last_tcp_write_callback_data.on_write_block = write_data->on_write_block;
     last_tcp_write_callback_data.status = status;
+    // Don't run the write callback if the handle has been closed/destroyed.
+    last_tcp_write_callback_data.handle_destroyed = _uv_handle_data->destroyed;
     do_on_write = 1;
   }
 
@@ -449,7 +452,9 @@ void _uv_write_callback(uv_write_t* req, int status)
   xfree(write_data->data); // char* (data sent over TCP).
   xfree(write_data);
 
-  if (do_on_write && ! _uv_handle_data->destroyed)
+  // NOTE: Even if the handle has been destroyed, we need to go to Ruby land to
+  // unregister and free the write block.
+  if (do_on_write)
     ae_execute_in_ruby_land(ae_tcp_write_callback);
 }
 
@@ -489,10 +494,14 @@ VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
   write_data = ALLOC(struct_tcp_write_data);
   write_data->data = data;
 
-  if (! NIL_P(_rb_block))
-    write_data->on_write_block_id = ae_store_block(_rb_block);
+  if (! NIL_P(_rb_block)) {
+    write_data->on_write_block = ALLOC(VALUE);
+    *(write_data->on_write_block) = _rb_block;
+    //printf("--- AsyncEngineTcpSocket_send_data():  write_data->on_write_block = %x\n", write_data->on_write_block);
+    rb_gc_register_address(write_data->on_write_block);
+  }
   else
-    write_data->on_write_block_id = Qnil;
+    write_data->on_write_block = NULL;
 
   _uv_write_req = ALLOC(uv_write_t);
   _uv_write_req->data = write_data;
