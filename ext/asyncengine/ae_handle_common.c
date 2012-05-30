@@ -170,12 +170,44 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 }
 
 
+// static
+// VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect function)
+// {
+//   AE_TRACE();
+// 
+//   int exception_tag;
+//   VALUE ret;
+// 
+//   ret = rb_protect(function, Qnil, &exception_tag);
+// 
+//   // If an exception occurred then call AsyncEngine.handle_exception(exception).
+//   if (exception_tag) {
+//     VALUE exception = rb_errinfo();
+//     /*
+//      * Just check the exception in the user provided AE.exception_handler block
+//      * if it is a StandardError or LoadError. Otherwise raise it.
+//      */
+//     if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue ||
+//         rb_obj_is_kind_of(exception, rb_eLoadError) == Qtrue) {
+//       rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
+//       // Dissable the current thread exception.
+//       rb_set_errinfo(Qnil);
+//     }
+//     else
+//       rb_jump_tag(exception_tag);
+//   }
+//   // Otherwise just return the VALUE returned by rb_protec() above.
+//   else
+//     return ret;
+// }
+
+
 static
 VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect function)
 {
   AE_TRACE();
 
-  int exception_tag;
+  int exception_tag = 0;
   VALUE ret;
 
   ret = rb_protect(function, Qnil, &exception_tag);
@@ -183,18 +215,13 @@ VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect fun
   // If an exception occurred then call AsyncEngine.handle_exception(exception).
   if (exception_tag) {
     VALUE exception = rb_errinfo();
-    /*
-     * Just check the exception in the user provided AE.exception_handler block
-     * if it is a StandardError or LoadError. Otherwise raise it.
-     */
-    if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue ||
-        rb_obj_is_kind_of(exception, rb_eLoadError) == Qtrue) {
-      rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
-      // Dissable the current thread exception.
-      rb_set_errinfo(Qnil);
-    }
-    else
-      rb_jump_tag(exception_tag);
+
+    // Dissable the current thread exception.
+    rb_set_errinfo(Qnil);
+    // Call AsyncEngine.handle_exception().
+    rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
+
+    return exception;
   }
   // Otherwise just return the VALUE returned by rb_protec() above.
   else

@@ -23,10 +23,28 @@ static int do_stop;
 static
 int ae_uv_num_active_handlers(void)
 {
+  AE_TRACE();
+
   if (! initialized)
     return 0;
 
   return AE_uv_loop->active_handles;
+}
+
+
+// TODO: Temporal function for debugging purposes.
+static
+int ae_uv_num_active_reqs(void)
+{
+  AE_TRACE();
+
+  ngx_queue_t *q;
+  int count = 0;
+  ngx_queue_foreach(q, &uv_default_loop()->active_reqs) {
+    count++;
+  }
+
+  return count;
 }
 
 
@@ -119,6 +137,9 @@ VALUE run_uv_without_gvl(void)
   // TODO: for testing.
   AE_ASSERT(do_stop == 0);
 
+  // TODO: for testing.
+  AE_ASSERT(ae_uv_num_active_reqs() == 0);
+
   while(!do_stop && uv_run_once(AE_uv_loop));
 
   AE_DEBUG("uv_run_once() loop terminates");
@@ -143,7 +164,7 @@ VALUE AsyncEngine_run_uv(VALUE self)
 
 
 static
-VALUE run_uv_once_without_gvl(void)
+VALUE run_uv_release_without_gvl(void)
 {
   AE_TRACE();
 
@@ -157,10 +178,18 @@ VALUE run_uv_once_without_gvl(void)
    */
   AE_ASSERT(ae_uv_num_active_handlers() <= 1);
 
+  // TODO: for testing.
+  int num_active_reqs = ae_uv_num_active_reqs();
+  if (num_active_reqs)
+    printf("run_uv_release_without_gvl():  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_reqs());
+
   /* Run UV loop (it blocks if there were handles in the given block). */
-  AE_DEBUG("uv_run_once() starts...");
-  uv_run_once(AE_uv_loop);
-  AE_DEBUG("uv_run_once() terminates");
+  AE_DEBUG("uv_run() starts...");
+  uv_run(AE_uv_loop);
+  AE_DEBUG("uv_run() terminates");
+
+  // TODO: for testing.
+  AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
   /* Close the UV idle (next tick) now. */
   unload_ae_next_tick_uv_idle();
@@ -177,11 +206,11 @@ VALUE run_uv_once_without_gvl(void)
  * after AsyncEngine.destroy_ae_handles() to cause a single UV iteration in order
  * to invoke all the uv_close callbacks and free() the uv_handles.
  */
-VALUE AsyncEngine_run_uv_once(VALUE self)
+VALUE AsyncEngine_run_uv_release(VALUE self)
 {
   AE_TRACE();
 
-  rb_thread_call_without_gvl(run_uv_once_without_gvl, NULL, NULL, NULL);
+  rb_thread_call_without_gvl(run_uv_release_without_gvl, NULL, NULL, NULL);
 
   AE_DEBUG("function terminates");
 
@@ -240,7 +269,7 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "init", AsyncEngine_init, 0);
   rb_define_module_function(mAsyncEngine, "pre_run", AsyncEngine_pre_run, 0);
   rb_define_module_function(mAsyncEngine, "run_uv", AsyncEngine_run_uv, 0);
-  rb_define_module_function(mAsyncEngine, "run_uv_once", AsyncEngine_run_uv_once, 0);
+  rb_define_module_function(mAsyncEngine, "run_uv_release", AsyncEngine_run_uv_release, 0);
   rb_define_module_function(mAsyncEngine, "stop_uv", AsyncEngine_stop_uv, 0);
   rb_define_module_function(mAsyncEngine, "ready_for_handles?", AsyncEngine_is_ready_for_handles, 0);
   rb_define_module_function(mAsyncEngine, "ensure_ready_for_handles", AsyncEngine_ensure_ready_for_handles, 0);

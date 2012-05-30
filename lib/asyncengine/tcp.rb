@@ -32,6 +32,9 @@ module AsyncEngine
       @_ip_type
     end
 
+
+    private
+
     def on_connected
       puts "#{inspect}: connected"
     end

@@ -34,6 +34,7 @@ module AsyncEngine
     @_handles ||= {}
     @_blocks ||= {}
     @_next_ticks ||= []
+    @_exit_exception = nil
 
     init();
 
@@ -72,16 +73,21 @@ module AsyncEngine
         next_tick(block)
         run_uv()
         # run_uv() can exit due:
+        # - All the handles have been closed.
         # - AE.stop, which also called to release() so there should be no more handles.
         # - UV has no *active* handles (but it could have inactive handles, i.e. stopped
         #   timers, so release() function will close them).
-        # - An exception/interrupt occurs (run_uv() does not exit in fact) so the
-        #   ensure block will close the existing handles.
         release()  if @_running
         released = true
       ensure
         release()  unless released
         ensure_no_handles()  # TODO: for testing
+        if @_exit_exception
+          # TODO
+          #puts "AE.run: there is @_exit_exception (#{@_exit_exception.inspect}), raise it !!!"
+          e, @_exit_exception = @_exit_exception, nil
+          raise e
+        end
       end
     end  # @_mutex_run.synchronize
   end
@@ -91,15 +97,33 @@ module AsyncEngine
   end
 
   def self.release
-    # TODO: needed?
     Thread.exclusive do
-      # AE handle's destroy() removes the AE handle itself from @_handles.
-      @_handles.each_value { |handle| handle.send :destroy }
-      @_blocks.clear
+      # First clear @_next_ticks since UV idle is the first to run when calling to run_uv_release().
       @_next_ticks.clear
-      run_uv_once()
-      @_thread = nil
-      @_running = false
+      # Then run #destroy() in every AE handle. It will close the UV handle but will not
+      # remote the AE handle from @_handles. This is required since some UV reqs could happen
+      # later during run_uv_release() and would try to access to the AE handle that should not be
+      # GC'd yet.
+      begin
+        @_handles.each_value { |handle| handle.send :destroy }
+      rescue Exception => e
+        @_handles.each_value { |handle| handle.send :destroy }
+        @_exit_exception = e
+      end
+      # Call to run_uv_release() so UV can execute uv_close callbacks and reqs callbacks.
+      run_uv_release()
+      begin
+        @_blocks.clear
+        #@_handles.clear  # TODO: NO
+        # Reset attributes since AE is no longer running.
+        @_thread = nil
+        @_running = false
+      rescue Exception => e
+        @_blocks.clear
+        @_thread = nil
+        @_running = false
+        @_exit_exception = e
+      end
     end
   end
 
@@ -139,12 +163,18 @@ module AsyncEngine
   end
 
   def self.handle_exception e
-    if @_exception_handler
-      @_exception_handler.call e
+    if @_exception_handler and (e.is_a? StandardError or e.is_a? LoadError)
+      begin
+        @_exception_handler.call e
+      rescue Exception => e2
+        @_exit_exception = e2
+        release()
+      end
     else
-      # TODO: debug
+      # TODO: sometimes I get (e = Fixnum: 8) again: https://github.com/ibc/AsyncEngine/issues/4
       #puts "WARN: AE.handle_exception(e = #{e.class}: #{e})"
-      raise e
+      @_exit_exception = e
+      release()
     end
   end
 
@@ -174,7 +204,7 @@ module AsyncEngine
     private :init
     private :pre_run
     private :run_uv
-    private :run_uv_once
+    private :run_uv_release
     private :stop_uv
     private :ready_for_handles?
     private :ensure_ready_for_handles

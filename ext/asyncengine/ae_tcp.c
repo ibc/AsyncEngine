@@ -29,7 +29,6 @@ static ID method_on_disconnected;
 
 typedef struct {
   uv_tcp_t *_uv_handle;
-  //uv_buf_t recv_buffer;  // TODO: si?
   enum_ip_type ip_type;
   int connected;
   int do_receive;
@@ -38,6 +37,11 @@ typedef struct {
   VALUE ae_handle_id;
   enum_string_encoding encoding;
 } struct_ae_tcp_socket_cdata;
+
+typedef struct {
+  struct_ae_tcp_socket_cdata *cdata;
+  int destroyed;
+} struct_uv_tcp_t_data;
 
 struct tcp_connect_callback_data {
   uv_tcp_t* handle;
@@ -75,7 +79,6 @@ static void AsyncEngineTcpSocket_free(void *cdata)
 {
   AE_TRACE();
 
-  //xfree(((struct_ae_tcp_socket_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
 }
 
@@ -85,7 +88,6 @@ VALUE AsyncEngineTcpSocket_alloc(VALUE klass)
   AE_TRACE();
 
   struct_ae_tcp_socket_cdata* cdata = ALLOC(struct_ae_tcp_socket_cdata);
-  //cdata->recv_buffer = uv_buf_init(ALLOC_N(char, AE_UDP_DATAGRAM_MAX_SIZE), AE_UDP_DATAGRAM_MAX_SIZE);
   cdata->_uv_handle = NULL;
 
   return Data_Wrap_Struct(klass, NULL, AsyncEngineTcpSocket_free, cdata);
@@ -118,11 +120,27 @@ void init_ae_tcp()
 
 
 static
+void _uv_handle_close_callback(uv_handle_t* handle)
+{
+  AE_TRACE();
+
+  // TODO: 
+  xfree(handle->data);
+  xfree(handle);
+}
+
+
+/* This function is always called with GVL. */
+static
 void destroy(struct_ae_tcp_socket_cdata* cdata)
 {
   AE_TRACE();
 
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+  // Store in the UV handle data that the AE handle has been destroyed.
+  struct_uv_tcp_t_data *_uv_handle_data = (struct_uv_tcp_t_data *)cdata->_uv_handle->data;
+  _uv_handle_data->destroyed = 1;
+
+  uv_close((uv_handle_t *)cdata->_uv_handle, _uv_handle_close_callback);
   cdata->_uv_handle = NULL;
   // Let the GC work.
   ae_remove_handle(cdata->ae_handle_id);
@@ -134,17 +152,14 @@ VALUE ae_tcp_connect_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  struct_ae_tcp_socket_cdata* cdata = (struct_ae_tcp_socket_cdata*)last_tcp_connect_callback_data.handle->data;
+  struct_uv_tcp_t_data *_uv_handle_data = (struct_uv_tcp_t_data*)last_tcp_connect_callback_data.handle->data;
+  struct_ae_tcp_socket_cdata *cdata = _uv_handle_data->cdata;
   VALUE error;
 
-  // Don't run the Ruby callback if the TCP socket was closed/destroyed before
-  // the connection or connection error happened.
-  ENSURE_UV_HANDLE_EXISTS;
-
-  cdata->connected = 1;
-
-  if (! last_tcp_connect_callback_data.status)
+  if (! last_tcp_connect_callback_data.status) {
+    cdata->connected = 1;
     return rb_funcall2(cdata->ae_handle, method_on_connected, 0, NULL);
+  }
   else {
     error = ae_get_last_uv_error();
     rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
@@ -159,14 +174,17 @@ void _uv_tcp_connect_callback(uv_connect_t* req, int status)
 {
   AE_TRACE();
 
-  printf("DBG: _uv_tcp_connect_callback(): status=%d\n", status);
-
-  last_tcp_connect_callback_data.handle = (uv_tcp_t*)req->handle;
-  last_tcp_connect_callback_data.status = status;
+  uv_tcp_t *_uv_handle = (uv_tcp_t*)req->handle;
+  struct_uv_tcp_t_data *_uv_handle_data = _uv_handle->data;
+  struct_ae_tcp_socket_cdata *cdata = _uv_handle_data->cdata;
 
   xfree(req);
 
-  ae_execute_in_ruby_land(ae_tcp_connect_callback);
+  if (! _uv_handle_data->destroyed) {
+    last_tcp_connect_callback_data.handle = _uv_handle;
+    last_tcp_connect_callback_data.status = status;
+    ae_execute_in_ruby_land(ae_tcp_connect_callback);
+  }
 }
 
 
@@ -184,21 +202,27 @@ VALUE ae_tcp_read_callback(VALUE ignore)
 {
   AE_TRACE();
 
-  struct_ae_tcp_socket_cdata* cdata = (struct_ae_tcp_socket_cdata*)last_tcp_read_callback_data.stream->data;
+  uv_tcp_t *_uv_handle = (uv_tcp_t *)last_tcp_read_callback_data.stream;
+  struct_uv_tcp_t_data *_uv_handle_data = _uv_handle->data;
+  struct_ae_tcp_socket_cdata *cdata = _uv_handle_data->cdata;
   VALUE _rb_data;
 
+  // Data received.
   if (last_tcp_read_callback_data.nread > 0) {
-    if (cdata->do_receive && cdata->_uv_handle)
+    if (cdata->do_receive) {
       _rb_data = ae_rb_str_new(last_tcp_read_callback_data.buf.base, last_tcp_read_callback_data.nread, cdata->encoding, 1);
-    xfree(last_tcp_read_callback_data.buf.base);
-    if (cdata->do_receive && cdata->_uv_handle)
+      xfree(last_tcp_read_callback_data.buf.base);
       rb_funcall2(cdata->ae_handle, method_on_data_received, 1, &_rb_data);
+    }
+    else
+      xfree(last_tcp_read_callback_data.buf.base);
   }
   // Otherwise it's -1 (EOF, disconnection).
   else {
-    destroy(cdata);
     // TODO: Habrá que pasar algún parámetro para decir que es desconexión remota.
     rb_funcall2(cdata->ae_handle, method_on_disconnected, 0, NULL);
+    destroy(cdata);
+    printf("/////////// after destroy(cdata); ////////\n");
   }
 
   return Qnil;
@@ -210,7 +234,9 @@ void _uv_tcp_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
 {
   AE_TRACE();
 
-  // Store TCP read information in the last_tcp_read_callback_data struct.
+  uv_tcp_t *_uv_handle = (uv_tcp_t *)stream;
+  struct_uv_tcp_t_data *_uv_handle_data = _uv_handle->data;
+
   last_tcp_read_callback_data.stream = stream;
   last_tcp_read_callback_data.nread = nread;
   last_tcp_read_callback_data.buf = buf;
@@ -218,16 +244,13 @@ void _uv_tcp_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
   switch(nread) {
     // Disconnection.
     case -1:
-      printf("_uv_tcp_read_callback(): nread = -1 => disconnection\n");
-      // TODO: AE.on_disconnected (with GVL !!!) and destroy.
-      // O sea, llamar a ae_tcp_read_callback() y él mirará que nread == -1.
-      ae_execute_in_ruby_land(ae_tcp_read_callback);
+      if (! _uv_handle_data->destroyed)
+        ae_execute_in_ruby_land(ae_tcp_read_callback);
       break;
 
     // libuv requested a buffer through the alloc callback but then decided
     // that it didn't need that buffer.
     case 0:
-      printf("_uv_tcp_read_callback(): nread = 0 => free buffer and ignore\n");
       // TODO: is ok?
       xfree(buf.base);
       break;
@@ -249,6 +272,7 @@ VALUE AsyncEngineTcpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
   int dest_port;
   enum_ip_type ip_type, bind_ip_type;
   uv_connect_t *_uv_tcp_connect_req;
+  struct_uv_tcp_t_data *_uv_handle_data;
 
   GET_CDATA_FROM_SELF;
 
@@ -325,7 +349,10 @@ VALUE AsyncEngineTcpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 
   AE_ASSERT(! uv_tcp_init(AE_uv_loop, cdata->_uv_handle));
 
-  cdata->_uv_handle->data = cdata;
+  _uv_handle_data = ALLOC(struct_uv_tcp_t_data);
+  _uv_handle_data->cdata = cdata;
+  _uv_handle_data->destroyed = 0;
+  cdata->_uv_handle->data = _uv_handle_data;
 
   if (do_bind) {
     switch(ip_type) {
@@ -404,10 +431,12 @@ void _uv_write_callback(uv_write_t* req, int status)
 {
   AE_TRACE();
 
-  printf("DBG: _uv_write_callback(): status=%d\n", status);
-
+  uv_tcp_t *_uv_handle = (uv_tcp_t*)req->handle;
+  struct_uv_tcp_t_data *_uv_handle_data = _uv_handle->data;
   struct_tcp_write_data* write_data = req->data;
   int do_on_write = 0;
+
+  AE_DEBUG("...");
 
   // Block was provided so must call it with success or error param.
   if (! NIL_P(write_data->on_write_block_id)) {
@@ -417,10 +446,10 @@ void _uv_write_callback(uv_write_t* req, int status)
   }
 
   xfree(req);
-  xfree(write_data->data);
+  xfree(write_data->data); // char* (data sent over TCP).
   xfree(write_data);
 
-  if (do_on_write)
+  if (do_on_write && ! _uv_handle_data->destroyed)
     ae_execute_in_ruby_land(ae_tcp_write_callback);
 }
 
@@ -511,8 +540,15 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
   if (! cdata->connected)
     return Qfalse;
 
-  if (uv_tcp_getpeername(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len))
-    ae_raise_last_uv_error();
+  if (uv_tcp_getpeername(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len)) {
+    // NOTE: If peer disconnects and we call this method before read callback is called
+    // (with nread -1) we'd got :ENOTCONN, socket is not connected (UV_ERRNO: 31). React
+    // as if we already know that the socket is disconnected and return false.
+    if (ae_get_last_uv_error_int() == AE_UV_ERRNO_SOCKET_NOT_CONNECTED)
+      return Qfalse;
+    else
+      ae_raise_last_uv_error();
+  }
 
   if (! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type)))
     return _rb_array_ip_port;
