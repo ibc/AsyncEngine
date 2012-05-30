@@ -48,11 +48,21 @@ int ae_uv_num_active_reqs(void)
 }
 
 
+// TMP
 VALUE AsyncEngine_num_uv_active_handles(VALUE self)
 {
   AE_TRACE();
 
   return INT2FIX(ae_uv_num_active_handlers());
+}
+
+
+// TMP
+VALUE AsyncEngine_num_uv_active_reqs(VALUE self)
+{
+  AE_TRACE();
+
+  return INT2FIX(ae_uv_num_active_reqs());
 }
 
 
@@ -100,8 +110,8 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 
   uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
 
-  AE_DEBUG("call rb_thread_call_with_gvl(rb_thread_check_ints, NULL)");
-  rb_thread_call_with_gvl(rb_thread_check_ints, NULL);
+  AE_DEBUG("ae_execute_in_ruby_land(rb_thread_check_ints)");
+  ae_execute_in_ruby_land(rb_thread_check_ints);
 }
 
 
@@ -274,6 +284,7 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "ready_for_handles?", AsyncEngine_is_ready_for_handles, 0);
   rb_define_module_function(mAsyncEngine, "ensure_ready_for_handles", AsyncEngine_ensure_ready_for_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
+  rb_define_module_function(mAsyncEngine, "num_uv_active_reqs", AsyncEngine_num_uv_active_reqs, 0);
 
   att_handles = rb_intern("@_handles");
   att_blocks = rb_intern("@_blocks");
