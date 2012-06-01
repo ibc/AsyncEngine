@@ -3,10 +3,10 @@
 
 
 typedef enum {
-  ip_type_ipv4 = 1,
+  ip_type_no_ip = 0,
+  ip_type_ipv4,
   ip_type_ipv6,
   ip_type_ipv6_reference,
-  ip_type_error
 } enum_ip_type;
 
 

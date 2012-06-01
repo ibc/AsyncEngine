@@ -2,15 +2,7 @@ TODO
 ****
 
 
-WARNING: I manage Ruby objects without GVL
-------------------------------------------
-
-C callbacks remove elements from the @_handles Hash without the GVL. It's not *very* dangerous since keys are FIXNUM
-(immutable) but:
-
-"Fixnum instances are immutable and calling #hash should be safe on them.
-However, point 2) stands: if two threads will access the hash simultaneously,
-that may and will lead to crashes."
+After AE.release() is called, no more handled should be allowed. Note that when a TCP socket is closed/destroyed, its "on_disconnected()" callback is called and the user could create new handles within the callback. This must no be allowed (i.e. by setting a variable ae_is_closing=1) so methods that create a new handle return without creating it.
 
 
 
@@ -63,13 +55,6 @@ Wait for uv_run_nowait()
 ------------------------
 
 https://github.com/joyent/libuv/issues/410
-
-
-
-uv_inet_pton/ntop
------------------
-
-https://github.com/saghul/pyuv/blob/master/src/pyuv.h#L269
 
 
 

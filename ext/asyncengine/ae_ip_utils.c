@@ -144,7 +144,7 @@ VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self)
   len2 = RSTRING_LEN(argv[1]);
 
   switch(ip1_type = ae_ip_parser_execute(str1, len1)) {
-    case(ip_type_error):
+    case(ip_type_no_ip):
       return Qnil;
       break;
     case(ip_type_ipv6_reference):
@@ -157,7 +157,7 @@ VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self)
       break;
   }
   switch(ip2_type = ae_ip_parser_execute(str2, len2)) {
-    case(ip_type_error):
+    case(ip_type_no_ip):
       return Qnil;
       break;
     case(ip_type_ipv6_reference):
@@ -192,7 +192,11 @@ int ae_ip_utils_is_valid_port(int port)
 
 
 /*
- * Return a Ruby Array with two elements:
+ * Parameters:
+ * - addr: pointer to a struct sockaddr_storage.
+ * - ip_type: if it's ip_type_no_ip then the IP will be parsed.
+ * 
+ * Returns a Ruby Array with three elements:
  * - ip: Ruby String.
  * - port: Ruby Fixnum.
  * If an error occurs (in ae_inet_ntop() function) nil is returned.

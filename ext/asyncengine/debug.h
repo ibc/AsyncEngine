@@ -7,7 +7,9 @@
 
 /* NOTE: Uncomment these lines for debugging during development. */
 //#define AE_DO_TRACE
+#define AE_DO_TRACE2
 //#define AE_DO_DEBUG
+#define AE_DO_DEBUG2
 #define AE_DO_WARN
 #define AE_DO_ASSERT
 
@@ -27,10 +29,22 @@
 #define AE_TRACE()
 #endif
 
+#ifdef AE_DO_TRACE2
+#define AE_TRACE2()  fprintf(stdout, "AE_TRACE2: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
+#else
+#define AE_TRACE2()
+#endif
+
 #ifdef AE_DO_DEBUG
 #define AE_DEBUG(desc)  fprintf(stdout, "AE_DEBUG: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
 #else
 #define AE_DEBUG(desc)
+#endif
+
+#ifdef AE_DO_DEBUG2
+#define AE_DEBUG2(desc)  fprintf(stdout, "AE_DEBUG2: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
+#else
+#define AE_DEBUG2(desc)
 #endif
 
 #ifdef AE_DO_WARN

@@ -53,7 +53,7 @@ enum_ip_type ae_ip_parser_execute(const char *str, int len)
 
   int cs = 0;
   const char *p, *pe;
-  enum_ip_type ip_type = ip_type_error;
+  enum_ip_type ip_type = ip_type_no_ip;
 
   p = str;
   pe = str+len;
@@ -62,7 +62,7 @@ enum_ip_type ae_ip_parser_execute(const char *str, int len)
   %% write exec;
 
   if(len != p-str)
-    return ip_type_error;
+    return ip_type_no_ip;
   else
     return ip_type;
 }

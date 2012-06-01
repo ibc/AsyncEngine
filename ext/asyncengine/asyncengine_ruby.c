@@ -103,7 +103,7 @@ VALUE AsyncEngine_pre_run(VALUE self)
 static
 void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   // TODO: testing, can be error?
   AE_ASSERT(! status);
@@ -118,7 +118,7 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 static
 void ae_ubf(void)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   /*
    * When a signal is received by a Ruby process running a blocking code (without GVL)
@@ -236,7 +236,6 @@ VALUE AsyncEngine_stop_uv(VALUE self)
 }
 
 
-static
 int ae_is_ready_for_handles(void)
 {
   AE_TRACE();
@@ -244,6 +243,15 @@ int ae_is_ready_for_handles(void)
   // TODO: Not sure which is better, theorically second one is "safer".
   //return is_ready_for_handles;
   return (is_ready_for_handles && !do_stop);
+}
+
+
+void ae_ensure_ready_for_handles(void)
+{
+  AE_TRACE();
+
+  if (! ae_is_ready_for_handles())
+    rb_raise(eAsyncEngineError, "AsyncEngine is not ready yet");
 }
 
 
@@ -259,10 +267,8 @@ VALUE AsyncEngine_ensure_ready_for_handles(VALUE self)
 {
   AE_TRACE();
 
-  if (ae_is_ready_for_handles())
-    return Qtrue;
-  else
-    rb_raise(eAsyncEngineError, "AsyncEngine is not ready yet");
+  ae_ensure_ready_for_handles();
+  return Qtrue;
 }
 
 
