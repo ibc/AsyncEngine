@@ -7,13 +7,14 @@ BORRAME
 not_git/
 
 ext/asyncengine/libuv/
-ext/asyncengine/_OLD/
 ext/asyncengine/Makefile
 ext/asyncengine/*.so
 ext/asyncengine/*.o
 ext/asyncengine/*.a
 ext/asyncengine/mkmf.log
+ext/asyncengine/*.OLD
 
 lib/asyncengine/*.so
+lib/asyncengine/*.OLD
 
 test/others/
