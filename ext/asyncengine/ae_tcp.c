@@ -25,7 +25,6 @@ static ID method_on_data_received;
 static ID method_on_disconnected;
 
 typedef struct {
-  int is_usable;  // 1 means that the user can call the Ruby methods of the object, 0 means that it cannot.
   uv_tcp_t *_uv_handle;
   int connected;
   enum_ip_type ip_type;
@@ -244,7 +243,6 @@ int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port
   // Fill cdata struct.
   cdata->_uv_handle = _uv_handle;
   cdata->connected = 0;
-  cdata->is_usable = 1;
   cdata->ip_type = ip_type;
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.  // TODO
