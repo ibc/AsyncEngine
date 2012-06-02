@@ -4,7 +4,7 @@ module AsyncEngine
     private
 
     def on_connected
-      puts "#{inspect}: connected: local address: #{local_address()}"
+      puts "#{inspect}: connected: local address: #{local_address().inspect}, peer address: #{peer_address().inspect}"
     end
 
     def on_connection_error error
@@ -12,7 +12,6 @@ module AsyncEngine
     end
 
     def on_data_received data
-      #puts "#{inspect}: received data from #{peer_address()}: #{data.inspect}"
       puts "#{inspect}: received data: #{data.inspect}"
     end
 

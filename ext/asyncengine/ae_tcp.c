@@ -26,11 +26,11 @@ static ID method_on_disconnected;
 
 typedef struct {
   uv_tcp_t *_uv_handle;
-  int connected;
-  enum_ip_type ip_type;
-  int do_receive;
   VALUE ae_handle;
   VALUE ae_handle_id;
+  int connected;
+  int paused;
+  enum_ip_type ip_type;
   enum_string_encoding encoding;
 } struct_ae_tcp_socket_cdata;
 
@@ -57,7 +57,6 @@ static struct _uv_tcp_read_callback_params last_uv_tcp_read_callback_params;
 static void AsyncEngineTcpSocket_free(void* cdata);
 static VALUE AsyncEngineTcpSocket_alloc(VALUE klass);
 static int init_instance(VALUE self, enum_ip_type ip_type, char* dest_ip, int dest_port, char* bind_ip, int bind_port);
-static void close_uv_handle(uv_tcp_t* handle);
 static void _uv_tcp_connect_callback(uv_connect_t* req, int status);
 static uv_buf_t _uv_tcp_read_alloc_callback(uv_handle_t* handle, size_t suggested_size);
 static void _uv_tcp_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf);
@@ -76,14 +75,14 @@ void init_ae_tcp()
   rb_define_alloc_func(cAsyncEngineTcpSocket, AsyncEngineTcpSocket_alloc);
   rb_define_singleton_method(cAsyncEngineTcpSocket, "new", AsyncEngineTcpSocket_new, -1);
 
-//   rb_define_method(cAsyncEngineTcpSocket, "send_data", AsyncEngineTcpSocket_send_data, -1);
-//   rb_define_method(cAsyncEngineTcpSocket, "connected?", AsyncEngineTcpSocket_is_connected, 0);
+  //rb_define_method(cAsyncEngineTcpSocket, "send_data", AsyncEngineTcpSocket_send_data, -1);
   rb_define_method(cAsyncEngineTcpSocket, "local_address", AsyncEngineTcpSocket_local_address, 0);
-//   rb_define_method(cAsyncEngineTcpSocket, "peer_address", AsyncEngineTcpSocket_peer_address, 0);
-//   rb_define_method(cAsyncEngineTcpSocket, "alive?", AsyncEngineTcpSocket_is_alive, 0);
+  rb_define_method(cAsyncEngineTcpSocket, "peer_address", AsyncEngineTcpSocket_peer_address, 0);
+  rb_define_method(cAsyncEngineTcpSocket, "connected?", AsyncEngineTcpSocket_is_connected, 0);
+  rb_define_method(cAsyncEngineTcpSocket, "alive?", AsyncEngineTcpSocket_is_alive, 0);
   rb_define_method(cAsyncEngineTcpSocket, "close", AsyncEngineTcpSocket_close, 0);
   rb_define_private_method(cAsyncEngineTcpSocket, "destroy", AsyncEngineTcpSocket_destroy, 0);
- 
+
   method_on_connected = rb_intern("on_connected");
   method_on_connection_error = rb_intern("on_connection_error");
   method_on_data_received = rb_intern("on_data_received");
@@ -96,7 +95,7 @@ void init_ae_tcp()
 static
 VALUE AsyncEngineTcpSocket_alloc(VALUE klass)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   struct_ae_tcp_socket_cdata* cdata = ALLOC(struct_ae_tcp_socket_cdata);
 
@@ -112,18 +111,25 @@ static void AsyncEngineTcpSocket_free(void *cdata)
 }
 
 
-/** Class new() method. */
+/** Class new() method.
+ *
+ * Arguments:
+ * - destination IP (String).
+ * - destination port (Fixnum).
+ * - bind IP (String) (optional).
+ * - bind port (Fixnum) (optional).
+ */
 
 VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   char *dest_ip, *bind_ip;
   int dest_ip_len, bind_ip_len;
   int dest_port, bind_port;
   enum_ip_type ip_type, bind_ip_type;
   int error;
-  VALUE instance;
+  VALUE klass, instance;
 
   ae_ensure_ready_for_handles();
 
@@ -179,7 +185,7 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
   }
 
   // Allocate the Ruby instance.
-  instance = rb_obj_alloc(cAsyncEngineTcpSocket);
+  instance = rb_obj_alloc(self);
 
   // Init the UV stuff within the instance.
   if (error = init_instance(instance, ip_type, dest_ip, dest_port, bind_ip, bind_port))
@@ -192,7 +198,7 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
 static
 int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port, char *bind_ip, int bind_port)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   uv_tcp_t *_uv_handle;
   uv_connect_t *_uv_tcp_connect_req;
@@ -213,7 +219,7 @@ int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port
         break;
     }
     if (ret) {
-      close_uv_handle(_uv_handle);  // TODO
+      AE_CLOSE_UV_HANDLE(_uv_handle);
       return ae_get_last_uv_error_int();
     }
   }
@@ -230,7 +236,7 @@ int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port
       break;
   }
   if (ret) {
-    close_uv_handle(_uv_handle);  // TODO
+    AE_CLOSE_UV_HANDLE(_uv_handle);
     xfree(_uv_tcp_connect_req);
     return ae_get_last_uv_error_int();
   }
@@ -242,11 +248,11 @@ int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port
 
   // Fill cdata struct.
   cdata->_uv_handle = _uv_handle;
-  cdata->connected = 0;
   cdata->ip_type = ip_type;
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.  // TODO
-  cdata->do_receive = 1;
+  cdata->connected = 0;
+  cdata->paused = 0;
   cdata->encoding = string_encoding_ascii;
 
   // Fill data field of the UV handle.
@@ -256,21 +262,12 @@ int init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port
 }
 
 
-static
-void close_uv_handle(uv_tcp_t* handle)
-{
-  AE_TRACE2();
-
-  uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
-}
-
-
 /** TCP connect callback. */
 
 static
 void _uv_tcp_connect_callback(uv_connect_t* req, int status)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   uv_tcp_t* _uv_handle = (uv_tcp_t*)req->handle;
   struct_ae_tcp_socket_cdata* cdata = (struct_ae_tcp_socket_cdata*)_uv_handle->data;
@@ -284,7 +281,7 @@ void _uv_tcp_connect_callback(uv_connect_t* req, int status)
   // was closed by the application, so don't close the UV handle again. Otherwise
   // close the UV handle.
   else if (! uv_is_closing((const uv_handle_t*)_uv_handle)) {
-    close_uv_handle(cdata->_uv_handle);
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
     cdata->_uv_handle = NULL;
   }
 
@@ -295,7 +292,7 @@ void _uv_tcp_connect_callback(uv_connect_t* req, int status)
 static
 VALUE _ae_tcp_connect_callback(void)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   uv_tcp_t* _uv_handle = (uv_tcp_t*)last_uv_tcp_connect_callback_params.req->handle;
   struct_ae_tcp_socket_cdata* cdata = (struct_ae_tcp_socket_cdata*)_uv_handle->data;
@@ -358,12 +355,12 @@ void _uv_tcp_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
       xfree(buf.base);
     // Once the connection is established, if the app calls to uv_close() this tcp_read_callback
     // could be called with nread=0, but never with nread=-1.
-    close_uv_handle(cdata->_uv_handle);
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
     cdata->_uv_handle = NULL;
     ae_execute_in_ruby_land(_ae_tcp_read_callback);
   }
   else {
-    if (cdata->do_receive)
+    if (! cdata->paused)
       ae_execute_in_ruby_land(_ae_tcp_read_callback);
     else
       xfree(buf.base);
@@ -405,21 +402,68 @@ VALUE _ae_tcp_read_callback(void)
 
 VALUE AsyncEngineTcpSocket_local_address(VALUE self)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   struct sockaddr_storage local_addr;
   int len = sizeof(local_addr);
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+
+  // NOTE: If disconnection occurs just before the tcp read callback (with nread = -1)
+  // this would fail with ENOTCONN, "socket is not connected" (UV_ERRNO: 31). In this case
+  // return nil.
+  if (uv_tcp_getsockname(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len))
+    return Qnil;
+
+  return ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type);
+}
+
+
+VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
+{
+  AE_TRACE();
+
+  struct sockaddr_storage peer_addr;
+  int len = sizeof(peer_addr);
   VALUE _rb_array_ip_port;
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  if (uv_tcp_getsockname(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len))
-    ae_raise_last_uv_error();
+  if (! cdata->connected)
+    return Qnil;
 
-  if (! NIL_P(_rb_array_ip_port = ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type)))
-    return _rb_array_ip_port;
+  // NOTE: Same as above.
+  if (uv_tcp_getpeername(cdata->_uv_handle, (struct sockaddr*)&peer_addr, &len))
+    return Qnil;
+
+  return ae_ip_utils_get_ip_port(&peer_addr, cdata->ip_type);
+}
+
+
+/** connected?() method. */
+
+VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+
+  if (cdata->connected)
+    return Qtrue;
   else
-    rb_raise(eAsyncEngineError, "error getting local address");
+    return Qfalse;
+}
+
+
+/** alive?() method. */
+
+VALUE AsyncEngineTcpSocket_is_alive(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+
+  return Qtrue;
 }
 
 
@@ -433,7 +477,7 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  close_uv_handle(cdata->_uv_handle);
+  AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
   cdata->_uv_handle = NULL;
 
   // If it's connected we must manually call to on_disconnected() callback.
@@ -456,7 +500,7 @@ VALUE AsyncEngineTcpSocket_destroy(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  close_uv_handle(cdata->_uv_handle);
+  AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
   cdata->_uv_handle = NULL;
 
   // If it's connected we must manually call to on_disconnected() callback.

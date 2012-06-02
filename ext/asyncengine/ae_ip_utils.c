@@ -214,18 +214,12 @@ VALUE ae_ip_utils_get_ip_port(struct sockaddr_storage *addr, enum_ip_type ip_typ
   switch(ip_type) {
     case ip_type_ipv4:
       addr4 = (struct sockaddr_in*)addr;
-      if (! ae_inet_ntop(AF_INET, &addr4->sin_addr, ip, INET_ADDRSTRLEN)) {
-        AE_WARN("ae_inet_ntop() failed");
-        return Qnil;
-      }
+      AE_ASSERT(ae_inet_ntop(AF_INET, &addr4->sin_addr, ip, INET_ADDRSTRLEN));
       port = (int)htons(addr4->sin_port);
       break;
     case ip_type_ipv6:
       addr6 = (struct sockaddr_in6*)addr;
-      if (! ae_inet_ntop(AF_INET6, &addr6->sin6_addr, ip, INET6_ADDRSTRLEN)) {
-        AE_WARN("ae_inet_ntop() failed");
-        return Qnil;
-      }
+      AE_ASSERT(ae_inet_ntop(AF_INET6, &addr6->sin6_addr, ip, INET6_ADDRSTRLEN));
       port = (int)htons(addr6->sin6_port);
       break;
     default:

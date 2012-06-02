@@ -2,6 +2,9 @@
 #define AE_HANDLE_COMMON_H
 
 
+#define AE_CLOSE_UV_HANDLE(handle)  \
+  uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
+
 // Get this uv_errno when the socket is not connected.
 #define AE_UV_ERRNO_SOCKET_NOT_CONNECTED  31
 
@@ -16,6 +19,7 @@ VALUE ae_store_block(VALUE);
 VALUE ae_get_block(VALUE);
 VALUE ae_remove_block(VALUE);
 
+// TODO: Remove it from the API when all the handles use AE_CLOSE_UV_HANDLE(handle).
 void ae_uv_handle_close_callback(uv_handle_t*);
 
 int ae_get_last_uv_error_int(void);

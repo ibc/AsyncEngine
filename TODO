@@ -2,6 +2,12 @@ TODO
 ****
 
 
+Avoid errors/exceptions in #destroy(). When release() calls #destroy() for every existing AE handle, it must use rb_protect()/rescue since, i.e. in AE::TCPSocket, #destroy() calls to on_disconnected() callback defined by the user which could raise an exception. That MUST not occur while releasing AE.
+
+
+No handle creation after release()
+----------------------------------
+
 After AE.release() is called, no more handled should be allowed. Note that when a TCP socket is closed/destroyed, its "on_disconnected()" callback is called and the user could create new handles within the callback. This must no be allowed (i.e. by setting a variable ae_is_closing=1) so methods that create a new handle return without creating it.
 
 
