@@ -660,8 +660,11 @@ VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
 
   cdata->on_shutdown_block = _rb_block;
 
-  // If the handle is connected call to uv_shutdown. Otherwise behave as a normal close().
+  // If the handle is connected call to uv_shutdown. Otherwise behave like a normal close().
   if (cdata->connected) {
+    // TEST: No me mola.
+    //uv_read_stop((uv_stream_t*)cdata->_uv_handle);
+
     shutdown_req = ALLOC(uv_shutdown_t);
 
     if (uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback)) {
@@ -669,13 +672,15 @@ VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
       ae_raise_last_uv_error();
     }
   }
+  // It was connecting so a connect callback error will occur.
   else {
+    AE_DEBUG2("handle was not connected, behaving like #close()");
     AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
     cdata->_uv_handle = NULL;
 
     // If a block was provided run it.
-    if (! NIL_P(_rb_block))
-      ae_block_call_0(_rb_block);
+    if (! NIL_P(cdata->on_shutdown_block))
+      ae_block_call_0(cdata->on_shutdown_block);
   }
 
   return Qtrue;
@@ -692,8 +697,18 @@ void _uv_shutdown_callback(uv_shutdown_t* req, int status)
 
   xfree(req);
 
-  last_uv_shutdown_callback_data.cdata = cdata;
+  // Check that the handle has not been closed between the call to #close_gracefully() and
+  // its callback.
+  if (cdata->_uv_handle && ! uv_is_closing((const uv_handle_t*)cdata->_uv_handle)) {
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+    cdata->_uv_handle = NULL;
+  }
+  else {
+    AE_WARN("handle was closed before _uv_shutdown_callback()");
+    return;
+  }
 
+  last_uv_shutdown_callback_data.cdata = cdata;
   ae_execute_in_ruby_land(_ae_shutdown_callback);
 }
 
@@ -705,17 +720,6 @@ VALUE _ae_shutdown_callback(void)
 
   struct_cdata* cdata = last_uv_shutdown_callback_data.cdata;
   VALUE error = Qnil;
-
-  // Check that the handle has not been closed between the call to #close_gracefully() and
-  // its callback.
-  if (cdata->_uv_handle && ! uv_is_closing((const uv_handle_t*)cdata->_uv_handle)) {
-    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
-    cdata->_uv_handle = NULL;
-  }
-  else {
-    AE_DEBUG2("handle was closed before _uv_shutdown_callback()");
-    return Qnil;
-  }
 
   // We must manually call to on_disconnected() callback.
   ae_remove_handle(cdata->ae_handle_id);
