@@ -9,6 +9,8 @@
 // Get this uv_errno when the socket is not connected.
 #define AE_UV_ERRNO_SOCKET_NOT_CONNECTED  31
 
+#define AE_UV_ERRNO_ETIMEDOUT  40
+
 
 void init_ae_handle_common(void);
 
