@@ -11,7 +11,7 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self);
 VALUE AsyncEngineTcpSocket_is_connected(VALUE self);
 VALUE AsyncEngineTcpSocket_is_alive(VALUE self);
 VALUE AsyncEngineTcpSocket_close(VALUE self);
-VALUE AsyncEngineTcpSocket_close_gracefully(VALUE self);
+VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self);
 VALUE AsyncEngineTcpSocket_destroy(VALUE self);
 
 

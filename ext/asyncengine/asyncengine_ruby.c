@@ -176,7 +176,7 @@ VALUE AsyncEngine_run_uv(VALUE self)
 static
 VALUE run_uv_release_without_gvl(void)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   /* There MUST NOT be UV active handles at this time, we enter here just to
    * iterate once for freeing closed UV handles not freed yet (it's required

@@ -28,8 +28,10 @@ typedef struct {
   uv_tcp_t *_uv_handle;
   VALUE ae_handle;
   VALUE ae_handle_id;
+  VALUE on_shutdown_block;
   int connected;
   int paused;
+  int closing_gracefully;
   enum_ip_type ip_type;
   enum_string_encoding encoding;
 } struct_cdata;
@@ -57,6 +59,7 @@ struct _uv_write_callback_data {
 
 struct _uv_shutdown_callback_data {
   struct_cdata* cdata;
+  VALUE *on_shutdown_block;
 };
 
 // Used for storing information about the last TCP connect callback.
@@ -74,6 +77,7 @@ static struct _uv_shutdown_callback_data last_uv_shutdown_callback_data;
 
 /** Predeclaration of static functions. */
 
+static void AsyncEngineTcpSocket_mark(void *ptr);
 static void AsyncEngineTcpSocket_free(void* cdata);
 static VALUE AsyncEngineTcpSocket_alloc(VALUE klass);
 static void init_instance(VALUE self, enum_ip_type ip_type, char* dest_ip, int dest_port, char* bind_ip, int bind_port);
@@ -105,7 +109,7 @@ void init_ae_tcp()
   rb_define_method(cAsyncEngineTcpSocket, "connected?", AsyncEngineTcpSocket_is_connected, 0);
   rb_define_method(cAsyncEngineTcpSocket, "alive?", AsyncEngineTcpSocket_is_alive, 0);
   rb_define_method(cAsyncEngineTcpSocket, "close", AsyncEngineTcpSocket_close, 0);
-  rb_define_method(cAsyncEngineTcpSocket, "close_gracefully", AsyncEngineTcpSocket_close_gracefully, 0);
+  rb_define_method(cAsyncEngineTcpSocket, "close_gracefully", AsyncEngineTcpSocket_close_gracefully, -1);
   rb_define_private_method(cAsyncEngineTcpSocket, "destroy", AsyncEngineTcpSocket_destroy, 0);
 
   method_on_connected = rb_intern("on_connected");
@@ -124,7 +128,19 @@ VALUE AsyncEngineTcpSocket_alloc(VALUE klass)
 
   struct_cdata* cdata = ALLOC(struct_cdata);
 
-  return Data_Wrap_Struct(klass, NULL, AsyncEngineTcpSocket_free, cdata);
+  return Data_Wrap_Struct(klass, AsyncEngineTcpSocket_mark, AsyncEngineTcpSocket_free, cdata);
+}
+
+
+static
+void AsyncEngineTcpSocket_mark(void *ptr)
+{
+  AE_TRACE();
+
+  struct_cdata* cdata = (struct_cdata*)ptr;
+
+  if (! NIL_P(cdata->on_shutdown_block))
+    rb_gc_mark(cdata->on_shutdown_block);
 }
 
 
@@ -277,8 +293,10 @@ void init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_por
   cdata->ip_type = ip_type;
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.
+  cdata->on_shutdown_block =  Qnil;
   cdata->connected = 0;
   cdata->paused = 0;
+  cdata->closing_gracefully = 0;
   cdata->encoding = string_encoding_ascii;
 
   // Fill data field of the UV handle.
@@ -318,7 +336,7 @@ void _uv_connect_callback(uv_connect_t* req, int status)
 static
 VALUE _ae_connect_callback(void)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   struct_cdata* cdata = last_uv_connect_callback_data.cdata;
   VALUE error;
@@ -352,7 +370,7 @@ uv_buf_t _uv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 static
 void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   uv_tcp_t *_uv_handle = (uv_tcp_t *)stream;
   struct_cdata* cdata = (struct_cdata*)_uv_handle->data;
@@ -394,7 +412,7 @@ void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
 static
 VALUE _ae_read_callback(void)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   struct_cdata* cdata = last_uv_read_callback_data.cdata;
   VALUE _rb_data;
@@ -421,7 +439,7 @@ VALUE _ae_read_callback(void)
 
 VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   char *data = NULL;
   int data_len;
@@ -478,7 +496,7 @@ VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
 static
 void _uv_write_callback(uv_write_t* req, int status)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   uv_tcp_t *_uv_handle = (uv_tcp_t*)req->handle;
   struct_uv_write_req_data* _uv_write_req_data = (struct_uv_write_req_data*)req->data;
@@ -515,9 +533,11 @@ VALUE _ae_write_callback(void)
   xfree(last_uv_write_callback_data.on_write_block);
 
   if (! last_uv_write_callback_data.status)
-    return ae_block_call_1(rb_on_write_block, Qnil);
+    ae_block_call_1(rb_on_write_block, Qnil);
   else
-    return ae_block_call_1(rb_on_write_block, ae_get_last_uv_error());
+    ae_block_call_1(rb_on_write_block, ae_get_last_uv_error());
+
+  return Qnil;
 }
 
 
@@ -615,27 +635,47 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
 }
 
 
-// TODO: ¿Qué pasa si aún no está conectado? ¿provocará el uv_shutdown() un connect_cb(error)? joder...
-VALUE AsyncEngineTcpSocket_close_gracefully(VALUE self)
+// TODO: Si está conectando y, aunque no haya ningún write req, uv_shutdown no hace nada hasta
+// que no se conecte. Así que no mola porque si intentamos conectar a 1.2.3.4 y llamamos a este
+// método, no pasará NADA.
+VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
 
   uv_shutdown_t *shutdown_req;
+  VALUE _rb_block;
+
+  AE_RB_CHECK_NUM_ARGS(0,1);
+  AE_RB_GET_BLOCK_OR_PROC(1, _rb_block);
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  cdata->_uv_handle = NULL;
+  // Avoid this method to be called twice.
+  if (cdata->closing_gracefully)
+    return Qfalse;
+  else {
+    cdata->closing_gracefully = 1;
+    cdata->paused = 1;  // Avoid incoming data.
+  }
 
-  // TODO: Esto peta pero bien !!!
-  //if (cdata->connected)
-  //  AE_ASSERT(uv_read_stop((uv_stream_t*)cdata->_uv_handle));
+  cdata->on_shutdown_block = _rb_block;
 
-  shutdown_req = ALLOC(uv_shutdown_t);
+  // If the handle is connected call to uv_shutdown. Otherwise behave as a normal close().
+  if (cdata->connected) {
+    shutdown_req = ALLOC(uv_shutdown_t);
 
-  // TODO: Y esto también peta pero que da gusto !!!
-  if (uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback)) {
-    xfree(shutdown_req);
-    ae_raise_last_uv_error();
+    if (uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback)) {
+      xfree(shutdown_req);
+      ae_raise_last_uv_error();
+    }
+  }
+  else {
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+    cdata->_uv_handle = NULL;
+
+    // If a block was provided run it.
+    if (! NIL_P(_rb_block))
+      ae_block_call_0(_rb_block);
   }
 
   return Qtrue;
@@ -647,10 +687,10 @@ void _uv_shutdown_callback(uv_shutdown_t* req, int status)
 {
   AE_TRACE2();
 
-  uv_tcp_t *_uv_handle = (uv_tcp_t *)req->handle;
+  uv_tcp_t* _uv_handle = (uv_tcp_t*)req->handle;
   struct_cdata* cdata = (struct_cdata*)_uv_handle->data;
 
-  AE_CLOSE_UV_HANDLE(_uv_handle);
+  xfree(req);
 
   last_uv_shutdown_callback_data.cdata = cdata;
 
@@ -666,11 +706,24 @@ VALUE _ae_shutdown_callback(void)
   struct_cdata* cdata = last_uv_shutdown_callback_data.cdata;
   VALUE error = Qnil;
 
-  // If it's connected we must manually call to on_disconnected() callback.
-  if (cdata->connected) {
-    ae_remove_handle(cdata->ae_handle_id);
-    rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
+  // Check that the handle has not been closed between the call to #close_gracefully() and
+  // its callback.
+  if (cdata->_uv_handle && ! uv_is_closing((const uv_handle_t*)cdata->_uv_handle)) {
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+    cdata->_uv_handle = NULL;
   }
+  else {
+    AE_DEBUG2("handle was closed before _uv_shutdown_callback()");
+    return Qnil;
+  }
+
+  // We must manually call to on_disconnected() callback.
+  ae_remove_handle(cdata->ae_handle_id);
+  rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
+
+  // If a block was provided run it.
+  if (! NIL_P(cdata->on_shutdown_block))
+    ae_block_call_0(cdata->on_shutdown_block);
 
   return Qnil;
 }
