@@ -170,8 +170,8 @@ static void AsyncEngineTcpSocket_free(void *cdata)
  * Arguments:
  * - destination IP (String).
  * - destination port (Fixnum).
- * - bind IP (String) (optional).
- * - bind port (Fixnum) (optional).
+ * - bind IP (String or Nil) (optional).
+ * - bind port (Fixnum or Nil) (optional).
  */
 
 VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
@@ -201,27 +201,37 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
   if (! ae_ip_utils_is_valid_port(dest_port))
     rb_raise(rb_eArgError, "invalid destination port value");
 
+  bind_ip = NULL;
+  bind_port = 0;
+
   // Parameter 3: bind IP.
   if (argc >= 3) {
-    if (TYPE(argv[2]) != T_STRING)
-      rb_raise(rb_eTypeError, "bind IP must be a String");
-    bind_ip = StringValueCStr(argv[2]);
-    bind_ip_len = RSTRING_LEN(argv[2]);
+    switch(TYPE(argv[2])) {
+      case T_STRING:
+        bind_ip = StringValueCStr(argv[2]);
+        bind_ip_len = RSTRING_LEN(argv[2]);
+        break;
+      case T_NIL:
+        break;
+      default:
+        rb_raise(rb_eTypeError, "bind IP must be a String");
+    }
 
     // Parameter 4: bind port.
-    if (argc == 4) {
-      if (! FIXNUM_P(argv[3]))
-        rb_raise(rb_eTypeError, "bind port must be a Fixnum");
-      bind_port = FIX2INT(argv[3]);
-      if (! ae_ip_utils_is_valid_port(bind_port))
-        rb_raise(rb_eArgError, "invalid bind port value");
+    if (bind_ip && argc == 4) {
+      switch(TYPE(argv[3])) {
+        case T_FIXNUM:
+          bind_port = FIX2INT(argv[3]);
+          if (! ae_ip_utils_is_valid_port(bind_port))
+            rb_raise(rb_eArgError, "invalid bind port value");
+          break;
+        case T_NIL:
+          break;
+        default:
+          rb_raise(rb_eTypeError, "bind port must be a Fixnum");
+          break;
+      }
     }
-    else
-      bind_port = 0;
-  }
-  else {
-    bind_ip = NULL;
-    bind_port = 0;
   }
 
   // TODO: Allow domains y blablablablablablabla puto sag.
@@ -371,7 +381,7 @@ VALUE _ae_connect_callback(void)
       error = ae_get_last_uv_error();
     // Connection timeout set by the user, so raise UV error 40: ETIMEDOUT, "connection timed out".
     else {
-      error = ae_get_uv_error(40);
+      error = ae_get_uv_error(AE_UV_ERRNO_ETIMEDOUT);
     }
     rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
   }
