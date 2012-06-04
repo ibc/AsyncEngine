@@ -113,7 +113,7 @@ module AsyncEngine
         @_exit_exception ||= e
       end
       # Call to run_uv_release() so UV can execute uv_close callbacks and reqs callbacks.
-      run_uv_release()
+      run_uv_release()  # TODO: WHY? this MUST NOT exist!
       begin
         @_blocks.clear
         @_thread = nil
