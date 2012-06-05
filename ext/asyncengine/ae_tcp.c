@@ -24,18 +24,27 @@ static ID method_on_connection_error;
 static ID method_on_data_received;
 static ID method_on_disconnected;
 
+
+typedef enum {
+  CONNECTING = 0,
+  CONNECTED
+} enum_status;
+
+typedef enum {
+  PAUSED = 1,
+  CLOSING_GRACEFULLY,
+  CONNECT_TIMEOUT
+} enum_flags;
+
 typedef struct {
   uv_tcp_t *_uv_handle;
   VALUE ae_handle;
   VALUE ae_handle_id;
-  VALUE on_shutdown_block;
-  int connected;
-  int paused;
-  int closing_gracefully;
   enum_ip_type ip_type;
+  enum_status status;
+  int flags;
   enum_string_encoding encoding;
   uv_timer_t *_uv_timer_connect_timeout;
-  int was_connect_timeout;
 } struct_cdata;
 
 struct _uv_connect_callback_data {
@@ -61,7 +70,6 @@ struct _uv_write_callback_data {
 
 struct _uv_shutdown_callback_data {
   struct_cdata* cdata;
-  VALUE *on_shutdown_block;
 };
 
 struct _uv_timer_connect_timeout_callback_data {
@@ -151,9 +159,6 @@ void AsyncEngineTcpSocket_mark(void *ptr)
   AE_TRACE();
 
   struct_cdata* cdata = (struct_cdata*)ptr;
-
-  if (! NIL_P(cdata->on_shutdown_block))
-    rb_gc_mark(cdata->on_shutdown_block);
 }
 
 
@@ -313,16 +318,13 @@ void init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_por
 
   // Fill cdata struct.
   cdata->_uv_handle = _uv_handle;
-  cdata->ip_type = ip_type;
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.
-  cdata->on_shutdown_block =  Qnil;
-  cdata->connected = 0;
-  cdata->paused = 0;
-  cdata->closing_gracefully = 0;
+  cdata->ip_type = ip_type;
+  cdata->status = CONNECTING;
+  cdata->flags = 0;
   cdata->encoding = string_encoding_ascii;
   cdata->_uv_timer_connect_timeout = NULL;
-  cdata->was_connect_timeout = 0;
 
   // Fill data field of the UV handle.
   cdata->_uv_handle->data = (void *)cdata;
@@ -345,7 +347,7 @@ void _uv_connect_callback(uv_connect_t* req, int status)
   last_uv_connect_callback_data.status = status;
 
   if (! status) {
-    cdata->connected = 1;
+    cdata->status = CONNECTED;
   }
   // If it's a connection error and uv_is_closing() == 1 it means that the AE handle
   // was closed by the application, so don't close the UV handle again. Otherwise
@@ -377,12 +379,11 @@ VALUE _ae_connect_callback(void)
   else {
     ae_remove_handle(cdata->ae_handle_id);
     // Network error, remote rejection or client closed before connecting.
-    if (! cdata->was_connect_timeout)
+    if (! cdata->flags & CONNECT_TIMEOUT)
       error = ae_get_last_uv_error();
     // Connection timeout set by the user, so raise UV error 40: ETIMEDOUT, "connection timed out".
-    else {
+    else
       error = ae_get_uv_error(AE_UV_ERRNO_ETIMEDOUT);
-    }
     rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
   }
 
@@ -429,13 +430,13 @@ void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
     if (buf.base)
       xfree(buf.base);
     // Once the connection is established, if the app calls to uv_close() this tcp_read_callback
-    // could be called with nread=0, but never with nread=-1.
+    // could be called with nread=0, but never with nread=-1, so -1 means "network/remote disconnection".
     AE_CLOSE_UV_HANDLE(_uv_handle);
     cdata->_uv_handle = NULL;
     ae_execute_in_ruby_land(_ae_read_callback);
   }
   else {
-    if (! cdata->paused)
+    if (! cdata->flags & PAUSED)
       ae_execute_in_ruby_land(_ae_read_callback);
     else
       xfree(buf.base);
@@ -606,7 +607,7 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  if (! cdata->connected)
+  if (! cdata->status == CONNECTED)
     return Qnil;
 
   // NOTE: Same as above.
@@ -625,7 +626,7 @@ VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  if (cdata->connected)
+  if (cdata->status == CONNECTED)
     return Qtrue;
   else
     return Qfalse;
@@ -643,7 +644,7 @@ VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   // Return nil if the socket already connected or the connect timeout already set.
-  if (cdata->connected || cdata->_uv_timer_connect_timeout)
+  if (cdata->status == CONNECTED || cdata->_uv_timer_connect_timeout)
     return Qnil;
 
   if (! (FIXNUM_P(_rb_timeout) || TYPE(_rb_timeout) == T_FLOAT))
@@ -675,7 +676,8 @@ void _uv_timer_connect_timeout_callback(uv_timer_t* handle, int status)
   struct_cdata* cdata = (struct_cdata*)handle->data;
 
   _ae_cancel_timer_connect_timeout(cdata);
-  cdata->was_connect_timeout = 1;
+
+  cdata->flags |= CONNECT_TIMEOUT;
 
   AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
   cdata->_uv_handle = NULL;
@@ -722,7 +724,7 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
   _ae_cancel_timer_connect_timeout(cdata);
 
   // If it's connected we must manually call to on_disconnected() callback.
-  if (cdata->connected) {
+  if (cdata->status == CONNECTED) {
     ae_remove_handle(cdata->ae_handle_id);
     // NOTE: This should be safe. Ruby wont GC the handle here since the object is
     // in the stack.
@@ -741,15 +743,13 @@ VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
   AE_TRACE2();
 
   uv_shutdown_t *shutdown_req;
-  VALUE _rb_block;
 
   AE_RB_CHECK_NUM_ARGS(0,1);
-  AE_RB_GET_BLOCK_OR_PROC(1, _rb_block);
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   // Avoid this method to be called twice.
-  if (cdata->closing_gracefully)
+  if (cdata->flags & CLOSING_GRACEFULLY)
     return Qfalse;
 
   shutdown_req = ALLOC(uv_shutdown_t);
@@ -762,9 +762,8 @@ VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
     ae_raise_last_uv_error();
   }
 
-  cdata->on_shutdown_block = _rb_block;
-  cdata->closing_gracefully = 1;
-  cdata->paused = 1;  // Avoid incoming data.
+  cdata->flags |= CLOSING_GRACEFULLY;
+  cdata->flags |= PAUSED;  // Avoid incoming data.
 
   return Qtrue;
 }
@@ -808,10 +807,6 @@ VALUE _ae_shutdown_callback(void)
   ae_remove_handle(cdata->ae_handle_id);
   rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
 
-  // If a block was provided run it.
-  if (! NIL_P(cdata->on_shutdown_block))
-    ae_block_call_0(cdata->on_shutdown_block);
-
   return Qnil;
 }
 
@@ -830,7 +825,7 @@ VALUE AsyncEngineTcpSocket_destroy(VALUE self)
   _ae_cancel_timer_connect_timeout(cdata);
 
   // If it's connected we must manually call to on_disconnected() callback.
-  if (cdata->connected) {
+  if (cdata->status == CONNECTED) {
     ae_remove_handle(cdata->ae_handle_id);
     rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
   }
