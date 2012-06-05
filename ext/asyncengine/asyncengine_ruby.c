@@ -148,9 +148,13 @@ VALUE run_uv_without_gvl(void)
 
   /* Run UV loop until there are no more active handles or do_stop
    * has been set to 1 (by AsyncEngine.stop). */
-  AE_DEBUG2("uv_run_once() loop starts...");
-  while(!do_stop && uv_run_once(AE_uv_loop));
-  AE_DEBUG2("uv_run_once() loop terminates");
+  AE_DEBUG("uv_run_once() loop starts...");
+  while(!do_stop && uv_run_once(AE_uv_loop)) {
+
+  //printf("***** ae_uv_num_active_handlers = %d,  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_handlers(), ae_uv_num_active_reqs());
+
+  }
+  AE_DEBUG("uv_run_once() loop terminates");
 
   do_stop = 0;
   is_ready_for_handles = 0;
@@ -174,7 +178,7 @@ VALUE AsyncEngine_run_uv(VALUE self)
 static
 VALUE run_uv_release_without_gvl(void)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   /* There MUST NOT be UV active handles at this time, we enter here just to
    * iterate once for freeing closed UV handles not freed yet (it's required
@@ -187,14 +191,14 @@ VALUE run_uv_release_without_gvl(void)
   AE_ASSERT(ae_uv_num_active_handlers() <= 1);
 
   // TODO: for testing.
-  int num_active_reqs = ae_uv_num_active_reqs();
-  if (num_active_reqs)
-    printf("run_uv_release_without_gvl():  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_reqs());
+  //int num_active_reqs = ae_uv_num_active_reqs();
+  //if (num_active_reqs)
+  //  printf("run_uv_release_without_gvl():  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_reqs());
 
   /* Run UV loop (it blocks if there were handles in the given block). */
-  AE_DEBUG2("uv_run() starts...");
+  AE_DEBUG("uv_run() starts...");
   uv_run(AE_uv_loop);
-  AE_DEBUG2("uv_run() terminates");
+  AE_DEBUG("uv_run() terminates");
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);

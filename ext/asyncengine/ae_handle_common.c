@@ -84,7 +84,7 @@ VALUE ae_remove_block(VALUE block_id)
 
 void ae_uv_handle_close_callback(uv_handle_t* handle)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   xfree(handle);
 }
