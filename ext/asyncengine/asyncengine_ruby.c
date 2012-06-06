@@ -18,6 +18,14 @@ static int is_ready_for_handles;
 static int do_stop;
 
 
+enum status {
+  STOPPED = 0,
+  STARTING,
+  RUNNING,
+  RELEASING
+};
+
+
 // TODO: Temporal function for debugging purposes, since loop->active_handles
 // will be removed soon from UV (or it's not public API).
 static
@@ -128,6 +136,8 @@ void ae_ubf(void)
    * Therefore, do nothing but check interrupts in Ruby land via a thread safe uv_async.
    */
 
+  // TODO: Make it static so no ALLOC required every time.
+
   uv_async_t* ae_ubf_uv_async = ALLOC(uv_async_t);
 
   AE_ASSERT(! uv_async_init(AE_uv_loop, ae_ubf_uv_async, ae_ubf_uv_async_callback));
@@ -148,13 +158,19 @@ VALUE run_uv_without_gvl(void)
 
   /* Run UV loop until there are no more active handles or do_stop
    * has been set to 1 (by AsyncEngine.stop). */
-  AE_DEBUG("uv_run_once() loop starts...");
+  AE_DEBUG("UV loop starts...");
   while(!do_stop && uv_run_once(AE_uv_loop)) {
 
   //printf("***** ae_uv_num_active_handlers = %d,  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_handlers(), ae_uv_num_active_reqs());
 
   }
-  AE_DEBUG("uv_run_once() loop terminates");
+  AE_DEBUG("UV loop terminates");
+
+  // TODO: for testing.
+  AE_ASSERT(ae_uv_num_active_reqs() == 0);
+
+  /* Close the UV idle (next tick) now. */
+  unload_ae_next_tick_uv_idle();
 
   do_stop = 0;
   is_ready_for_handles = 0;

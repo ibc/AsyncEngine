@@ -34,8 +34,6 @@ static void timer2_close_cb(uv_handle_t* handle) { DEBUG("timer 2 handle closed"
 
 static void connect_cb(uv_connect_t* req, int status)
 {
-  uv_tcp_t* _uv_handle = (uv_tcp_t*)req->handle;
-
   if (! status) {
     DEBUG("connected to 1.2.3.4:9999? really???");
     exit(1);
@@ -60,7 +58,7 @@ static void timer1_cb(uv_timer_t* handle, int status)
 
 static void timer2_cb(uv_timer_t* handle, int status)
 {
-  DEBUG("timer 2 fires, calling uv_close() for timer 2... OPPS, connect_cb(ENITR) is called now (so late...), WHY ???");
+  DEBUG("timer 2 fires, calling uv_close() for timer 2... OPPS, connect_cb(EINTR) is called now (so late...), WHY ???");
   uv_close((uv_handle_t *)&timer2, timer2_close_cb);
 }
 

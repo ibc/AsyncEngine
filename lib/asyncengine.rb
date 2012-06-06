@@ -105,13 +105,18 @@ module AsyncEngine
       # later during run_uv_release() and would try to access to the AE handle that should not be
       # GC'd yet.
       begin
-        @_handles.each_value { |handle| handle.send :destroy  rescue nil }
+        @_handles.each_value do |handle|
+          begin
+            handle.send :destroy
+          rescue Exception
+          end
+        end
       rescue Exception => e
         @_handles.each_value { |handle| handle.send :destroy  rescue nil }
         @_exit_exception ||= e
       end
       # Call to run_uv_release() so UV can execute uv_close callbacks and reqs callbacks.
-      run_uv_release()  # TODO: WHY? this MUST NOT exist!
+      #run_uv_release()  # TODO: WHY? this MUST NOT exist!
       begin
         @_blocks.clear
         @_thread = nil

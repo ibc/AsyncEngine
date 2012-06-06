@@ -24,9 +24,9 @@ static ID method_on_connection_error;
 static ID method_on_data_received;
 static ID method_on_disconnected;
 
-VALUE symbol_closed;
-VALUE symbol_connecting;
-VALUE symbol_connected;
+static VALUE symbol_closed;
+static VALUE symbol_connecting;
+static VALUE symbol_connected;
 
 
 enum status {
