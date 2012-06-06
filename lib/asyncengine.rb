@@ -70,9 +70,7 @@ module AsyncEngine
         @_thread = Thread.current
         @_running = true
         pre_run()
-        # TODO: Volver a activar esto cuando se solucione https://github.com/ibc/AsyncEngine/issues/12
-        #next_tick(block)
-        add_timer(0, block)
+        next_tick(block)
         run_uv()
         #puts "DBG: AE.run_uv() exits ok" # TODO
         # run_uv() can exit due:

@@ -24,25 +24,29 @@ static ID method_on_connection_error;
 static ID method_on_data_received;
 static ID method_on_disconnected;
 
+VALUE symbol_closed;
+VALUE symbol_connecting;
+VALUE symbol_connected;
 
-typedef enum {
+
+enum status {
   CONNECTING = 0,
   CONNECTED
-} enum_status;
+};
 
-typedef enum {
+enum flags {
   PAUSED = 1,
   CLOSING_GRACEFULLY,
   CONNECT_TIMEOUT
-} enum_flags;
+};
 
 typedef struct {
   uv_tcp_t *_uv_handle;
   VALUE ae_handle;
   VALUE ae_handle_id;
   enum_ip_type ip_type;
-  enum_status status;
-  int flags;
+  unsigned int status;
+  unsigned int flags;
   enum_string_encoding encoding;
   uv_timer_t *_uv_timer_connect_timeout;
 } struct_cdata;
@@ -125,9 +129,10 @@ void init_ae_tcp()
   rb_define_method(cAsyncEngineTcpSocket, "send_data", AsyncEngineTcpSocket_send_data, -1);
   rb_define_method(cAsyncEngineTcpSocket, "local_address", AsyncEngineTcpSocket_local_address, 0);
   rb_define_method(cAsyncEngineTcpSocket, "peer_address", AsyncEngineTcpSocket_peer_address, 0);
-  rb_define_method(cAsyncEngineTcpSocket, "connected?", AsyncEngineTcpSocket_is_connected, 0);
   rb_define_method(cAsyncEngineTcpSocket, "set_connect_timeout", AsyncEngineTcpSocket_set_connect_timeout, 1);
   rb_define_alias(cAsyncEngineTcpSocket, "connect_timeout=", "set_connect_timeout");
+  rb_define_method(cAsyncEngineTcpSocket, "status", AsyncEngineTcpSocket_status, 0);
+  rb_define_method(cAsyncEngineTcpSocket, "connected?", AsyncEngineTcpSocket_is_connected, 0);
   rb_define_method(cAsyncEngineTcpSocket, "alive?", AsyncEngineTcpSocket_is_alive, 0);
   rb_define_method(cAsyncEngineTcpSocket, "close", AsyncEngineTcpSocket_close, 0);
   rb_define_method(cAsyncEngineTcpSocket, "close_gracefully", AsyncEngineTcpSocket_close_gracefully, -1);
@@ -137,6 +142,10 @@ void init_ae_tcp()
   method_on_connection_error = rb_intern("on_connection_error");
   method_on_data_received = rb_intern("on_data_received");
   method_on_disconnected = rb_intern("on_disconnected");
+
+  symbol_closed = ID2SYM(rb_intern("closed"));
+  symbol_connecting = ID2SYM(rb_intern("connecting"));
+  symbol_connected = ID2SYM(rb_intern("connected"));
 }
 
 
@@ -618,21 +627,6 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
 }
 
 
-/** connected?() method. */
-
-VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
-
-  if (cdata->status == CONNECTED)
-    return Qtrue;
-  else
-    return Qfalse;
-}
-
-
 /** set_connect_timeout() method. */
 
 VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
@@ -693,6 +687,43 @@ void _ae_cancel_timer_connect_timeout(struct_cdata* cdata)
     AE_CLOSE_UV_HANDLE(cdata->_uv_timer_connect_timeout);
     cdata->_uv_timer_connect_timeout = NULL;
   }
+}
+
+
+/** status() method. */
+
+VALUE AsyncEngineTcpSocket_status(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF;
+
+  if (! cdata->_uv_handle)
+    return symbol_closed;
+
+  switch(cdata->status) {
+    case CONNECTING:
+      return symbol_connecting;
+      break;
+    case CONNECTED:
+      return symbol_connected;
+      break;
+  }
+}
+
+
+/** connected?() method. */
+
+VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+
+  if (cdata->status == CONNECTED)
+    return Qtrue;
+  else
+    return Qfalse;
 }
 
 
