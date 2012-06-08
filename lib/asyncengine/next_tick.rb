@@ -1,12 +1,6 @@
 module AsyncEngine
 
-  def self.next_tick pr=nil, &bl
-    check_running()
-
-    @_next_ticks << (pr || bl)
-    _c_next_tick
-  end
-
+  # TODO: si peta un next_tick, los siguientes que había en el array se pierden !
   def self.execute_next_ticks
     ticks, @_next_ticks = @_next_ticks, []
     ticks.each do |cb|
@@ -19,7 +13,6 @@ module AsyncEngine
   end
 
   class << self
-    private :_c_next_tick
     private :execute_next_ticks
   end
 

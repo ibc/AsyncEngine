@@ -3,16 +3,20 @@
 #include "ae_next_tick.h"
 
 
-static uv_idle_t* ae_next_tick_uv_idle;
+static ID att_next_ticks;
 
 static ID method_execute_next_ticks;
+
+static uv_idle_t* ae_next_tick_uv_idle;
 
 
 void init_ae_next_tick(void)
 {
   AE_TRACE();
 
-  rb_define_module_function(mAsyncEngine, "_c_next_tick", AsyncEngine_c_next_tick, 0);
+  rb_define_module_function(mAsyncEngine, "next_tick", AsyncEngine_next_tick, -1);
+
+  att_next_ticks = rb_intern("@_next_ticks");
 
   method_execute_next_ticks = rb_intern("execute_next_ticks");
 
@@ -69,17 +73,34 @@ void _uv_idle_callback(uv_idle_t* handle, int status)
 }
 
 
-VALUE AsyncEngine_c_next_tick(VALUE self)
+void ae_next_tick(VALUE _rb_block)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
-  AE_ASSERT(ae_next_tick_uv_idle != NULL);
+  rb_ary_push(rb_ivar_get(mAsyncEngine, att_next_ticks), _rb_block);
 
-  if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {
-    AE_DEBUG("ae_next_tick_uv_idle is NOT active => uv_idle_start()");
+  if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle))
     uv_idle_start(ae_next_tick_uv_idle, _uv_idle_callback);
-  }
-  else
-    AE_DEBUG("ae_next_tick_uv_idle is active => do nothing");
+}
+
+
+VALUE AsyncEngine_next_tick(int argc, VALUE *argv, VALUE self)
+{
+  AE_TRACE2();
+
+  VALUE _rb_block;
+
+  ae_check_running();
+
+  AE_ASSERT(ae_next_tick_uv_idle != NULL);  // TODO: TMP
+
+  AE_RB_CHECK_NUM_ARGS(0,1);
+  AE_RB_GET_BLOCK_OR_PROC(1, _rb_block);
+
+  if (NIL_P(_rb_block))
+    rb_raise(rb_eArgError, "no block given");
+
+  ae_next_tick(_rb_block);
+
   return Qtrue;
 }
