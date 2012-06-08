@@ -5,12 +5,6 @@
 #define AE_CLOSE_UV_HANDLE(handle)  \
   uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
 
-// TODO: esto lo quitaré y haré que send_data() y send_datagram() devuelvan false y a correr.
-// Get this uv_errno when the socket is not connected.
-#define AE_UV_ERRNO_SOCKET_NOT_CONNECTED  31
-
-#define AE_UV_ERRNO_ETIMEDOUT  40
-
 
 void init_ae_handle_common(void);
 
@@ -35,6 +29,7 @@ VALUE ae_block_call_0(VALUE rb_block);
 VALUE ae_block_call_1(VALUE rb_block, VALUE param);
 
 VALUE ae_execute_in_ruby_land(void* function);
+VALUE ae_safe_run_ruby_function(void* function);
 
 
 #endif  /* AE_HANDLE_COMMON_H */

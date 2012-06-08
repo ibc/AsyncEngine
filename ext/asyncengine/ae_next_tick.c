@@ -25,7 +25,7 @@ void load_ae_next_tick_uv_idle(void)
   AE_TRACE();
 
   if (ae_next_tick_uv_idle) {
-    AE_DEBUG("ae_next_tick_uv_idle == NULL");
+    AE_WARN("ae_next_tick_uv_idle already loaded !!!");
     return;
   }
 
@@ -39,7 +39,7 @@ void unload_ae_next_tick_uv_idle(void)
   AE_TRACE();
 
   if (! ae_next_tick_uv_idle) {
-    AE_DEBUG("ae_next_tick_uv_idle != NULL");
+    AE_WARN("ae_next_tick_uv_idle already unloaded");
     return;
   }
 

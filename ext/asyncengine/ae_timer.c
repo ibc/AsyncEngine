@@ -253,9 +253,6 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 
-  if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
-    uv_timer_stop(cdata->_uv_handle);
-
   destroy(cdata);
   return Qtrue;
 }
@@ -263,7 +260,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 
 VALUE AsyncEngineTimer_destroy(VALUE self)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 

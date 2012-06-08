@@ -333,9 +333,10 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   AE_RB_GET_BLOCK_OR_PROC(4, _rb_block);
 
   GET_CDATA_FROM_SELF;
+  // TODO: If RELEASING don't exec the block.
   if (! cdata->_uv_handle) {
     if (! NIL_P(_rb_block))
-      ae_block_call_1(_rb_block, ae_get_uv_error(AE_UV_ERRNO_SOCKET_NOT_CONNECTED));
+      ae_block_call_1(_rb_block, ae_get_uv_error(UV_ENOTCONN));
     return Qfalse;
   }
 

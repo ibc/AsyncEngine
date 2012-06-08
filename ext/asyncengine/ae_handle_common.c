@@ -170,59 +170,45 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 }
 
 
-// static
-// VALUE execute_function_with_glv_and_rb_protect(function_with_gvl_and_protect function)
-// {
-//   AE_TRACE();
-// 
-//   int exception_tag;
-//   VALUE ret;
-// 
-//   ret = rb_protect(function, Qnil, &exception_tag);
-// 
-//   // If an exception occurred then call AsyncEngine.handle_exception(exception).
-//   if (exception_tag) {
-//     VALUE exception = rb_errinfo();
-//     /*
-//      * Just check the exception in the user provided AE.exception_handler block
-//      * if it is a StandardError or LoadError. Otherwise raise it.
-//      */
-//     if (rb_obj_is_kind_of(exception, rb_eStandardError) == Qtrue ||
-//         rb_obj_is_kind_of(exception, rb_eLoadError) == Qtrue) {
-//       rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
-//       // Dissable the current thread exception.
-//       rb_set_errinfo(Qnil);
-//     }
-//     else
-//       rb_jump_tag(exception_tag);
-//   }
-//   // Otherwise just return the VALUE returned by rb_protec() above.
-//   else
-//     return ret;
-// }
-
-
 static
 VALUE execute_function_with_glv_and_rb_protect(void* function)
 {
   AE_TRACE();
 
-  int exception_tag = 0;
+  int error_tag = 0;
   VALUE ret;
 
-  ret = rb_protect(function, Qnil, &exception_tag);
+  ret = rb_protect(function, Qnil, &error_tag);
+
+  /*
+   * If an exception occurs while in function() it can be due:
+   * 
+   * - An Exception (including SystemExit), this is "rescue-able" via "rescue Exception"
+   *   and will run the "ensure" code if present. In this case rb_errinfo() gets the
+   *   exact Exception object.
+   *
+   * - A Thread#kill. This is NOT "rescue-able" via "rescue Exception" but it WILL run
+   *   the "ensure" code if present. In this case rb_errinfo() returns FIXNUM 8 (it maybe
+   *   different, no idea).
+   *
+   * So, check the class of the object returned by rb_errinfo(). If it's an Exception then
+   * store it, release the loop and raise it. Otherwise (Thread#kill) then don't store the
+   * exception returned by rb_errinfo() and just release the loop. Ruby will do the rest.
+   */
 
   // If an exception occurred then call AsyncEngine.handle_exception(exception).
-  if (exception_tag) {
-    if (exception_tag == 8) AE_WARN("************ exception_tag == 8");
+  if (error_tag) {
+    if (error_tag == 8) AE_WARN("************ error_tag== 8");
 
     VALUE exception = rb_errinfo();
 
-    //printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(exception));
-    //if (exception == INT2FIX(8)) AE_WARN("************ exception == INT2FIX(8)");
+    printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(exception));
 
-    // Dissable the current thread exception.
-    rb_set_errinfo(Qnil);
+    if (rb_obj_is_kind_of(exception, rb_eException) == Qtrue) {
+      // Dissable the current thread exception.
+      rb_set_errinfo(Qnil);
+    }
+//rb_set_errinfo(Qnil);
     // Call AsyncEngine.handle_exception().
     rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
 
@@ -248,4 +234,23 @@ VALUE ae_execute_in_ruby_land(void* function)
   AE_TRACE();
 
   return rb_thread_call_with_gvl(execute_function_with_glv_and_rb_protect, function);
+}
+
+
+/*
+ * Executes the given function using rb_protect() and ignoring any error/exception.
+ * NOTE: This function MUST be called with the GVL.
+ */
+VALUE ae_safe_run_ruby_function(void* function)
+{
+  AE_TRACE2();
+
+  int error_tag;
+
+  rb_protect(function, Qnil, &error_tag);
+
+  if (error_tag) {
+    rb_set_errinfo(Qnil);  // TODO: sure?
+    AE_WARN("error rescued by rb_protect() and ignored while executing the function");
+  }
 }

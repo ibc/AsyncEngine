@@ -22,6 +22,10 @@ module AsyncEngine
 
   @_pid = Process.pid
   @_exception_handler = nil
+  @_handles = {}
+  @_blocks = {}
+  @_next_ticks = []
+  @_exit_exception = nil
   @_mutex_run = Mutex.new
 
   def self.run pr=nil, &bl
@@ -31,14 +35,7 @@ module AsyncEngine
     # NOTE: For now avoid forking.
     raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
 
-    @_handles ||= {}
-    @_blocks ||= {}
-    @_next_ticks ||= []
-    @_exit_exception = nil
-
-    init();
-
-    if @_running
+    if running?()
       if running_thread?
         #puts "NOTICE: AE.run() called while AsyncEngine already running => next_tick(block)"
         next_tick(block)
@@ -53,7 +50,7 @@ module AsyncEngine
       unless clean?
         #release()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
         puts "ERROR: AsyncEngine not running but not clean"
-        #raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
+        raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
       end
     end
 
@@ -62,43 +59,39 @@ module AsyncEngine
       puts "NOTICE: AE.run(): @_mutex_run is locked"
     end
 
-    @_mutex_run.synchronize do
-      ensure_no_handles()  # TODO: for testing
+    #ensure_no_handles()  # TODO: for testing
 
-      released = false
+    @_mutex_run.synchronize do
+      @_thread = Thread.current
       begin
-        @_thread = Thread.current
-        @_running = true
-        pre_run()
-        next_tick(block)
+        init()
+        next_tick(block)  # TODO: I don't like that an interrupt can break this here.
         run_uv()
-        #puts "DBG: AE.run_uv() exits ok" # TODO
-        # run_uv() can exit due:
-        # - UV has no *active* handles so it exits (but it could have inactive handles, i.e. stopped
-        #   timers, so release() function will close them since @_running is still true).
-        # - AE.stop, which also called to release() so @_running is now false.
-        release()  if @_running
-        #puts "DBG: 'AE.release() if @_running' executed"  if @_running  # TODO
-        released = true
+        puts "----------------after run_uv()-------------------------"
+        release()  # Hay que ejecutarlo por si han quedado inactive UV handles (stopped timers).
+        run_uv_release()  # Free de todo por fin.
       ensure
-        release()  unless released
+        puts "----------------ensure code----------------------------"
+        @_blocks.clear
+        @_thread = nil
         ensure_no_handles()  # TODO: for testing
         if @_exit_exception
-          #puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect}), raise it !!!"  # TODO
+          puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect})"  # TODO
           e, @_exit_exception = @_exit_exception, nil
-          raise e
+          # TODO: https://github.com/ibc/AsyncEngine/issues/4
+          # De momento comprobamos que sea Exception...
+          raise e  if e.is_a? Exception
         end
       end
     end  # @_mutex_run.synchronize
   end
 
-  def self.running?
-    !!@_running
-  end
+  # TODO: ya implementada en C
+  def self._release
+    # TODO: Marcar algo aquí, poner AE_status=YOQUESE para no permitir meter más handles!
+    # NO, no hace falta.... eso ya lo hace stop_uv().
 
-  def self.release
     Thread.exclusive do
-      # First clear @_next_ticks since UV idle is the first to run when calling to run_uv_release().
       @_next_ticks.clear
       # Then run #destroy() in every AE handle. It will close the UV handle but will not
       # remote the AE handle from @_handles. This is required since some UV reqs could happen
@@ -111,32 +104,18 @@ module AsyncEngine
           rescue Exception
           end
         end
+        @_handles.clear # TODO: Not cenesary since #destroy will always remove it !
       rescue Exception => e
         @_handles.each_value { |handle| handle.send :destroy  rescue nil }
-        @_exit_exception ||= e
+        @_exit_exception ||= e   # TODO: No, ignoramos todo error en este momento.
       end
-      # Call to run_uv_release() so UV can execute uv_close callbacks and reqs callbacks.
-      #run_uv_release()  # TODO: WHY? this MUST NOT exist!
-      begin
-        @_blocks.clear
-        @_thread = nil
-        @_running = false
-      rescue Exception => e
-        @_blocks.clear
-        @_thread = nil
-        @_running = false
-        @_exit_exception ||= e
-      end
+
+      #@_next_ticks.clear  # TODO: no debe hacer falta!!
     end
   end
 
-  def self.clean?
-    return false  if @_handles.any? or @_blocks.any? or @_next_ticks.any?
-    true
-  end
-
   def self.stop
-    return false  unless ready_for_handles?()
+    return false  unless running?()
 
     if running_thread?
       stop_uv()
@@ -145,7 +124,7 @@ module AsyncEngine
       call_from_other_thread do
         stop_uv()
         release()
-      end if ready_for_handles?()
+      end if running?()
     end
     true
   end
@@ -182,6 +161,12 @@ module AsyncEngine
     end
   end
 
+  # TODO: A la porra!
+  def self.clean?
+    return false  if @_handles.any? or @_blocks.any? or @_next_ticks.any?
+    true
+  end
+
   # TODO: for testing
   def self.ensure_no_handles
     raise AsyncEngine::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() <= 1
@@ -196,26 +181,23 @@ module AsyncEngine
     puts "- AE.running: #{running?}"
     puts "- UV active handles: #{num_uv_active_handles()}"
     puts "- UV active reqs: #{num_uv_active_reqs()}"
-    puts "- @_handles (#{(@_handles ||= {}).size}):\n"
+    puts "- @_handles (#{(@_handles).size}):\n"
       @_handles.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_blocks (#{(@_blocks ||= {}).size}):\n"
+    puts "- @_blocks (#{(@_blocks).size}):\n"
       @_blocks.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_next_ticks (#{(@_next_ticks ||= []).size}):\n"
+    puts "- @_next_ticks (#{(@_next_ticks).size}):\n"
       @_next_ticks[0..10].each {|n| puts "  - #{n.inspect}"}
     puts
   end
 
   class << self
     private :init
-    private :pre_run
     private :run_uv
-    private :run_uv_release
-    private :stop_uv
-    private :ready_for_handles?
-    private :ensure_ready_for_handles
-    private :num_uv_active_handles
     private :release
-    private :clean?
+    private :stop_uv
+    private :check_running
+    private :num_uv_active_handles
+    private :clean?  # TODO: A la porra!
     private :handle_exception
   end
 
