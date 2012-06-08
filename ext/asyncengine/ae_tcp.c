@@ -69,12 +69,9 @@ typedef struct {
 } struct_uv_write_req_data;
 
 struct _uv_write_callback_data {
-  VALUE *on_write_block;
-  int status;
-  // Extra fields:
-  // - Needed to check whether the handle is being destroying not to
-  //   run the write block.
   struct_cdata* cdata;
+  int status;
+  VALUE *on_write_block;
 };
 
 struct _uv_shutdown_callback_data {
@@ -355,7 +352,7 @@ void _uv_connect_callback(uv_connect_t* req, int status)
   }
   // If it's a connection error and uv_is_closing() == 1 it means that the AE handle
   // was closed by the application, so don't close the UV handle again. Otherwise
-  // close the UV handle.
+  // (uv_is_closing() == 0) close the UV handle.
   else if (! uv_is_closing((const uv_handle_t*)_uv_handle)) {
     AE_CLOSE_UV_HANDLE(_uv_handle);
     cdata->_uv_handle = NULL;
@@ -574,11 +571,11 @@ void _uv_write_callback(uv_write_t* req, int status)
   struct_cdata* cdata = (struct_cdata*)_uv_handle->data;
   int has_block = 0;
 
-  // Block was provided so must go to Ruby land (thus don't free the req yet!).
+  // Block was provided so must go to Ruby land.
   if (_uv_write_req_data->on_write_block) {
-    last_uv_write_callback_data.on_write_block = _uv_write_req_data->on_write_block;
-    last_uv_write_callback_data.status = status;
     last_uv_write_callback_data.cdata = cdata;
+    last_uv_write_callback_data.status = status;
+    last_uv_write_callback_data.on_write_block = _uv_write_req_data->on_write_block;
     has_block = 1;
   }
 
@@ -715,10 +712,10 @@ void _ae_cancel_timer_connect_timeout(struct_cdata* cdata)
 {
   AE_TRACE2();
 
-  if (cdata->_uv_timer_connect_timeout) {
-    AE_CLOSE_UV_HANDLE(cdata->_uv_timer_connect_timeout);
-    cdata->_uv_timer_connect_timeout = NULL;
-  }
+  AE_ASSERT(cdata->_uv_timer_connect_timeout != NULL);
+
+  AE_CLOSE_UV_HANDLE(cdata->_uv_timer_connect_timeout);
+  cdata->_uv_timer_connect_timeout = NULL;
 }
 
 
