@@ -37,8 +37,9 @@ enum status {
 enum flags {
   RELEASING = 1 << 1,
   PAUSED = 1 << 2,
-  CLOSING_GRACEFULLY = 1 << 3,
-  CONNECT_TIMEOUT = 1 << 4
+  SHUTDOWN_REQUESTED = 1 << 3,
+  CONNECT_TIMEOUT = 1 << 4,
+  EOF_RECEIVED = 1 << 5
 };
 
 typedef struct {
@@ -339,16 +340,30 @@ void _uv_connect_callback(uv_connect_t* req, int status)
 
   uv_tcp_t* _uv_handle = (uv_tcp_t*)req->handle;
   struct_cdata* cdata = (struct_cdata*)_uv_handle->data;
+  uv_shutdown_t *shutdown_req;
 
   xfree(req);
 
   last_uv_connect_callback_data.cdata = cdata;
   last_uv_connect_callback_data.status = status;
 
+  if (cdata->_uv_timer_connect_timeout)
+    _ae_cancel_timer_connect_timeout(cdata);
+
+  // Connection established.
   if (! status) {
+    // If gracefull close was requested while connecting, do it now.
+    if (cdata->flags & SHUTDOWN_REQUESTED) {
+      AE_ASSERT(! uv_read_stop((uv_stream_t*)cdata->_uv_handle));
+      shutdown_req = ALLOC(uv_shutdown_t);
+      // TODO: Muy bestia?
+      AE_ASSERT(! uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback));
+    }
+    // Otherwise start reading.
+    else
+      AE_ASSERT(! uv_read_start((uv_stream_t*)_uv_handle, _uv_alloc_callback, _uv_read_callback));
+
     cdata->status = CONNECTED;
-    // Start receiving (this will never return error).
-    AE_ASSERT(! uv_read_start((uv_stream_t*)_uv_handle, _uv_alloc_callback, _uv_read_callback));
   }
   // If it's a connection error and uv_is_closing() == 1 it means that the AE handle
   // was closed by the application, so don't close the UV handle again. Otherwise
@@ -357,9 +372,6 @@ void _uv_connect_callback(uv_connect_t* req, int status)
     AE_CLOSE_UV_HANDLE(_uv_handle);
     cdata->_uv_handle = NULL;
   }
-
-  if (cdata->_uv_timer_connect_timeout)
-    _ae_cancel_timer_connect_timeout(cdata);
 
   ae_execute_in_ruby_land(_ae_connect_callback);
 }
@@ -437,6 +449,7 @@ void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
 
   uv_tcp_t *_uv_handle = (uv_tcp_t *)stream;
   struct_cdata* cdata = (struct_cdata*)_uv_handle->data;
+  uv_shutdown_t *shutdown_req;
 
   last_uv_read_callback_data.cdata = cdata;
   last_uv_read_callback_data.nread = nread;
@@ -457,11 +470,27 @@ void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
   else if (nread == -1) {
     if (buf.base)
       xfree(buf.base);
-    // Once the connection is established, if the app calls to uv_close() this tcp_read_callback
-    // could be called with nread=0, but never with nread=-1, so -1 means "network/remote disconnection".
-    AE_CLOSE_UV_HANDLE(_uv_handle);
-    cdata->_uv_handle = NULL;
-    ae_execute_in_ruby_land(_ae_read_callback);
+
+    /*
+     * Once the connection is established, if the app calls to uv_close() this tcp_read_callback
+     * could be called with nread=0, but never with nread=-1, so -1 means "network/remote disconnection".
+     *
+     * If the error is EOF it means that the peer has close its reading but we could still write to it
+     * so instead of closing the handle, call to uv_shutdown() so pending write reqs can terminate. Then
+     * wait to shutdown_cb() for closing the handle.
+     */
+    if (ae_get_last_uv_error_int() == UV_EOF) {
+      // First stop reading (not sure if it's needed, but I don't want to receive a ECONNRESET later).
+      AE_ASSERT(! uv_read_stop((uv_stream_t*)_uv_handle));
+      shutdown_req = ALLOC(uv_shutdown_t);
+      AE_ASSERT(! uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback));
+      cdata->flags |= EOF_RECEIVED;
+    }
+    else {
+      AE_CLOSE_UV_HANDLE(_uv_handle);
+      cdata->_uv_handle = NULL;
+      ae_execute_in_ruby_land(_ae_read_callback);
+    }
   }
   else {
     if (! (cdata->flags & PAUSED))
@@ -512,15 +541,8 @@ VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
   struct_uv_write_req_data* _uv_write_req_data = NULL;
 
   AE_RB_CHECK_NUM_ARGS(1,2);
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_GET_BLOCK_OR_PROC(2, _rb_block);
-
-  GET_CDATA_FROM_SELF;
-  // TODO: If RELEASING don't exec the block.
-  if (! cdata->_uv_handle) {
-    if (! NIL_P(_rb_block))
-      ae_block_call_1(_rb_block, ae_get_uv_error(UV_ENOTCONN));
-    return Qfalse;
-  }
 
   // Parameter 1: data.
   if (TYPE(argv[0]) != T_STRING)
@@ -672,8 +694,9 @@ VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
     rb_raise(rb_eTypeError, "timeout must be a Fixnum or Float");
 
   delay = (long)(NUM2DBL(_rb_timeout) * 1000);
-  if (delay <= 0)
-    delay = 1;
+  // NOTE: Min value is 0.5 seconds.
+  if (delay < 499)
+    delay = 500;
 
   // Init and run the connect timeout timer.
   cdata->_uv_timer_connect_timeout = ALLOC(uv_timer_t);
@@ -697,7 +720,7 @@ void _uv_timer_connect_timeout_callback(uv_timer_t* handle, int status)
 
   struct_cdata* cdata = (struct_cdata*)handle->data;
 
-  AE_ASSERT(cdata->_uv_timer_connect_timeout);
+  AE_ASSERT(cdata->_uv_timer_connect_timeout != NULL);
   _ae_cancel_timer_connect_timeout(cdata);
 
   cdata->flags |= CONNECT_TIMEOUT;
@@ -807,21 +830,22 @@ VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   // Avoid this method to be called twice.
-  if (cdata->flags & CLOSING_GRACEFULLY)
+  if (cdata->flags & SHUTDOWN_REQUESTED)
     return Qfalse;
-
-  shutdown_req = ALLOC(uv_shutdown_t);
 
   // NOTE: If the handle is not connected yet, the uv_shutdown will occur after connection
   // is done (or failed). If it fails, _uv_shutdown_callback() detects it and will not
   // close the UV handle again, neither it will go to Ruby land.
-  if (uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback)) {
-    xfree(shutdown_req);
-    ae_raise_last_uv_error();
+  if (cdata->status == CONNECTED) {
+    AE_ASSERT(! uv_read_stop((uv_stream_t*)cdata->_uv_handle));
+    shutdown_req = ALLOC(uv_shutdown_t);
+    if (uv_shutdown(shutdown_req, (uv_stream_t*)cdata->_uv_handle, _uv_shutdown_callback)) {
+      xfree(shutdown_req);
+      ae_raise_last_uv_error();
+    }
   }
 
-  cdata->flags |= CLOSING_GRACEFULLY;
-  cdata->flags |= PAUSED;  // Avoid incoming data.
+  cdata->flags |= SHUTDOWN_REQUESTED;
 
   return Qtrue;
 }
@@ -861,11 +885,23 @@ VALUE _ae_shutdown_callback(void)
   AE_TRACE2();
 
   struct_cdata* cdata = last_uv_shutdown_callback_data.cdata;
-  VALUE error = Qnil;
+  VALUE error;
 
-  // We must manually call to on_disconnected() callback.
   ae_remove_handle(cdata->ae_handle_id);
-  rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
+
+  /*
+   * We must manually call to on_disconnected() callback.
+   * If the shutdown was requested after receiving EOF from the peer
+   * then give EOF error to the on_disconnected() callback.
+   */
+  if (cdata->flags & EOF_RECEIVED) {
+    error = ae_get_uv_error(UV_EOF);
+    rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
+  }
+  else {
+    error = Qnil;
+    rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
+  }
 
   return Qnil;
 }
@@ -891,10 +927,6 @@ VALUE AsyncEngineTcpSocket_destroy(VALUE self)
 
   cdata->flags |= RELEASING;
 
-  // If it's connected we must manually call to on_disconnected() callback.
-  // TODO: Mierda de si tengo que hacer esto con secure o no...
-  // Pero si al hacer destroy estaba conectando, entonces el error lo captura el AE.exception_handler, que no quiero porque me setea
-  // el @_exit_exception...
   if (cdata->status == CONNECTED) {
     ae_remove_handle(cdata->ae_handle_id);
     rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
