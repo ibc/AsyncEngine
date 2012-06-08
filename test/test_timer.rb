@@ -38,8 +38,10 @@ class TestTimer < AETest
     pt1_ticks = 0
 
     AE.run do
-      pt1 = AE::PeriodicTimer.new(0.01) { pt1_ticks += 1 }
-      AE.add_timer(0.045) { assert_true pt1.cancel }
+      pt1 = AE::PeriodicTimer.new(0.01) do
+        pt1_ticks += 1
+        AE.stop  if pt1_ticks == 4
+      end
     end
 
     assert_equal 4, pt1_ticks
