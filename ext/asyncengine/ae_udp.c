@@ -14,7 +14,7 @@
   if (! cdata->_uv_handle)  \
     return Qfalse;
 
-#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS \
+#define GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN \
   GET_CDATA_FROM_SELF;  \
   ENSURE_UV_HANDLE_EXISTS
 
@@ -330,15 +330,8 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   VALUE _rb_datagram, _rb_ip, _rb_port, _rb_block;
 
   AE_RB_CHECK_NUM_ARGS(3,4);
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_GET_BLOCK_OR_PROC(4, _rb_block);
-
-  GET_CDATA_FROM_SELF;
-  // TODO: If RELEASING don't exec the block.
-  if (! cdata->_uv_handle) {
-    if (! NIL_P(_rb_block))
-      ae_block_call_1(_rb_block, ae_get_uv_error(UV_ENOTCONN));
-    return Qfalse;
-  }
 
   if (! cdata->do_send)
     return Qfalse;
@@ -397,7 +390,7 @@ VALUE AsyncEngineUdpSocket_local_address(VALUE self)
   int len = sizeof(local_addr);
   VALUE _rb_array_ip_port;
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   if (uv_udp_getsockname(cdata->_uv_handle, (struct sockaddr*)&local_addr, &len))
     ae_raise_last_uv_error();
@@ -413,7 +406,7 @@ VALUE AsyncEngineUdpSocket_set_receiving(VALUE self, VALUE allow)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   if (TYPE(allow) == T_TRUE)
     cdata->do_receive = 1;
@@ -428,7 +421,7 @@ VALUE AsyncEngineUdpSocket_is_receiving(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   if (cdata->do_receive)
     return Qtrue;
@@ -441,7 +434,7 @@ VALUE AsyncEngineUdpSocket_set_sending(VALUE self, VALUE allow)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   if (TYPE(allow) == T_TRUE)
     cdata->do_send = 1;
@@ -456,7 +449,7 @@ VALUE AsyncEngineUdpSocket_is_sending(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   if (cdata->do_send)
     return Qtrue;
@@ -469,7 +462,7 @@ VALUE AsyncEngineUdpSocket_pause(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   cdata->do_receive = 0;
   cdata->do_send = 0;
@@ -482,7 +475,7 @@ VALUE AsyncEngineUdpSocket_resume(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   cdata->do_receive = 1;
   cdata->do_send = 1;
@@ -496,7 +489,7 @@ VALUE ae_set_external_encoding(VALUE self, enum_string_encoding encoding)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   cdata->encoding = encoding;
   return Qtrue;
@@ -531,7 +524,7 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   return ae_get_rb_encoding(cdata->encoding);
 }
@@ -542,7 +535,7 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 // {
 //   AE_TRACE();
 // 
-//   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+//   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 // 
 //   if (TYPE(on) == T_TRUE) {
 //     if (uv_udp_set_broadcast(cdata->_uv_handle, 1))
@@ -563,7 +556,7 @@ VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   return Qtrue;
 }
@@ -573,7 +566,7 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   destroy(cdata);
   return Qtrue;
@@ -584,7 +577,7 @@ VALUE AsyncEngineUdpSocket_destroy(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   destroy(cdata);
   return Qtrue;
