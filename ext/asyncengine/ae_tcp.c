@@ -694,9 +694,8 @@ VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
     rb_raise(rb_eTypeError, "timeout must be a Fixnum or Float");
 
   delay = (long)(NUM2DBL(_rb_timeout) * 1000);
-  // NOTE: Min value is 0.5 seconds.
-  if (delay < 499)
-    delay = 500;
+  if (delay < 1)
+    delay = 1;
 
   // Init and run the connect timeout timer.
   cdata->_uv_timer_connect_timeout = ALLOC(uv_timer_t);
