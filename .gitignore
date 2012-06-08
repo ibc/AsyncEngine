@@ -13,6 +13,7 @@ ext/asyncengine/*.o
 ext/asyncengine/*.a
 ext/asyncengine/mkmf.log
 ext/asyncengine/*.OLD
+ext/asyncengine/OLD/
 
 lib/asyncengine/*.so
 lib/asyncengine/*.OLD
