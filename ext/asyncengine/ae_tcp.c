@@ -181,7 +181,6 @@ void AsyncEngineTcpSocket_free(struct_cdata* cdata)
  * - bind IP (String or Nil) (optional).
  * - bind port (Fixnum or Nil) (optional).
  */
-
 VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();

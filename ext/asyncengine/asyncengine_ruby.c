@@ -9,23 +9,30 @@
 #include "ae_tcp.h"
 
 
-
+static ID att_thread;
 static ID att_handles;
 static ID att_blocks;
 static ID att_next_ticks;
+
 static ID const_UV_ERRNOS;
 
 static ID method_destroy;
 static ID method_clear;
+static ID method_next_tick;
 
 enum status {
   STOPPED = 1,
-  STARTING,
-  STARTED,
-  RELEASING
+  STARTING = 2,
+  STARTED = 3,
+  RELEASING = 4
 };
 
 static enum status AE_status;
+
+
+/** Pre-declaration of static functions. */
+
+static void ae_release_loop(void);
 
 
 // TODO: Temporal function for debugging purposes, since loop->active_handles
@@ -79,29 +86,6 @@ VALUE AsyncEngine_num_uv_active_reqs(VALUE self)
 }
 
 
-VALUE AsyncEngine_init(VALUE self)
-{
-  AE_TRACE();
-
-  AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
-  AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
-  // NOTE: AE_next_ticks cannot be loaded here since its value is changed in runtime.
-
-  AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
-
-  /* Set the UV loop. */
-  AE_uv_loop = uv_default_loop();
-
-  /* Initial status and flags. */
-  AE_status = STARTING;
-
-  /* Load the UV idle (next tick) now. */
-  load_ae_next_tick_uv_idle();
-
-  return Qtrue;
-}
-
-
 static
 void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
@@ -147,100 +131,162 @@ VALUE run_uv_without_gvl(void)
 {
   AE_TRACE();
 
-  // TODO: for testing.
-  AE_ASSERT(AE_status == STARTING);
+  uv_run(AE_uv_loop);
+}
+
+
+VALUE AsyncEngine_run_loop(VALUE self, VALUE _rb_block)
+{
+  AE_TRACE2();
+
+  // TODO: To find a crash in bugs.rb. But in fact the problem is that we MUST NOT
+  // allow being here if AE_status != STOPPED. In that case let's raise and that's all.
+  switch(AE_status) {
+    case STOPPED:
+      break;
+    case STARTING:
+      AE_WARN("AE_status is STARTING, abort !!!");
+      break;
+    case STARTED:
+      AE_WARN("AE_status is STARTED, abort !!!");
+      break;
+    case RELEASING:
+      AE_WARN("AE_status is RELEASING, abort !!!");
+      break;
+  }
+  AE_ASSERT(AE_status == STOPPED);
+
+  // Set the @_thread attribute and store it.
+  rb_ivar_set(mAsyncEngine, att_thread, rb_thread_current());
+  AE_thread = rb_thread_current();  // TODO: Needed?
+
+  // Get the VALUEs for @_handles and @_blocks (faster).
+  // NOTE: AE_next_ticks cannot be loaded here since its value is changed in runtime.
+  AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
+  AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
+
+  AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
+
+  /* Set the UV loop. */
+  AE_uv_loop = uv_default_loop();
+
+  /* Initial status and flags. */
+  AE_status = STARTING;
+
+  /* Load the UV idle (next tick) now. */
+  load_ae_next_tick_uv_idle();
+
+  /* Pass the given block to the reactor via next_tick. */
+  rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_block);
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
   AE_DEBUG("UV loop starts...");
-
-  //while((! (AE_flags & DO_STOP)) && uv_run_once(AE_uv_loop)) {
-  //printf("***** ae_uv_num_active_handlers = %d,  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_handlers(), ae_uv_num_active_reqs());
-  //};
-  uv_run(AE_uv_loop);
-
+  rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_ubf, NULL);
   AE_DEBUG("UV loop terminates");
+
+    // TODO: for testing.
+  AE_ASSERT(ae_uv_num_active_handlers() == 0);
+  AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
   /* Close the UV idle (next tick) now. */
   unload_ae_next_tick_uv_idle();
 
-  AE_status = RELEASING;
+  /*
+   * uv_run() has exited due to one of the following reasons:
+   * 
+   * - The app called AE.stop which, in the end, calls to ae_release_loop(), so
+   *   right now all the handles have been destroyed and freed.
+   * - Some non ignored/trapped exception or signal ocurred so the exception manager
+   *   stored it and called ae_release_loop(), so same case.
+   * - There are no more active UV handles. In this case there could be, still, inactive
+   *   UV handles (and therefore AE handles) so we need to call ae_release_loop() to clean
+   *   them.
+   *
+   * To simplify, let's always call to ae_release_loop() so we are done (there is no problem
+   * in calling it twice).
+   */
+  ae_release_loop();
 
-  // TODO: for testing.
-  AE_ASSERT(ae_uv_num_active_reqs() == 0);
-  AE_ASSERT(ae_uv_num_active_handlers() == 0);
+  /*
+   * After calling to ae_release_loop() all the handles has been closed/destroyed, but we
+   * need to run uv_run() to free them.
+   */
+  AE_DEBUG("UV loop for free-ing remaining handles starts...");
+  rb_thread_call_without_gvl(run_uv_without_gvl, NULL, NULL, NULL);
+  AE_DEBUG("UV loop for free-ing remaining handles terminates");
 
-  return Qtrue;
-}
+  // Now yes, set the status to CLOSED.
+  AE_status = STOPPED;
 
+  // Unset the AE_uv_loop.
+  AE_uv_loop = NULL;
 
-VALUE AsyncEngine_run_uv(VALUE self)
-{
-  AE_TRACE();
-
-  rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_ubf, NULL);
-
-  AE_DEBUG("function terminates");
+  // Unset the @_thread attribute.
+  rb_ivar_set(mAsyncEngine, att_thread, Qnil);
+  AE_thread = Qnil;  // TODO: Needed?
 
   return Qtrue;
 }
 
 
 static
-VALUE run_uv_release_without_gvl(void)
+VALUE destroy_handle_with_rb_protect(VALUE handle)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
-  // TODO: Ñapa temporal para que no se ejecute esto dos veces, mierdas del .rb.
-  // TODO: No funciona !!! sigue cascando por poner abajo AE_uv_loop = NULL.
-  if (AE_status == STOPPED) {
-    AE_ABORT("AE_status == STOPPED !!!!!!");
-    return Qnil;
-  }
-
-  /* There MUST NOT be UV active handles at this time, we enter here just to
-   * iterate once for freeing closed UV handles not freed yet (i.e. stopped timers
-   * which let uv_run() to exit).
-   */
-  // TODO: Pues sí que hay en los test units !!!
-  //AE_ASSERT(ae_uv_num_active_handlers() == 0);
-
-  // TODO: for testing.
-  int num_active_reqs = ae_uv_num_active_reqs();
-  if (num_active_reqs)
-    printf("WARN: run_uv_release_without_gvl():  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_reqs());
-
-  /* Run UV loop (it blocks if there were handles in the given block). */
-  AE_DEBUG("uv_run() starts...");
-  uv_run(AE_uv_loop);
-  AE_DEBUG("uv_run() terminates");
-
-  // TODO: for testing.
-  AE_ASSERT(ae_uv_num_active_handlers() == 0);
-  AE_ASSERT(ae_uv_num_active_reqs() == 0);
-
-  AE_status = STOPPED;
-  // TODO: Si pongo esto a NULL peta pero bien.
-  // Ocurre porque se llama dos veces a AE.release() y la segunda encuentra esto a NULL !!!
-  // Solucionado mirando arriba que AE_status no sea RELEASING, aunque es ñapa...
-  // TODO: No, sigue cascando pero bien...
-  AE_uv_loop = NULL;
-
-  return Qtrue;
+  rb_funcall2(handle, method_destroy, 0, NULL);
+  return Qnil;
 }
 
 
-/*
- * This method is called in the _ensure_ block of AsyncEngine.run() method
- * after AsyncEngine.destroy_ae_handles() to cause a single UV iteration in order
- * to invoke all the uv_close callbacks and free() the uv_handles.
- */
-VALUE AsyncEngine_run_uv_release(VALUE self)
+static
+int destroy_handle(VALUE key, VALUE handle, VALUE in)
 {
-  AE_TRACE();
+  AE_TRACE2();
 
-  rb_thread_call_without_gvl(run_uv_release_without_gvl, NULL, NULL, NULL);
+  int error_tag;
+
+  rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
+  if (error_tag) {
+    rb_set_errinfo(Qnil);  // TODO: sure?
+    AE_WARN("************* error rescued (rb_protect() while destroying the handle");
+  }
+
+  return 0;
+}
+
+
+static
+void ae_release_loop(void)
+{
+  AE_TRACE2();
+
+  // No more handles can be created now.
+  AE_status = RELEASING;
+
+  // Clear next_ticks.
+  rb_ary_clear(rb_ivar_get(mAsyncEngine, att_next_ticks));
+
+  /*
+   * Run #destroy() for each existing AE handle. Note that #destroy() method
+   * is called safely in every AE handle by ignoring any exception/error.
+   * */
+  rb_hash_foreach(AE_handles, destroy_handle, Qnil);
+
+  // Clear blocks.
+  // TODO: Probably this would cause some "error" when some callback try to get
+  // its block... it should not happen anyhow.
+  rb_funcall2(AE_blocks, method_clear, 0, NULL);
+}
+
+
+VALUE AsyncEngine_release_loop(VALUE self)
+{
+  AE_TRACE2();
+
+  ae_release_loop();
 
   return Qtrue;
 }
@@ -284,49 +330,6 @@ VALUE AsyncEngine_check_running(VALUE self)
 }
 
 
-static
-VALUE destroy_handle_with_rb_protect(VALUE handle)
-{
-  AE_TRACE2();
-
-  rb_funcall2(handle, method_destroy, 0, NULL);
-  return Qnil;
-}
-
-
-static
-int destroy_handle(VALUE key, VALUE handle, VALUE in)
-{
-  AE_TRACE2();
-
-  int error_tag;
-
-  rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
-  if (error_tag) {
-    rb_set_errinfo(Qnil);  // TODO: sure?
-    AE_WARN("************* error rescued (rb_protect() while destroying the handle");
-  }
-
-  return 0;
-}
-
-
-VALUE AsyncEngine_release(VALUE self)
-{
-  AE_TRACE2();
-
-  VALUE size;
-
-  // Clear next_ticks.
-  rb_ary_clear(rb_ivar_get(mAsyncEngine, att_next_ticks));
-
-  // Run #destroy() for each existing AE handle.
-  rb_hash_foreach(AE_handles, destroy_handle, Qnil);
-
-  return Qtrue;
-}
-
-
 
 void Init_asyncengine_ext()
 {
@@ -336,15 +339,14 @@ void Init_asyncengine_ext()
   cAsyncEngineHandle = rb_define_class_under(mAsyncEngine, "Handle", rb_cObject);
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
 
-  rb_define_module_function(mAsyncEngine, "init", AsyncEngine_init, 0);
-  rb_define_module_function(mAsyncEngine, "run_uv", AsyncEngine_run_uv, 0);
-  rb_define_module_function(mAsyncEngine, "release", AsyncEngine_release, 0);
-  rb_define_module_function(mAsyncEngine, "run_uv_release", AsyncEngine_run_uv_release, 0);
+  rb_define_module_function(mAsyncEngine, "run_loop", AsyncEngine_run_loop, 1);
+  rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "check_running", AsyncEngine_check_running, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_reqs", AsyncEngine_num_uv_active_reqs, 0);
 
+  att_thread = rb_intern("@_thread");
   att_handles = rb_intern("@_handles");
   att_blocks = rb_intern("@_blocks");
   att_next_ticks = rb_intern("@_next_ticks");
@@ -352,6 +354,7 @@ void Init_asyncengine_ext()
 
   method_destroy = rb_intern("destroy");
   method_clear = rb_intern("clear");
+  method_next_tick = rb_intern("next_tick");
 
   init_ae_handle_common();
   init_ae_utils();

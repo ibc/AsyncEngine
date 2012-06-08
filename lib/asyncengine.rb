@@ -48,80 +48,43 @@ module AsyncEngine
       return nil
     else
       unless clean?
-        #release()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
+        #release_loop()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
         puts "ERROR: AsyncEngine not running but not clean"
         raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
       end
     end
 
     # TODO: debug
-    if @_mutex_run.locked?
-      puts "NOTICE: AE.run(): @_mutex_run is locked"
-    end
+#     if @_mutex_run.locked?
+#       puts "NOTICE: AE.run(): @_mutex_run is locked"
+#     end
 
-    #ensure_no_handles()  # TODO: for testing
+    #@_mutex_run.synchronize do
+      #ensure_no_handles()  # TODO: for testing
+      run_loop(block)
 
-    @_mutex_run.synchronize do
-      @_thread = Thread.current
-      begin
-        init()
-        next_tick(block)  # TODO: I don't like that an interrupt can break this here.
-        run_uv()
-        puts "----------------after run_uv()-------------------------"
-        release()  # Hay que ejecutarlo por si han quedado inactive UV handles (stopped timers).
-        run_uv_release()  # Free de todo por fin.
-      ensure
-        puts "----------------ensure code----------------------------"
-        @_blocks.clear
-        @_thread = nil
-        if @_exit_exception
-          puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect})"  # TODO
-          e, @_exit_exception = @_exit_exception, nil
-          # TODO: https://github.com/ibc/AsyncEngine/issues/4
-          # De momento comprobamos que sea Exception...
-          raise e  if e.is_a? Exception
-        end
+      if @_exit_exception
+        puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect})"  # TODO
+        e, @_exit_exception = @_exit_exception, nil
+        # TODO: https://github.com/ibc/AsyncEngine/issues/4
+        # De momento comprobamos que sea Exception...
+        raise e  if e.is_a? Exception
       end
-    end  # @_mutex_run.synchronize
+    #end  # @_mutex_run.synchronize
 
     ensure_no_handles()  # TODO: for testing
 
     return true
   end
 
-  # TODO: ya implementada en C
-  def self._release
-    Thread.exclusive do
-      @_next_ticks.clear
-      # Then run #destroy() in every AE handle. It will close the UV handle but will not
-      # remote the AE handle from @_handles. This is required since some UV reqs could happen
-      # later during run_uv_release() and would try to access to the AE handle that should not be
-      # GC'd yet.
-      begin
-        @_handles.each_value do |handle|
-          begin
-            handle.send :destroy
-          rescue Exception
-          end
-        end
-        @_handles.clear # TODO: Not cenesary since #destroy will always remove it !
-      rescue Exception => e
-        @_handles.each_value { |handle| handle.send :destroy  rescue nil }
-        @_exit_exception ||= e   # TODO: No, ignoramos todo error en este momento.
-      end
-
-      #@_next_ticks.clear  # TODO: no debe hacer falta!!
-    end
-  end
-
   def self.stop
     return false  unless running?()
 
     if running_thread?
-      release()
+      release_loop()
     else
       call_from_other_thread do
-        release()
+        release_loop()
       end if running?()
     end
     true
@@ -149,13 +112,13 @@ module AsyncEngine
       rescue Exception => e2
         puts "ERROR: exception #{e2.inspect} during AE.handle_exception(#{e.inspect}) (with exception_handler defined by user)"  # TODO: debug
         @_exit_exception = e2
-        release()
+        release_loop()
       end
     else
       # TODO: sometimes I get (e = Fixnum: 8) again: https://github.com/ibc/AsyncEngine/issues/4
       #puts "WARN: AE.handle_exception(#{e.inspect}) (no exception_handler defined by user)"
       @_exit_exception = e
-      release()
+      release_loop()
     end
   end
 
@@ -189,9 +152,8 @@ module AsyncEngine
   end
 
   class << self
-    private :init
-    private :run_uv
-    private :release
+    private :run_loop
+    private :release_loop
     private :check_running
     private :num_uv_active_handles
     private :clean?  # TODO: A la porra!

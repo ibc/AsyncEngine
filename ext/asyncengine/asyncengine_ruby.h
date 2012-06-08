@@ -13,8 +13,8 @@ VALUE cAsyncEngineHandle;
 VALUE eAsyncEngineError;
 
 uv_loop_t *AE_uv_loop;
-ngx_queue_t AE_handles_q;  // TODO: fuera
 
+VALUE AE_thread;  // TODO: Needed?
 VALUE AE_handles;
 VALUE AE_blocks;
 VALUE AE_UV_ERRNOS;
