@@ -74,7 +74,6 @@ module AsyncEngine
         puts "----------------ensure code----------------------------"
         @_blocks.clear
         @_thread = nil
-        ensure_no_handles()  # TODO: for testing
         if @_exit_exception
           puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect})"  # TODO
           e, @_exit_exception = @_exit_exception, nil
@@ -84,13 +83,14 @@ module AsyncEngine
         end
       end
     end  # @_mutex_run.synchronize
+
+    ensure_no_handles()  # TODO: for testing
+
+    return true
   end
 
   # TODO: ya implementada en C
   def self._release
-    # TODO: Marcar algo aquí, poner AE_status=YOQUESE para no permitir meter más handles!
-    # NO, no hace falta.... eso ya lo hace stop_uv().
-
     Thread.exclusive do
       @_next_ticks.clear
       # Then run #destroy() in every AE handle. It will close the UV handle but will not
@@ -118,11 +118,9 @@ module AsyncEngine
     return false  unless running?()
 
     if running_thread?
-      stop_uv()
       release()
     else
       call_from_other_thread do
-        stop_uv()
         release()
       end if running?()
     end
@@ -194,7 +192,6 @@ module AsyncEngine
     private :init
     private :run_uv
     private :release
-    private :stop_uv
     private :check_running
     private :num_uv_active_handles
     private :clean?  # TODO: A la porra!

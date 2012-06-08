@@ -18,11 +18,6 @@ static ID const_UV_ERRNOS;
 static ID method_destroy;
 static ID method_clear;
 
-
-static int is_ready_for_handles;
-static int do_stop;
-
-
 enum status {
   STOPPED = 1,
   STARTING,
@@ -30,12 +25,7 @@ enum status {
   RELEASING
 };
 
-enum flags {
-  DO_STOP = 1 << 1
-};
-
 static enum status AE_status;
-static enum flags AE_flags;
 
 
 // TODO: Temporal function for debugging purposes, since loop->active_handles
@@ -104,7 +94,6 @@ VALUE AsyncEngine_init(VALUE self)
 
   /* Initial status and flags. */
   AE_status = STARTING;
-  AE_flags = 0;
 
   /* Load the UV idle (next tick) now. */
   load_ae_next_tick_uv_idle();
@@ -159,18 +148,17 @@ VALUE run_uv_without_gvl(void)
   AE_TRACE();
 
   // TODO: for testing.
-  AE_ASSERT(! (AE_flags & DO_STOP));
+  AE_ASSERT(AE_status == STARTING);
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
-  /* Run UV loop until there are no more active handles or do_stop
-   * has been set to 1 (by AsyncEngine.stop). */
   AE_DEBUG("UV loop starts...");
 
-  while((! (AE_flags & DO_STOP)) && uv_run_once(AE_uv_loop)) {
+  //while((! (AE_flags & DO_STOP)) && uv_run_once(AE_uv_loop)) {
   //printf("***** ae_uv_num_active_handlers = %d,  ae_uv_num_active_reqs = %d\n", ae_uv_num_active_handlers(), ae_uv_num_active_reqs());
-  };
+  //};
+  uv_run(AE_uv_loop);
 
   AE_DEBUG("UV loop terminates");
 
@@ -178,7 +166,6 @@ VALUE run_uv_without_gvl(void)
   unload_ae_next_tick_uv_idle();
 
   AE_status = RELEASING;
-  AE_flags = 0;
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
@@ -259,20 +246,12 @@ VALUE AsyncEngine_run_uv_release(VALUE self)
 }
 
 
-VALUE AsyncEngine_stop_uv(VALUE self)
-{
-  AE_TRACE();
-
-  AE_flags |= DO_STOP;
-}
-
-
 static
 int ae_is_running(void)
 {
   AE_TRACE();
 
-  return ((AE_status == STARTED || AE_status == STARTING) && ! (AE_flags & DO_STOP));
+  return (AE_status == STARTED || AE_status == STARTING);
 }
 
 
@@ -361,7 +340,6 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "run_uv", AsyncEngine_run_uv, 0);
   rb_define_module_function(mAsyncEngine, "release", AsyncEngine_release, 0);
   rb_define_module_function(mAsyncEngine, "run_uv_release", AsyncEngine_run_uv_release, 0);
-  rb_define_module_function(mAsyncEngine, "stop_uv", AsyncEngine_stop_uv, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "check_running", AsyncEngine_check_running, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
@@ -386,6 +364,5 @@ void Init_asyncengine_ext()
   init_ae_tcp();
 
   AE_status = STOPPED;
-  AE_flags = 0;
   AE_uv_loop = NULL;
 }
