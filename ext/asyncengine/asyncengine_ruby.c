@@ -9,7 +9,8 @@
 #include "ae_tcp.h"
 
 
-static ID att_thread;
+static VALUE AE_thread;
+
 static ID att_handles;
 static ID att_blocks;
 static ID att_next_ticks;
@@ -19,20 +20,24 @@ static ID const_UV_ERRNOS;
 static ID method_destroy;
 static ID method_clear;
 static ID method_next_tick;
+static ID method_call_from_other_thread;
 
 enum status {
   STOPPED = 1,
-  STARTING = 2,
-  STARTED = 3,
-  RELEASING = 4
+  RUNNING = 2,
+  RELEASING = 3
 };
 
 static enum status AE_status;
 
+static uv_mutex_t AE_mutex;
+static int ae_mutex_locked;
 
-/** Pre-declaration of static functions. */
+
+/** Pre-declaration of static functions. TODO: Add more and so... */
 
 static void ae_release_loop(void);
+static int ae_is_running_thread(void);
 
 
 // TODO: Temporal function for debugging purposes, since loop->active_handles
@@ -91,7 +96,7 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
   AE_TRACE2();
 
-  //printf("*** ae_ubf_uv_async_callback(): AE_status: %d, AE_uv_loop: %ld\n", AE_status, AE_uv_loop);
+  // TODO: Exit if RELEASING, creo.
 
   // TODO: testing, can be error?
   AE_ASSERT(! status);
@@ -107,6 +112,10 @@ static
 void ae_ubf(void)
 {
   AE_TRACE2();
+
+  // TODO: test...
+  if (AE_status == RELEASING)
+    return;
 
   //printf("*** ae_ubf(): AE_status: %d, AE_uv_loop: %ld\n", AE_status, AE_uv_loop);
   /*
@@ -126,6 +135,19 @@ void ae_ubf(void)
 }
 
 
+static ae_mutex_ubf(void)
+{
+  AE_TRACE2();
+
+  if (ae_mutex_locked == 1) {
+    AE_DEBUG2("AE_mutex releasing...");
+    uv_mutex_unlock(&AE_mutex);
+    ae_mutex_locked = 0;
+    AE_DEBUG2("AE_mutex released");
+  }
+}
+
+
 static
 VALUE run_uv_without_gvl(void)
 {
@@ -135,29 +157,54 @@ VALUE run_uv_without_gvl(void)
 }
 
 
-VALUE AsyncEngine_run_loop(VALUE self, VALUE _rb_block)
+VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
 
-  // TODO: To find a crash in bugs.rb. But in fact the problem is that we MUST NOT
-  // allow being here if AE_status != STOPPED. In that case let's raise and that's all.
-  switch(AE_status) {
-    case STOPPED:
-      break;
-    case STARTING:
-      AE_WARN("AE_status is STARTING, abort !!!");
-      break;
-    case STARTED:
-      AE_WARN("AE_status is STARTED, abort !!!");
-      break;
-    case RELEASING:
-      AE_WARN("AE_status is RELEASING, abort !!!");
-      break;
-  }
-  AE_ASSERT(AE_status == STOPPED);
+  VALUE _rb_block;
 
-  // Set the @_thread attribute and store it.
-  rb_ivar_set(mAsyncEngine, att_thread, rb_thread_current());
+  AE_RB_CHECK_NUM_ARGS(0,1);
+  AE_RB_GET_BLOCK_OR_PROC(1, _rb_block);
+
+  if (NIL_P(_rb_block))
+    rb_raise(rb_eArgError, "no block given");
+
+  // TODO: Check process (and set  @_pid = nil when terminating the loop).
+  // raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
+
+  // If already running pass the block to the reactor.
+  if (AE_status == RUNNING) {
+    if (ae_is_running_thread())
+      rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_block);
+    else
+      rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &_rb_block);
+    return Qtrue;
+  }
+
+  // Acquire the mutex lock (this avoid entering here when AE_status is still
+  // RELEASING.
+  // TODO: I should first leave the GVL !!! so call this with rb_thread_call_without_gvl.
+  //uv_mutex_lock(&AE_mutex);
+  AE_DEBUG2("AE_mutex acquiring...");
+  //rb_thread_call_without_gvl(uv_mutex_lock, &AE_mutex, NULL, NULL);
+  rb_thread_call_without_gvl(uv_mutex_lock, &AE_mutex, ae_mutex_ubf, NULL);
+  ae_mutex_locked = 1;
+  AE_DEBUG2("AE_mutex acquired");
+
+  // TODO: To find a crash in bugs.rb. But in fact the problem is that we MUST NOT
+  // allow being here if AE_status != STOPPED. In that case let's raise and that's all or wait (mutex?).
+  if (AE_status == RELEASING) {
+    AE_ABORT("AE_status is RELEASING, abort !!!");
+  }
+  //AE_ASSERT(AE_status == STOPPED);
+
+    /* Set the UV loop. */
+  AE_uv_loop = uv_default_loop();
+
+  /* Initial status and flags. */
+  AE_status = RUNNING;
+
+  // Mark current thread as AE thread.
   AE_thread = rb_thread_current();  // TODO: Needed?
 
   // Get the VALUEs for @_handles and @_blocks (faster).
@@ -166,12 +213,6 @@ VALUE AsyncEngine_run_loop(VALUE self, VALUE _rb_block)
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
 
   AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
-
-  /* Set the UV loop. */
-  AE_uv_loop = uv_default_loop();
-
-  /* Initial status and flags. */
-  AE_status = STARTING;
 
   /* Load the UV idle (next tick) now. */
   load_ae_next_tick_uv_idle();
@@ -217,15 +258,21 @@ VALUE AsyncEngine_run_loop(VALUE self, VALUE _rb_block)
   rb_thread_call_without_gvl(run_uv_without_gvl, NULL, NULL, NULL);
   AE_DEBUG("UV loop for free-ing remaining handles terminates");
 
-  // Now yes, set the status to CLOSED.
-  AE_status = STOPPED;
-
   // Unset the AE_uv_loop.
   AE_uv_loop = NULL;
 
-  // Unset the @_thread attribute.
-  rb_ivar_set(mAsyncEngine, att_thread, Qnil);
-  AE_thread = Qnil;  // TODO: Needed?
+  AE_thread = Qnil;
+
+  // Now yes, set the status to CLOSED.
+  AE_status = STOPPED;
+
+  // Release the mutex lock (unless it was released by ae_mutex_ubf() function).
+  if (ae_mutex_locked == 1) {
+    AE_DEBUG2("AE_mutex releasing...");
+    rb_thread_call_without_gvl(uv_mutex_unlock, &AE_mutex, NULL, NULL);
+    ae_mutex_locked = 0;
+    AE_DEBUG2("AE_mutex released");
+  }
 
   return Qtrue;
 }
@@ -297,7 +344,7 @@ int ae_is_running(void)
 {
   AE_TRACE();
 
-  return (AE_status == STARTED || AE_status == STARTING);
+  return (AE_status == RUNNING);
 }
 
 
@@ -305,10 +352,24 @@ VALUE AsyncEngine_is_running(VALUE self)
 {
   AE_TRACE();
 
-  if (ae_is_running())
-    return Qtrue;
-  else
-    return Qfalse;
+  return (ae_is_running() ? Qtrue : Qfalse);
+}
+
+
+static
+int ae_is_running_thread(void)
+{
+  AE_TRACE();
+
+  return (rb_thread_current() == AE_thread ? 1 : 0);
+}
+
+
+VALUE AsyncEngine_is_running_thread(VALUE self)
+{
+  AE_TRACE();
+
+  return (ae_is_running_thread() ? Qtrue : Qfalse);
 }
 
 
@@ -339,14 +400,14 @@ void Init_asyncengine_ext()
   cAsyncEngineHandle = rb_define_class_under(mAsyncEngine, "Handle", rb_cObject);
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
 
-  rb_define_module_function(mAsyncEngine, "run_loop", AsyncEngine_run_loop, 1);
+  rb_define_module_function(mAsyncEngine, "run_loop", AsyncEngine_run_loop, -1);
   rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
+  rb_define_module_function(mAsyncEngine, "running_thread?", AsyncEngine_is_running_thread, 0);
   rb_define_module_function(mAsyncEngine, "check_running", AsyncEngine_check_running, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_reqs", AsyncEngine_num_uv_active_reqs, 0);
 
-  att_thread = rb_intern("@_thread");
   att_handles = rb_intern("@_handles");
   att_blocks = rb_intern("@_blocks");
   att_next_ticks = rb_intern("@_next_ticks");
@@ -355,6 +416,7 @@ void Init_asyncengine_ext()
   method_destroy = rb_intern("destroy");
   method_clear = rb_intern("clear");
   method_next_tick = rb_intern("next_tick");
+  method_call_from_other_thread = rb_intern("call_from_other_thread");
 
   init_ae_handle_common();
   init_ae_utils();
@@ -368,4 +430,8 @@ void Init_asyncengine_ext()
 
   AE_status = STOPPED;
   AE_uv_loop = NULL;
+
+  // Init the mutex.
+  AE_ASSERT(! uv_mutex_init(&AE_mutex));
+  ae_mutex_locked = 0;
 }

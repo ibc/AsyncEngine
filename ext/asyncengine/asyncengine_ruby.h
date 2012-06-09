@@ -14,7 +14,6 @@ VALUE eAsyncEngineError;
 
 uv_loop_t *AE_uv_loop;
 
-VALUE AE_thread;  // TODO: Needed?
 VALUE AE_handles;
 VALUE AE_blocks;
 VALUE AE_UV_ERRNOS;

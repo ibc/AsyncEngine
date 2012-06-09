@@ -29,31 +29,6 @@ module AsyncEngine
   @_mutex_run = Mutex.new
 
   def self.run pr=nil, &bl
-    raise ArgumentError, "no block given"  unless (block = pr || bl)
-    raise ArgumentError, "not a block or Proc"  unless block.is_a? Proc
-
-    # NOTE: For now avoid forking.
-    raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
-
-    if running?()
-      if running_thread?
-        #puts "NOTICE: AE.run() called while AsyncEngine already running => next_tick(block)"
-        next_tick(block)
-      else
-        #puts "NOTICE: AE.run() called while AsyncEngine already running => call_from_other_thread(block)"
-        call_from_other_thread(block)
-      end
-      # Return nil, which tells the user that the block has been integrated in the
-      # already existing AsyncEngine reactor.
-      return nil
-    else
-      unless clean?
-        #release_loop()  # TODO: Shuldn't but I've seen a case. Maybe let it? (be polite).
-        puts "ERROR: AsyncEngine not running but not clean"
-        raise AsyncEngine::Error, "AsyncEngine not running but not clean, wait a bit"
-      end
-    end
-
     # TODO: debug
 #     if @_mutex_run.locked?
 #       puts "NOTICE: AE.run(): @_mutex_run is locked"
@@ -61,7 +36,7 @@ module AsyncEngine
 
     #@_mutex_run.synchronize do
       #ensure_no_handles()  # TODO: for testing
-      run_loop(block)
+      run_loop(pr || bl)
 
       if @_exit_exception
         puts "WARN: AE.run: there is @_exit_exception (#{@_exit_exception.inspect})"  # TODO
@@ -72,7 +47,7 @@ module AsyncEngine
       end
     #end  # @_mutex_run.synchronize
 
-    ensure_no_handles()  # TODO: for testing
+    ensure_no_handles()  unless AE.running? # TODO: for testing
 
     return true
   end
@@ -81,7 +56,9 @@ module AsyncEngine
     return false  unless running?()
 
     if running_thread?
-      release_loop()
+      #next_tick do
+        release_loop()
+      #end
     else
       call_from_other_thread do
         release_loop()
@@ -90,7 +67,7 @@ module AsyncEngine
     true
   end
 
-  def self.running_thread?
+  def self._running_thread?
     Thread.current == @_thread
   end
 
