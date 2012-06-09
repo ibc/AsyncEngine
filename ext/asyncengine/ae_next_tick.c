@@ -75,7 +75,7 @@ void _uv_idle_callback(uv_idle_t* handle, int status)
 
 void ae_next_tick(VALUE _rb_block)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   rb_ary_push(rb_ivar_get(mAsyncEngine, att_next_ticks), _rb_block);
 
@@ -86,7 +86,7 @@ void ae_next_tick(VALUE _rb_block)
 
 VALUE AsyncEngine_next_tick(int argc, VALUE *argv, VALUE self)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   VALUE _rb_block;
 

@@ -20,6 +20,7 @@ void init_ae_async()
 }
 
 
+// TODO: If RELEASING don't call the block, just remove it, or not needed...
 static
 VALUE ae_async_callback(void)
 {
