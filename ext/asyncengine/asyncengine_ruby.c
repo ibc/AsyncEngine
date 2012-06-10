@@ -107,24 +107,8 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
     rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
 
-  if (AE_status == AE_RELEASING) {
-    if (rb_thread_alone()) {
-      rb_raise(eAsyncEngineStillReleasingError, "AsyncEngine still releasing");
-    }
-    else {
-      // If current thread calls AE.run while AE was in RELEASING state, schedule another thread
-      // and wait a bit.
-      for(i=0; i<10; i++) {
-        printf("--- waiting while AE_status == AE_RELEASING (%d)---\n", i);
-        rb_thread_schedule();
-        if (AE_status != AE_RELEASING)
-          break;
-      }
-      if (AE_status == AE_RELEASING)
-        rb_raise(eAsyncEngineStillReleasingError, "AsyncEngine still releasing");
-    }
-  }
-  AE_ASSERT(AE_status != AE_RELEASING);
+  if (AE_status == AE_RELEASING)
+    rb_raise(eAsyncEngineStillReleasingError, "AsyncEngine still releasing");
 
   // If already running pass the block to the reactor.
   if (AE_status == AE_RUNNING) {
