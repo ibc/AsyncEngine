@@ -31,8 +31,6 @@ static ID method_pid;
 static ID method_raise;
 
 
-
-
 /** Pre-declaration of static functions. TODO: Add more and so... */
 
 static void ae_release_loop(void);
@@ -137,7 +135,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   load_ae_next_tick_uv_idle();
   load_ae_call_from_other_thread();
 
-  /* Initial status and flags. */
+  /* Initial status. */
   AE_status = AE_RUNNING;
 
   /* Pass the given block to the reactor via next_tick. */
@@ -162,7 +160,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_thread = Qnil;
   AE_pid = Qnil;
 
-  // Now yes, set the status to AE_CLOSED.
+  // Now yes, set the status to AE_STOPPED.
   AE_status = AE_STOPPED;
 
   /*
@@ -254,7 +252,6 @@ VALUE AsyncEngine_release_loop(VALUE self)
     return Qnil;
   }
 
-  // No more handles can be created now.
   AE_status = AE_RELEASING;
 
   // Clear @_next_ticks.
