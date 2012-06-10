@@ -7,17 +7,17 @@ class TestBasic < AETest
     str = ""
 
     assert_false AE.running?
-    AE.run { assert_true AE.running? }
+    AE.run { assert_true AE.running? ; AE.stop }
     assert_false AE.running?
 
-    assert_true AE.run {}
+    assert_true AE.run { AE.stop }
     assert_false AE.running?
 
-    assert_true AE.run { AE.add_timer(0.001) { assert_true AE.running? ; str << "a" } }
+    assert_true AE.run { AE.add_timer(0.001) { assert_true AE.running? ; str << "a" ; AE.stop } }
     assert_false AE.running?
 
-    assert_true AE.run { AE.next_tick { str << "b" } }
-    assert_true AE.run {}
+    assert_true AE.run { AE.next_tick { str << "b" ; AE.stop } }
+    assert_true AE.run { AE.stop }
 
     AE.run do
       char = "b"
@@ -25,7 +25,7 @@ class TestBasic < AETest
       pt1 = AE::PeriodicTimer.new(0.001) do
         str << char.next!
         iteration += 1
-        pt1.cancel  if iteration == 4
+        AE.stop  if iteration == 4
       end
     end
     assert_false AE.running?
@@ -87,8 +87,6 @@ class TestBasic < AETest
       AE.add_timer(0) { AE.stop }
     end
     assert_false AE.running?
-    assert_true AE.run {}
-
   end
 
   def test_05_stop_from_different_thread
@@ -129,7 +127,7 @@ class TestBasic < AETest
     rescue SignalException
     end
 
-    assert_true AE.run {}
+    assert_true AE.run { AE.stop }
     assert_false @var
   end
 

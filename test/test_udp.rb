@@ -130,6 +130,8 @@ class TestUdp < AETest
 
         # Socket closed, cannot be sent.
         assert_false sock.send_datagram "hello", "1.2.3.4", 1234
+
+        AE.stop
       end
     end
 
@@ -143,7 +145,7 @@ class TestUdp < AETest
 
       def sock.on_datagram_received datagram, ip, port
         RECEIVED_DATAGRAMS << datagram
-        close()  if RECEIVED_DATAGRAMS.size == 2
+        AE.stop  if RECEIVED_DATAGRAMS.size == 2
         set_encoding_ascii()
       end
 
@@ -191,7 +193,7 @@ class TestUdp < AETest
         assert_equal error.uv_type, :EINVAL
       end
 
-      AE.add_timer(0.1) { sock.close() }
+      AE.add_timer(0.1) { assert_true sock.close() ; AE.stop }
     end
 
     assert_equal ["1", "2"], RECEIVED_DATAGRAMS
@@ -225,8 +227,7 @@ class TestUdp < AETest
             error ? (@reply_cb_error += 1) : (@reply_cb_ok += 1)
           end)
         when 4
-          AE.add_timer(0.05) { close() }
-          return
+          AE.stop
         end
       end
 

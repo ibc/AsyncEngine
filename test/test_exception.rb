@@ -36,19 +36,11 @@ class TestException < AETest
     assert_respond_to AE.instance_variable_get(:@_exception_handler), :call
 
     assert_nothing_raised do
-      AE.run { qweqwe }
-      AE.run { AE.next_tick { uhhhh1 } }
-      AE.run { AE.add_timer(0) { uhhhh2 } }
       AE.run do
-        AE.next_tick { uhhhh3 } ; AE.add_timer(0.001) { uhhhh4 }
-      end
-      AE.run do
-        AE.next_tick { uhhhh5 } ; AE.add_timer(0.001) { uhhhh6 }
-      end
-      AE.run do
-        AE.add_timer(0.001) { ohhhh1 }
-        AE::Timer.new(0.001) { ohhhh2 }
-        pt1 = AE::PeriodicTimer.new(0.001) { pt1.stop ; ohhhh3 }
+        AE.next_tick { qweqwe }
+        AE.add_timer(0) { uhhhh2 }
+        AE.add_timer(0.01) { AE.stop }
+        lalalalala
       end
     end
     assert_false AE.running?
@@ -90,6 +82,7 @@ class TestException < AETest
       AE.next_tick { bumpppp }
       AE.next_tick { num+=1 }
       AE.next_tick { num+=1 }
+      AE.next_tick { AE.stop }
     end
 
     assert_equal 4, num

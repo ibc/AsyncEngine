@@ -9,7 +9,7 @@ require "asyncengine/asyncengine_ext.so"
 # AsyncEngine Ruby library files.
 require "asyncengine/version.rb"
 require "asyncengine/errors.rb"
-require "asyncengine/async.rb"
+require "asyncengine/call_from_other_thread.rb"
 require "asyncengine/next_tick.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
@@ -25,17 +25,14 @@ module AsyncEngine
   @_handles = {}
   @_blocks = {}
   @_next_ticks = []
+  @_call_from_other_thread_procs = []
   @_exit_exception = nil
   @_mutex_run = Mutex.new
 
   def self.run pr=nil, &bl
-    # TODO: debug
-#     if @_mutex_run.locked?
-#       puts "NOTICE: AE.run(): @_mutex_run is locked"
-#     end
 
+    # TODO: Ya no puedo usar un mutex porque ahora fallaria en AE.run en AE.run.
     #@_mutex_run.synchronize do
-      #ensure_no_handles()  # TODO: for testing
       run_loop(pr || bl)
 
       if @_exit_exception
@@ -83,6 +80,7 @@ module AsyncEngine
   end
 
   def self.handle_exception e
+    #puts "RB_DBG: AE.handle_exception() called with e = #{e.class}, #{e.message}"
     if @_exception_handler and e.is_a? StandardError
       begin
         @_exception_handler.call e
@@ -99,18 +97,14 @@ module AsyncEngine
     end
   end
 
-  # TODO: A la porra!
-  def self.clean?
-    return false  if @_handles.any? or @_blocks.any? or @_next_ticks.any?
-    true
-  end
-
   # TODO: for testing
   def self.ensure_no_handles
     raise AsyncEngine::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() <= 1
     raise AsyncEngine::Error, "@_handles not empty"  unless @_handles.empty?
     raise AsyncEngine::Error, "@_blocks not empty"  unless @_blocks.empty?
     raise AsyncEngine::Error, "@_next_ticks not empty"  unless @_next_ticks.empty?
+    raise AsyncEngine::Error, "@_call_from_other_thread_procs not empty"  unless @_call_from_other_thread_procs.empty?
+    @_call_from_other_thread_procs
   end
 
   # TODO: for testing
@@ -119,12 +113,14 @@ module AsyncEngine
     puts "- AE.running: #{running?}"
     puts "- UV active handles: #{num_uv_active_handles()}"
     puts "- UV active reqs: #{num_uv_active_reqs()}"
-    puts "- @_handles (#{(@_handles).size}):\n"
+    puts "- @_handles (#{@_handles.size}):\n"
       @_handles.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_blocks (#{(@_blocks).size}):\n"
+    puts "- @_blocks (#{@_blocks.size}):\n"
       @_blocks.to_a[0..10].each {|k,v| puts "  - #{k}: #{v.inspect}"}
-    puts "- @_next_ticks (#{(@_next_ticks).size}):\n"
+    puts "- @_next_ticks (#{@_next_ticks.size}):\n"
       @_next_ticks[0..10].each {|n| puts "  - #{n.inspect}"}
+    puts "- @_call_from_other_thread_procs (#{@_call_from_other_thread_procs.size}):\n"
+      @_call_from_other_thread_procs[0..10].each {|n| puts "  - #{n.inspect}"}
     puts
   end
 
@@ -133,7 +129,6 @@ module AsyncEngine
     private :release_loop
     private :check_running
     private :num_uv_active_handles
-    private :clean?  # TODO: A la porra!
     private :handle_exception
   end
 
@@ -142,7 +137,3 @@ end
 
 # Let's allow AE.xxxxx usage.
 AE = AsyncEngine
-
-
-# Declare Utils module.
-module AsyncEngine::Utils ; end

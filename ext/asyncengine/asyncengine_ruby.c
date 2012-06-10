@@ -2,7 +2,7 @@
 #include "ae_handle_common.h"
 #include "ae_utils.h"
 #include "ae_ip_utils.h"
-#include "ae_async.h"
+#include "ae_call_from_other_thread.h"
 #include "ae_next_tick.h"
 #include "ae_timer.h"
 #include "ae_udp.h"
@@ -14,6 +14,7 @@ static VALUE AE_thread;
 static ID att_handles;
 static ID att_blocks;
 static ID att_next_ticks;
+static ID att_call_from_other_thread_procs;
 
 static ID const_UV_ERRNOS;
 
@@ -29,9 +30,6 @@ enum status {
 };
 
 static enum status AE_status;
-
-static uv_mutex_t AE_mutex;
-static int ae_mutex_locked;
 
 
 /** Pre-declaration of static functions. TODO: Add more and so... */
@@ -135,19 +133,6 @@ void ae_ubf(void)
 }
 
 
-static ae_mutex_ubf(void)
-{
-  AE_TRACE2();
-
-  if (ae_mutex_locked == 1) {
-    AE_DEBUG2("AE_mutex releasing...");
-    uv_mutex_unlock(&AE_mutex);
-    ae_mutex_locked = 0;
-    AE_DEBUG2("AE_mutex released");
-  }
-}
-
-
 static
 VALUE run_uv_without_gvl(void)
 {
@@ -159,7 +144,7 @@ VALUE run_uv_without_gvl(void)
 
 VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   VALUE _rb_block;
 
@@ -172,6 +157,23 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
   // TODO: Check process (and set  @_pid = nil when terminating the loop).
   // raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
 
+  // TODO: To find a crash in bugs.rb. But in fact the problem is that we MUST NOT
+  // allow being here if AE_status != STOPPED. In that case let's raise and that's all or wait (mutex?).
+  int i;
+  if (AE_status == RELEASING) {
+    // If current thread calls AE.run while AE was in RELEASING state, schedule another thread
+    // and wait a bit.
+    for(i=0; i<10; i++) {
+      printf("--- waiting while AE_status == RELEASING (%d)---\n", i);
+      rb_thread_schedule();
+      if (AE_status != RELEASING)
+        break;
+    }
+    if (AE_status == RELEASING)
+      rb_raise(eAsyncEngineError, "AsyncEngine still in RELEASING status...");
+  }
+  AE_ASSERT(AE_status != RELEASING);
+
   // If already running pass the block to the reactor.
   if (AE_status == RUNNING) {
     if (ae_is_running_thread())
@@ -180,23 +182,6 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
       rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &_rb_block);
     return Qtrue;
   }
-
-  // Acquire the mutex lock (this avoid entering here when AE_status is still
-  // RELEASING.
-  // TODO: I should first leave the GVL !!! so call this with rb_thread_call_without_gvl.
-  //uv_mutex_lock(&AE_mutex);
-  AE_DEBUG2("AE_mutex acquiring...");
-  //rb_thread_call_without_gvl(uv_mutex_lock, &AE_mutex, NULL, NULL);
-  rb_thread_call_without_gvl(uv_mutex_lock, &AE_mutex, ae_mutex_ubf, NULL);
-  ae_mutex_locked = 1;
-  AE_DEBUG2("AE_mutex acquired");
-
-  // TODO: To find a crash in bugs.rb. But in fact the problem is that we MUST NOT
-  // allow being here if AE_status != STOPPED. In that case let's raise and that's all or wait (mutex?).
-  if (AE_status == RELEASING) {
-    AE_ABORT("AE_status is RELEASING, abort !!!");
-  }
-  //AE_ASSERT(AE_status == STOPPED);
 
     /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
@@ -214,8 +199,9 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
 
   AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
 
-  /* Load the UV idle (next tick) now. */
+  /* Load the UV idle (AE.next_tick) and UV async (AE.call_from_other_thread) now. */
   load_ae_next_tick_uv_idle();
+  load_ae_call_from_other_thread();
 
   /* Pass the given block to the reactor via next_tick. */
   rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_block);
@@ -224,55 +210,26 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
   AE_DEBUG("UV loop starts...");
+  // uv_run() will block here until ae_release_loop() is called.
   rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_ubf, NULL);
   AE_DEBUG("UV loop terminates");
 
-    // TODO: for testing.
+  // TODO: Idem que abajo, bugs.rb llega aquí en otro estado.
+  if (AE_status != RELEASING)  printf("------- after uv_run AE_status should be RELEASING but it's %d\n", AE_status);
+  AE_ASSERT(AE_status == RELEASING);
+
+  // TODO: for testing.
+  // TODO: Al cambiar el diseño por el tema del async que mantiene el loop, bugs.rb hace
+  // explotar este assert:
   AE_ASSERT(ae_uv_num_active_handlers() == 0);
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
-  /* Close the UV idle (next tick) now. */
-  unload_ae_next_tick_uv_idle();
-
-  /*
-   * uv_run() has exited due to one of the following reasons:
-   * 
-   * - The app called AE.stop which, in the end, calls to ae_release_loop(), so
-   *   right now all the handles have been destroyed and freed.
-   * - Some non ignored/trapped exception or signal ocurred so the exception manager
-   *   stored it and called ae_release_loop(), so same case.
-   * - There are no more active UV handles. In this case there could be, still, inactive
-   *   UV handles (and therefore AE handles) so we need to call ae_release_loop() to clean
-   *   them.
-   *
-   * To simplify, let's always call to ae_release_loop() so we are done (there is no problem
-   * in calling it twice).
-   */
-  ae_release_loop();
-
-  /*
-   * After calling to ae_release_loop() all the handles has been closed/destroyed, but we
-   * need to run uv_run() to free them.
-   */
-  AE_DEBUG("UV loop for free-ing remaining handles starts...");
-  rb_thread_call_without_gvl(run_uv_without_gvl, NULL, NULL, NULL);
-  AE_DEBUG("UV loop for free-ing remaining handles terminates");
-
-  // Unset the AE_uv_loop.
+  // Unset the AE_uv_loop and AE_thread.
   AE_uv_loop = NULL;
-
   AE_thread = Qnil;
 
   // Now yes, set the status to CLOSED.
   AE_status = STOPPED;
-
-  // Release the mutex lock (unless it was released by ae_mutex_ubf() function).
-  if (ae_mutex_locked == 1) {
-    AE_DEBUG2("AE_mutex releasing...");
-    rb_thread_call_without_gvl(uv_mutex_unlock, &AE_mutex, NULL, NULL);
-    ae_mutex_locked = 0;
-    AE_DEBUG2("AE_mutex released");
-  }
 
   return Qtrue;
 }
@@ -281,7 +238,7 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
 static
 VALUE destroy_handle_with_rb_protect(VALUE handle)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   rb_funcall2(handle, method_destroy, 0, NULL);
   return Qnil;
@@ -291,14 +248,14 @@ VALUE destroy_handle_with_rb_protect(VALUE handle)
 static
 int destroy_handle(VALUE key, VALUE handle, VALUE in)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   int error_tag;
 
   rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
   if (error_tag) {
-    rb_set_errinfo(Qnil);  // TODO: sure?
-    AE_WARN("************* error rescued (rb_protect() while destroying the handle");
+    rb_set_errinfo(Qnil);
+    AE_WARN("error rescued with rb_protect() while destroying the handle");  // TODO: for testing
   }
 
   return 0;
@@ -310,11 +267,33 @@ void ae_release_loop(void)
 {
   AE_TRACE2();
 
+  // TODO: En bugs.rb entramos aquí con AE_status == STOPPED. Mal rollo, veo en los logs:
+//   AE_TRACE2: asyncengine_ruby.c:294:AsyncEngine_release_loop
+//   AE_TRACE2: asyncengine_ruby.c:254:ae_release_loop
+//   --- AE_status = 2
+//   AE_TRACE2: ae_timer.c:263:AsyncEngineTimer_destroy
+//   AE_TRACE2: asyncengine_ruby.c:294:AsyncEngine_release_loop
+//   AE_TRACE2: asyncengine_ruby.c:254:ae_release_loop
+//   --- AE_status = 1
+//   AE_ASSERT: asyncengine_ruby.c:257:ae_release_loop:: assertion `AE_status == RUNNING' failed
+  //
+  // Ok, creo que es porque al llamar a AE.stop no verifico si ya está en RELEASING y tal, tengo que hacerlo,
+  // al igual que en todos los creadores de handles mirar el status y devolver false silenciosamente si AE
+  // está RELEASING, y exception si está STOPPED.
+
+  // TODO: Workaround cerdo temporal: return if RELEASING or STOPPED.
+  if (AE_status == STOPPED || AE_status == RELEASING)  printf("--- AE_status = %d\n", AE_status);
+
+  AE_ASSERT(AE_status == RUNNING);
+
   // No more handles can be created now.
   AE_status = RELEASING;
 
-  // Clear next_ticks.
+  // Clear @_next_ticks.
   rb_ary_clear(rb_ivar_get(mAsyncEngine, att_next_ticks));
+
+  // Clear @_call_from_other_thread_procs.
+  rb_ary_clear(rb_ivar_get(mAsyncEngine, att_call_from_other_thread_procs));
 
   /*
    * Run #destroy() for each existing AE handle. Note that #destroy() method
@@ -322,10 +301,14 @@ void ae_release_loop(void)
    * */
   rb_hash_foreach(AE_handles, destroy_handle, Qnil);
 
-  // Clear blocks.
+  // Clear @_blocks.
   // TODO: Probably this would cause some "error" when some callback try to get
   // its block... it should not happen anyhow.
   rb_funcall2(AE_blocks, method_clear, 0, NULL);
+
+  /* Close AE internal handles. If the async handle is not closed uv_run() won't exit. */
+  unload_ae_next_tick_uv_idle();
+  unload_ae_call_from_other_thread();
 }
 
 
@@ -391,6 +374,13 @@ VALUE AsyncEngine_check_running(VALUE self)
 }
 
 
+int ae_is_releasing(void)
+{
+  AE_TRACE();
+
+  return (AE_status == RELEASING);
+}
+
 
 void Init_asyncengine_ext()
 {
@@ -411,6 +401,7 @@ void Init_asyncengine_ext()
   att_handles = rb_intern("@_handles");
   att_blocks = rb_intern("@_blocks");
   att_next_ticks = rb_intern("@_next_ticks");
+  att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
   method_destroy = rb_intern("destroy");
@@ -422,7 +413,7 @@ void Init_asyncengine_ext()
   init_ae_utils();
   init_ae_ip_utils();
   init_rb_utilities();
-  init_ae_async();
+  init_ae_call_from_other_thread();
   init_ae_next_tick();
   init_ae_timer();
   init_ae_udp();
@@ -430,8 +421,4 @@ void Init_asyncengine_ext()
 
   AE_status = STOPPED;
   AE_uv_loop = NULL;
-
-  // Init the mutex.
-  AE_ASSERT(! uv_mutex_init(&AE_mutex));
-  ae_mutex_locked = 0;
 }
