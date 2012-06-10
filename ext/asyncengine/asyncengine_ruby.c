@@ -9,12 +9,17 @@
 #include "ae_tcp.h"
 
 
+static VALUE mProcess;
+static VALUE mKernel;
+
 static VALUE AE_thread;
+static VALUE AE_pid;
 
 static ID att_handles;
 static ID att_blocks;
 static ID att_next_ticks;
 static ID att_call_from_other_thread_procs;
+static ID att_exit_error;
 
 static ID const_UV_ERRNOS;
 
@@ -22,6 +27,8 @@ static ID method_destroy;
 static ID method_clear;
 static ID method_next_tick;
 static ID method_call_from_other_thread;
+static ID method_pid;
+static ID method_raise;
 
 
 
@@ -84,23 +91,21 @@ VALUE AsyncEngine_num_uv_active_reqs(VALUE self)
 }
 
 
-/** AE.run_loop private method. */
+/** AE.run method. */
 
-VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
+VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
 
-  VALUE _rb_block;
+  VALUE _rb_proc;
+  VALUE captured_error;
   int i;
 
   AE_RB_CHECK_NUM_ARGS(0,1);
-  AE_RB_GET_BLOCK_OR_PROC(1, _rb_block);
+  AE_RB_ENSURE_BLOCK_OR_PROC(1, _rb_proc);
 
-  if (NIL_P(_rb_block))
-    rb_raise(rb_eArgError, "no block given");
-
-  // TODO: Check process (and set  @_pid = nil when terminating the loop).
-  // raise AsyncEngine::Error, "cannot run AsyncEngine from a forked process"  unless Process.pid == @_pid
+  if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
+    rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
 
   if (AE_status == AE_RELEASING) {
     if (rb_thread_alone()) {
@@ -124,17 +129,18 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
   // If already running pass the block to the reactor.
   if (AE_status == AE_RUNNING) {
     if (ae_is_running_thread())
-      rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_block);
+      rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_proc);
     else
-      rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &_rb_block);
+      rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &_rb_proc);
     return Qtrue;
   }
 
     /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
 
-  // Mark current thread as AE thread.
-  AE_thread = rb_thread_current();  // TODO: Needed?
+  // Mark current thread and PID as AE_thread and AE_pid.
+  AE_thread = rb_thread_current();
+  AE_pid = rb_funcall2(mProcess, method_pid, 0, NULL);
 
   // Get the VALUEs for @_handles and @_blocks (faster).
   // NOTE: AE_next_ticks cannot be loaded here since its value is changed in runtime.
@@ -151,7 +157,7 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
   AE_status = AE_RUNNING;
 
   /* Pass the given block to the reactor via next_tick. */
-  rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_block);
+  rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_proc);
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
@@ -167,12 +173,29 @@ VALUE AsyncEngine_run_loop(int argc, VALUE *argv, VALUE self)
   AE_ASSERT(ae_uv_num_active_handlers() == 0);
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
 
-  // Unset the AE_uv_loop and AE_thread.
+  // Unset the AE_uv_loop, AE_thread and AE_pid.
   AE_uv_loop = NULL;
   AE_thread = Qnil;
+  AE_pid = Qnil;
 
   // Now yes, set the status to AE_CLOSED.
   AE_status = AE_STOPPED;
+
+  /*
+   * If an exception/error has been captured by the exception manager, raise it now
+   * but just in case it's an Exception object. Thread#kill does not set the error
+   * to an Exception (but a Fixnum(8) so ignore it).
+   */
+  if (! NIL_P(captured_error = rb_ivar_get(mAsyncEngine, att_exit_error))) {
+    if (rb_obj_is_kind_of(captured_error, rb_eException) == Qtrue) {
+      AE_DEBUG("raising captured error");
+      rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
+      rb_funcall2(mKernel, method_raise, 1, &captured_error);
+    }
+    else {
+      AE_DEBUG2("AsyncEngine thread killed by Thread#kill");
+    }
+  }
 
   return Qtrue;
 }
@@ -345,17 +368,21 @@ void Init_asyncengine_ext()
 {
   AE_TRACE();
 
+  mProcess = rb_define_module("Process");
+  mKernel = rb_define_module("Kernel");
+
   mAsyncEngine = rb_define_module("AsyncEngine");
   cAsyncEngineHandle = rb_define_class_under(mAsyncEngine, "Handle", rb_cObject);
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
   eAsyncEngineNotRunningError = rb_define_class_under(mAsyncEngine, "NotRunningError", eAsyncEngineError);
   eAsyncEngineStillReleasingError = rb_define_class_under(mAsyncEngine, "StillReleasingError", eAsyncEngineError);
 
-  rb_define_module_function(mAsyncEngine, "run_loop", AsyncEngine_run_loop, -1);
+  rb_define_module_function(mAsyncEngine, "run", AsyncEngine_run, -1);
   rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "running_thread?", AsyncEngine_is_running_thread, 0);
   rb_define_module_function(mAsyncEngine, "check_status", AsyncEngine_check_status, 0);  // TODO: Should be removed since all will be in C.
+  // TODO: temporal methods (for debugging).
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
   rb_define_module_function(mAsyncEngine, "num_uv_active_reqs", AsyncEngine_num_uv_active_reqs, 0);
 
@@ -363,12 +390,16 @@ void Init_asyncengine_ext()
   att_blocks = rb_intern("@_blocks");
   att_next_ticks = rb_intern("@_next_ticks");
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
+  att_exit_error = rb_intern("@_exit_error");
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
   method_destroy = rb_intern("destroy");
   method_clear = rb_intern("clear");
   method_next_tick = rb_intern("next_tick");
   method_call_from_other_thread = rb_intern("call_from_other_thread");
+  method_pid = rb_intern("pid");
+  method_pid = rb_intern("pid");
+  method_raise = rb_intern("raise");
 
   init_ae_handle_common();
   init_ae_utils();
