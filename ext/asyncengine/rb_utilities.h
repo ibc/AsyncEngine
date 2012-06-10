@@ -22,6 +22,11 @@ if (argc < min || argc > max)  \
   else  \
     save_to = Qnil;
 
+#define AE_RB_ENSURE_BLOCK_OR_PROC(num_arg, save_to)  \
+  AE_RB_GET_BLOCK_OR_PROC(num_arg, save_to);  \
+  if (NIL_P(save_to))  \
+    rb_raise(rb_eArgError, "no block or proc given");
+
 
 typedef enum {
   string_encoding_external = 0,
