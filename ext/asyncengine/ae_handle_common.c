@@ -177,6 +177,7 @@ VALUE execute_function_with_glv_and_rb_protect(void* function)
 
   int error_tag = 0;
   VALUE ret;
+  VALUE exception;
 
   ret = rb_protect(function, Qnil, &error_tag);
 
@@ -195,30 +196,15 @@ VALUE execute_function_with_glv_and_rb_protect(void* function)
    * store it, release the loop and raise it. Otherwise (Thread#kill) then don't store the
    * exception returned by rb_errinfo() and just release the loop. Ruby will do the rest.
    */
-
-  // If an exception occurred then call AsyncEngine.handle_exception(exception).
   if (error_tag) {
-    if (error_tag == 8) AE_WARN("************ error_tag== 8");
+    if (error_tag == 8) AE_WARN("******************************************************************** error_tag == 8");
 
     VALUE exception = rb_errinfo();
-
+    rb_set_errinfo(Qnil);
     printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(exception));
 
-    if (rb_obj_is_kind_of(exception, rb_eException) == Qtrue) {
-      // Dissable the current thread exception.
-      rb_set_errinfo(Qnil);
-    }
-//rb_set_errinfo(Qnil);
     // Call AsyncEngine.handle_exception().
-    rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
-
-    // TODO: This makes no sense and sometimes it returns Fixnum:8
-    //   https://github.com/ibc/AsyncEngine/issues/4
-    //return exception;
-
-    //Let's try:
-    // TODO: This does not solve #4.
-    return Qnil;
+    return rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
   }
   // Otherwise just return the VALUE returned by rb_protec() above.
   else
