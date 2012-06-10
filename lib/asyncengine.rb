@@ -21,12 +21,11 @@ require "asyncengine/debug.rb"  # TODO: Temporal.
 
 module AsyncEngine
 
-  @_pid = Process.pid
-  @_exception_handler = nil
   @_handles = {}
   @_blocks = {}
   @_next_ticks = []
   @_call_from_other_thread_procs = []
+  @_exception_handler = nil
   @_exit_error = nil
 
   def self.stop
