@@ -28,10 +28,7 @@ void load_ae_next_tick_uv_idle(void)
 {
   AE_TRACE();
 
-  if (ae_next_tick_uv_idle) {
-    AE_WARN("ae_next_tick_uv_idle already loaded !!!");
-    return;
-  }
+  AE_ASSERT(ae_next_tick_uv_idle == NULL);
 
   ae_next_tick_uv_idle = ALLOC(uv_idle_t);
   AE_ASSERT(! uv_idle_init(AE_uv_loop, ae_next_tick_uv_idle));
@@ -42,10 +39,7 @@ void unload_ae_next_tick_uv_idle(void)
 {
   AE_TRACE();
 
-  if (! ae_next_tick_uv_idle) {
-    AE_WARN("ae_next_tick_uv_idle already unloaded");
-    return;
-  }
+  AE_ASSERT(ae_next_tick_uv_idle != NULL);
 
   uv_close((uv_handle_t *)ae_next_tick_uv_idle, ae_uv_handle_close_callback);
   ae_next_tick_uv_idle = NULL;
