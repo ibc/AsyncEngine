@@ -118,12 +118,11 @@ class TestBasic < AETest
   def test_07_signal_kills_asyncengine
     @var = false
 
-    begin
+    assert_raise SignalException do
       AE.run do
         AE.add_timer(0) { Process.kill :USR1, $$ }
         AE.add_timer(1) { @var = true }  # Won't occur.
       end
-    rescue SignalException
     end
 
     assert_true AE.run { AE.stop }
