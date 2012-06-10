@@ -191,7 +191,7 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
   enum_ip_type ip_type, bind_ip_type;
   VALUE klass, instance;
 
-  ae_check_running();
+  AE_CHECK_STATUS();
 
   AE_RB_CHECK_NUM_ARGS(2,4);
 

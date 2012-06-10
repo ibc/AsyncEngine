@@ -57,13 +57,12 @@ VALUE AsyncEngine_call_from_other_thread(int argc, VALUE *argv, VALUE self)
   VALUE _rb_proc;
   int r;
 
-  // TODO: No, si esta releasing debe devolver false silenciosamente y a correr.
-  ae_check_running();
+  AE_CHECK_STATUS();
 
   AE_RB_CHECK_NUM_ARGS(0,1);
   AE_RB_ENSURE_BLOCK_OR_PROC(1, _rb_proc);
 
-  //NOTE: This action is atomic, so we don't need a Mutex.
+  //NOTE: This action is atomic in MRI, so we don't need a Mutex.
   rb_ary_push(rb_ivar_get(mAsyncEngine, att_call_from_other_thread_procs), _rb_proc);
 
   r = uv_async_send(ae_call_from_other_thread_uv_async);

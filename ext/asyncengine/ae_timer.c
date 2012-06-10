@@ -260,7 +260,7 @@ VALUE AsyncEngineTimer_cancel(VALUE self)
 
 VALUE AsyncEngineTimer_destroy(VALUE self)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
 

@@ -11,7 +11,7 @@ module AsyncEngine
 
   class Timer < Handle
     def initialize delay, pr=nil, &bl
-      AsyncEngine.send :check_running
+      return false  unless AsyncEngine.send :check_status
       raise TypeError, "argument 2 is not a Proc"  if pr and not pr.is_a?(Proc)
 
       uv_handle_init (delay = (delay*1000).to_i), nil, pr || bl
@@ -36,7 +36,7 @@ module AsyncEngine
 
   class PeriodicTimer < Timer
     def initialize interval, delay=nil, pr=nil, &bl
-      AsyncEngine.send :check_running
+      return false  unless AsyncEngine.send :check_status
       raise TypeError, "argument 3 is not a Proc"  if pr and not pr.is_a?(Proc)
 
       interval = (interval*1000).to_i

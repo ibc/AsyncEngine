@@ -1,6 +1,6 @@
 module AsyncEngine
 
-  class Error < ::StandardError ; end
+  #class Error < ::StandardError ; end
 
   class UvError < Error
     attr_reader :uv_errno, :uv_type, :uv_description

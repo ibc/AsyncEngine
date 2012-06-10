@@ -40,6 +40,14 @@ class TestBasic < AETest
       AE.stop
     end
     assert_false AE.running?
+    assert_true @var
+
+    @var = false
+    AE.run do
+      AE.next_tick { AE.next_tick { @var = true } }
+      AE.stop
+    end
+    assert_false AE.running?
     assert_false @var
 
     @var = false
@@ -55,15 +63,6 @@ class TestBasic < AETest
       AE.next_tick { AE.stop }
     end
     assert_false @var
-
-    @var = false
-    AE.run do
-      AE.next_tick { AE.next_tick { @var = true  } }
-      AE.next_tick { AE::Timer.new(0) { @var = true  } }
-      AE.next_tick { AE.stop }
-    end
-    assert_false AE.running?
-    assert_false @var
   end
 
   def test_03_run_in_run
@@ -75,7 +74,7 @@ class TestBasic < AETest
       AE.run { AE.run { num+=1 } } # Wont' occur.
       AE.next_tick { num+=1 }
       AE.next_tick { AE.next_tick { num+=1 } }  # Won't occur.
-      AE.next_tick { AE.stop }
+      AE.stop
     end
     assert_equal 3, num
   end
@@ -128,6 +127,28 @@ class TestBasic < AETest
     end
 
     assert_true AE.run { AE.stop }
+    assert_false @var
+  end
+
+  def test_08_force_still_releasing_error
+    @var = false
+    assert_raise AE::StillReleasingError do
+      AE.run do
+        AE.stop
+        AE.next_tick { AE.run { @var = true } }
+      end
+    end
+    assert_false @var
+
+    @var = false
+    assert_raise AE::StillReleasingError do
+      th = Thread.new { sleep }
+      AE.run do
+        AE.stop
+        AE.next_tick { AE.run { @var = true } }
+      end
+      th.kill
+    end
     assert_false @var
   end
 

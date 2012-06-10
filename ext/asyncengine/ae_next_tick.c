@@ -84,7 +84,7 @@ VALUE AsyncEngine_next_tick(int argc, VALUE *argv, VALUE self)
 
   VALUE _rb_block;
 
-  ae_check_running();
+  AE_CHECK_STATUS();
 
   AE_ASSERT(ae_next_tick_uv_idle != NULL);  // TODO: TMP
 

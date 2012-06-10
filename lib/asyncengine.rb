@@ -50,22 +50,14 @@ module AsyncEngine
   end
 
   def self.stop
-    return false  unless running?()
+    return false  unless check_status()
 
     if running_thread?
-      #next_tick do
-        release_loop()
-      #end
+      next_tick { release_loop() }
     else
-      call_from_other_thread do
-        release_loop()
-      end if running?()
+      call_from_other_thread { release_loop() }
     end
     true
-  end
-
-  def self._running_thread?
-    Thread.current == @_thread
   end
 
   def self.set_exception_handler pr=nil, &bl
@@ -127,7 +119,7 @@ module AsyncEngine
   class << self
     private :run_loop
     private :release_loop
-    private :check_running
+    private :check_status
     private :num_uv_active_handles
     private :handle_exception
   end
