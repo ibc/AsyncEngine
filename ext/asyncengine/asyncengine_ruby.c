@@ -384,7 +384,7 @@ void ae_handle_error(VALUE error)
     if (error_tag) {
       error2 = rb_errinfo();
       rb_set_errinfo(Qnil);
-      AE_DEBUG2("error rescued with rb_protect() while running the user error handler");  // TODO: for testing
+      AE_DEBUG2("error (class: %s) rescued with rb_protect() while running the user error handler", rb_obj_classname(error2));  // TODO: for testing
       rb_ivar_set(mAsyncEngine, att_exit_error, error2);
       ae_release_loop();
     }

@@ -208,10 +208,10 @@ VALUE ae_run_with_error_handler(void* function)
     if (AE_status == AE_RELEASING) {
       //AE_DEBUG("error rescued while in releasing status, ignoring it");
       //return Qnil;
-      AE_ABORT("error rescued while in releasing status");  // TODO: testing, not sure yet.
+      AE_ABORT("error (class: %s) rescued while in releasing status", rb_obj_classname(error));  // TODO: testing, not sure yet.
     }
     else {
-      AE_DEBUG("error rescued, passing it to the error handler");
+      AE_DEBUG("error (class: %s) rescued, passing it to the error handler", rb_obj_classname(error));
       ae_handle_error(error);
       return Qnil;
     }
