@@ -387,10 +387,10 @@ void Init_asyncengine_ext()
   method_pid = rb_intern("pid");
   method_raise = rb_intern("raise");
 
+  init_rb_utilities();
   init_ae_handle_common();
   init_ae_utils();
   init_ae_ip_utils();
-  init_rb_utilities();
   init_ae_call_from_other_thread();
   init_ae_next_tick();
   init_ae_timer();
