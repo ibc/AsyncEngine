@@ -25,7 +25,7 @@ module AsyncEngine
   @_blocks = {}
   @_next_ticks = []
   @_call_from_other_thread_procs = []
-  @_error_handler = nil
+  @_user_error_handler = nil
   @_exit_error = nil
 
   def self.stop
@@ -43,29 +43,11 @@ module AsyncEngine
     block = pr || bl
     raise ArgumentError, "no block given"  unless block.is_a? Proc
 
-    @_error_handler = block
+    @_user_error_handler = block
   end
 
   def self.unset_on_error
-    @_error_handler = nil
-  end
-
-  def self.handle_error e
-    #puts "RB_DBG: AE.handle_error() called with e = #{e.class}, #{e.message}"
-    if @_error_handler and e.is_a? StandardError
-      begin
-        @_error_handler.call e
-      rescue Exception => e2
-        puts "ERROR: exception #{e2.inspect} during AE.handle_error(#{e.inspect}) (with on_error defined by user)"  # TODO: debug
-        @_exit_error = e2
-        release_loop()
-      end
-    else
-      # TODO: sometimes I get (e = Fixnum: 8) again: https://github.com/ibc/AsyncEngine/issues/4
-      puts "WARN: AE.handle_error(#{e.inspect})"
-      @_exit_error = e
-      release_loop()
-    end
+    @_user_error_handler = nil
   end
 
   class << self

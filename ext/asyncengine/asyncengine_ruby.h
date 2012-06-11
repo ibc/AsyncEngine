@@ -54,4 +54,7 @@ enum ae_status AE_status;
 uv_loop_t *AE_uv_loop;
 
 
+void ae_handle_error(VALUE error);
+
+
 #endif  /* ASYNCENGINE_RUBY_H */

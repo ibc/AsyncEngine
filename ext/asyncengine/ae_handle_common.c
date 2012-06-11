@@ -202,7 +202,7 @@ VALUE ae_run_with_error_handler(void* function)
     // TODO: This could return Fixnum 8: https://github.com/ibc/AsyncEngine/issues/4,
     // so the error handler must check it. Maybe it's better to set error=Qnil and
     // pass it to the error handler?
-    VALUE error = rb_errinfo();
+    error = rb_errinfo();
     rb_set_errinfo(Qnil);
     AE_DEBUG2("error.class: %s", rb_obj_classname(error));
 
@@ -216,7 +216,8 @@ VALUE ae_run_with_error_handler(void* function)
       AE_WARN("error rescued, passing it to the error handler");
       // TODO: this must also be executed with rb_protect() for the case in which the
       // AE.on_error block provided by the user raises itself.
-      rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
+      //rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
+      ae_handle_error(error);
       return Qnil;
     }
   }

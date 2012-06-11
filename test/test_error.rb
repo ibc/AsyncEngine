@@ -33,7 +33,7 @@ class TestError < AETest
 
   def test_02_error_handler
     AE.on_error {|e| assert e.is_a? ::StandardError }
-    assert_respond_to AE.instance_variable_get(:@_error_handler), :call
+    assert_respond_to AE.instance_variable_get(:@_user_error_handler), :call
 
     assert_nothing_raised do
       AE.run do
@@ -47,7 +47,7 @@ class TestError < AETest
 
     # Dissable the error handler again.
     AE.unset_on_error
-    assert_equal nil, AE.instance_variable_get(:@_error_manager)
+    assert_equal nil, AE.instance_variable_get(:@_user_error_manager)
 
     assert_raise NameError do
       AE.run { AE.add_timer(0) { opppps } }

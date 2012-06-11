@@ -19,6 +19,7 @@ static ID att_handles;
 static ID att_blocks;
 static ID att_next_ticks;
 static ID att_call_from_other_thread_procs;
+static ID att_user_error_handler;
 static ID att_exit_error;
 
 static ID const_UV_ERRNOS;
@@ -29,20 +30,21 @@ static ID method_next_tick;
 static ID method_call_from_other_thread;
 static ID method_pid;
 static ID method_raise;
+static ID method_call;
 
 static uv_async_t* ae_ubf_uv_async;
 
 
 /** Pre-declaration of static functions. TODO: Add more and so... */
 
-static void ae_release_loop(void);
 static int ae_is_running_thread(void);
-static int destroy_handle(VALUE key, VALUE handle, VALUE in);
+static void ae_release_loop(void);
 static int destroy_handle(VALUE key, VALUE handle, VALUE in);
 static VALUE destroy_handle_with_rb_protect(VALUE handle);
 static VALUE uv_run_without_gvl(void);
 static void ae_ubf(void);
 static void ae_ubf_uv_async_callback(uv_async_t* handle, int status);
+static VALUE ae_handle_error_with_rb_protect(VALUE error);
 
 
 /** TODO: Temporal functions for debugging: libuv active handlers and requests counters. */
@@ -242,15 +244,24 @@ VALUE AsyncEngine_release_loop(VALUE self)
 {
   AE_TRACE();
 
+  ae_release_loop();
+  return Qnil;
+}
+
+
+void ae_release_loop(void)
+{
+  AE_TRACE();
+
   /*
    * Avoid this function to be called twice. When AE.stop is called it calls this method within
    * a next_tick() or call_from_other_thread(), so when arriving here AE could already be
    * stopped (by a previous AE.stop, exception or whatever).
    */
   if (AE_status != AE_RUNNING) {
-    if (AE_status == AE_STOPPED)  AE_WARN("AE_status == AE_STOPPED");
-    else if (AE_status == AE_RELEASING)  AE_WARN("AE_status == AE_RELEASING");
-    return Qnil;
+    if (AE_status == AE_STOPPED)  AE_WARN("AE_status == AE_STOPPED, returning");
+    else if (AE_status == AE_RELEASING)  AE_WARN("AE_status == AE_RELEASING, returning");
+    return;
   }
 
   // No more handles can be created from now.
@@ -277,8 +288,6 @@ VALUE AsyncEngine_release_loop(VALUE self)
   AE_ASSERT(ae_ubf_uv_async != NULL); // TODO: testing.
   AE_CLOSE_UV_HANDLE(ae_ubf_uv_async);
   ae_ubf_uv_async = NULL;
-
-  return Qnil;
 }
 
 
@@ -336,6 +345,51 @@ VALUE AsyncEngine_is_running_thread(VALUE self)
 }
 
 
+/** ae_handle_error and AE.handle_error private methods . */
+
+VALUE AsyncEngine_handle_error(VALUE self, VALUE error)
+{
+  AE_TRACE();
+
+  ae_handle_error(error);
+  return Qnil;
+}
+
+
+// TODO: static? must be in the .h?
+void ae_handle_error(VALUE error)
+{
+  AE_TRACE();
+
+  VALUE error2;
+  int error_tag;
+
+  if ((! NIL_P(rb_ivar_get(mAsyncEngine, att_user_error_handler))) && rb_obj_is_kind_of(error, rb_eStandardError) == Qtrue) {
+    rb_protect(ae_handle_error_with_rb_protect, error, &error_tag);
+    if (error_tag) {
+      error2 = rb_errinfo();
+      rb_set_errinfo(Qnil);
+      AE_WARN("error rescued with rb_protect() while running the user error handler");  // TODO: for testing
+      rb_ivar_set(mAsyncEngine, att_exit_error, error2);
+      ae_release_loop();
+    }
+  }
+  else {
+    rb_ivar_set(mAsyncEngine, att_exit_error, error);
+    ae_release_loop();
+  }
+}
+
+
+static
+VALUE ae_handle_error_with_rb_protect(VALUE error)
+{
+  AE_TRACE();
+
+  return rb_funcall2(rb_ivar_get(mAsyncEngine, att_user_error_handler), method_call, 1, &error);
+}
+
+
 /** AE.check_status method. */
 
 // TODO: Will be removed after all the handles are created in C land.
@@ -367,6 +421,7 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "running_thread?", AsyncEngine_is_running_thread, 0);
+  rb_define_module_function(mAsyncEngine, "handle_error", AsyncEngine_handle_error, 1);
   rb_define_module_function(mAsyncEngine, "check_status", AsyncEngine_check_status, 0);  // TODO: Should be removed since all will be in C.
   // TODO: temporal methods (for debugging).
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);
@@ -377,6 +432,7 @@ void Init_asyncengine_ext()
   att_next_ticks = rb_intern("@_next_ticks");
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
   att_exit_error = rb_intern("@_exit_error");
+  att_user_error_handler = rb_intern("@_user_error_handler");
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
   method_destroy = rb_intern("destroy");
@@ -386,6 +442,7 @@ void Init_asyncengine_ext()
   method_pid = rb_intern("pid");
   method_pid = rb_intern("pid");
   method_raise = rb_intern("raise");
+  method_call = rb_intern("call");
 
   init_rb_utilities();
   init_ae_handle_common();
