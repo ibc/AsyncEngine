@@ -7,7 +7,7 @@ module AsyncEngine
       begin
         cb.call
       rescue StandardError => e
-        AsyncEngine.send :handle_exception, e
+        AsyncEngine.send :handle_error, e
       end
     end
   end

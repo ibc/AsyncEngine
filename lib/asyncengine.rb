@@ -25,7 +25,7 @@ module AsyncEngine
   @_blocks = {}
   @_next_ticks = []
   @_call_from_other_thread_procs = []
-  @_exception_handler = nil
+  @_error_handler = nil
   @_exit_error = nil
 
   def self.stop
@@ -39,24 +39,24 @@ module AsyncEngine
     true
   end
 
-  def self.set_exception_handler pr=nil, &bl
+  def self.on_error pr=nil, &bl
     block = pr || bl
     raise ArgumentError, "no block given"  unless block.is_a? Proc
 
-    @_exception_handler = block
+    @_error_handler = block
   end
 
-  def self.unset_exception_handler
-    @_exception_handler = nil
+  def self.unset_on_error
+    @_error_handler = nil
   end
 
-  def self.handle_exception e
-    #puts "RB_DBG: AE.handle_exception() called with e = #{e.class}, #{e.message}"
-    if @_exception_handler and e.is_a? StandardError
+  def self.handle_error e
+    #puts "RB_DBG: AE.handle_error() called with e = #{e.class}, #{e.message}"
+    if @_error_handler and e.is_a? StandardError
       begin
-        @_exception_handler.call e
+        @_error_handler.call e
       rescue Exception => e2
-        puts "ERROR: exception #{e2.inspect} during AE.handle_exception(#{e.inspect}) (with exception_handler defined by user)"  # TODO: debug
+        puts "ERROR: exception #{e2.inspect} during AE.handle_error(#{e.inspect}) (with on_error defined by user)"  # TODO: debug
         @_exit_error = e2
         release_loop()
       end
@@ -71,7 +71,7 @@ module AsyncEngine
   class << self
     private :release_loop
     private :check_status
-    private :handle_exception
+    private :handle_error
   end
 
 end

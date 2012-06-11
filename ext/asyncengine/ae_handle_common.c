@@ -7,7 +7,7 @@ static VALUE mKernel;
 
 // Ruby method names.
 static ID method_call;
-static ID method_handle_exception;
+static ID method_handle_error;
 static ID method_raise;
 
 // C variable holding current block number.
@@ -21,7 +21,7 @@ void init_ae_handle_common(void)
   mKernel = rb_define_module("Kernel");
 
   method_call = rb_intern("call");
-  method_handle_exception = rb_intern("handle_exception");
+  method_handle_error = rb_intern("handle_error");
   method_raise = rb_intern("raise");
 
   block_long_id = 0;
@@ -177,12 +177,12 @@ VALUE execute_function_with_glv_and_rb_protect(void* function)
 
   int error_tag = 0;
   VALUE ret;
-  VALUE exception;
+  VALUE error;
 
   ret = rb_protect(function, Qnil, &error_tag);
 
   /*
-   * If an exception occurs while in function() it can be due:
+   * If an error occurs while in function() it can be due:
    * 
    * - An Exception (including SystemExit), this is "rescue-able" via "rescue Exception"
    *   and will run the "ensure" code if present. In this case rb_errinfo() gets the
@@ -199,12 +199,12 @@ VALUE execute_function_with_glv_and_rb_protect(void* function)
   if (error_tag) {
     if (error_tag == 8) AE_WARN("******************************************************************** error_tag == 8");
 
-    VALUE exception = rb_errinfo();
+    VALUE error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(exception));
+    printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(error));
 
-    // Call AsyncEngine.handle_exception().
-    return rb_funcall2(mAsyncEngine, method_handle_exception, 1, &exception);
+    // Call AsyncEngine.handle_error().
+    return rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
   }
   // Otherwise just return the VALUE returned by rb_protec() above.
   else
@@ -236,7 +236,7 @@ VALUE ae_safe_run_ruby_function(void* function)
   rb_protect(function, Qnil, &error_tag);
 
   if (error_tag) {
-    rb_set_errinfo(Qnil);  // TODO: sure?
+    rb_set_errinfo(Qnil);
     AE_WARN("error rescued by rb_protect() and ignored while executing the function");
   }
 }

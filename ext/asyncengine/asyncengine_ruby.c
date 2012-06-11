@@ -250,6 +250,7 @@ VALUE AsyncEngine_release_loop(VALUE self)
     return Qnil;
   }
 
+  // No more handles can be created from now.
   AE_status = AE_RELEASING;
 
   // Clear @_next_ticks.
