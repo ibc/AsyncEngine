@@ -37,13 +37,13 @@ static uv_async_t* ae_ubf_uv_async;
 
 /** Pre-declaration of static functions. TODO: Add more and so... */
 
-static int ae_is_running_thread(void);
-static void ae_release_loop(void);
-static int destroy_handle(VALUE key, VALUE handle, VALUE in);
-static VALUE destroy_handle_with_rb_protect(VALUE handle);
 static VALUE uv_run_without_gvl(void);
 static void ae_ubf(void);
 static void ae_ubf_uv_async_callback(uv_async_t* handle, int status);
+static void ae_release_loop(void);
+static int destroy_handle(VALUE key, VALUE handle, VALUE in);
+static VALUE destroy_handle_with_rb_protect(VALUE handle);
+static int ae_is_running_thread(void);
 static VALUE ae_handle_error_with_rb_protect(VALUE error);
 
 
@@ -61,6 +61,7 @@ int ae_uv_num_active_handlers(void)
 }
 
 
+static
 VALUE AsyncEngine_num_uv_active_handles(VALUE self)
 {
   AE_TRACE();
@@ -85,6 +86,7 @@ int ae_uv_num_active_reqs(void)
 }
 
 
+static
 VALUE AsyncEngine_num_uv_active_reqs(VALUE self)
 {
   AE_TRACE();
@@ -95,6 +97,7 @@ VALUE AsyncEngine_num_uv_active_reqs(VALUE self)
 
 /** AE.run method. */
 
+static
 VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -181,7 +184,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
   if (! NIL_P(captured_error)) {
     if (rb_obj_is_kind_of(captured_error, rb_eException) == Qtrue) {
-      AE_DEBUG2("raising captured error");
+      AE_DEBUG2("raising captured error (class: %s)", rb_obj_classname(captured_error));
       rb_funcall2(mKernel, method_raise, 1, &captured_error);
     }
     else {
@@ -240,6 +243,7 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 
 /** AE.release_loop private method. */
 
+static
 VALUE AsyncEngine_release_loop(VALUE self)
 {
   AE_TRACE();
@@ -249,6 +253,7 @@ VALUE AsyncEngine_release_loop(VALUE self)
 }
 
 
+static
 void ae_release_loop(void)
 {
   AE_TRACE();
@@ -258,10 +263,17 @@ void ae_release_loop(void)
    * a next_tick() or call_from_other_thread(), so when arriving here AE could already be
    * stopped (by a previous AE.stop, exception or whatever).
    */
-  if (AE_status != AE_RUNNING) {
-    if (AE_status == AE_STOPPED)  AE_WARN("AE_status == AE_STOPPED, returning");
-    else if (AE_status == AE_RELEASING)  AE_WARN("AE_status == AE_RELEASING, returning");
-    return;
+  switch(AE_status) {
+    case AE_RUNNING:
+      break;
+    case AE_STOPPED:
+      AE_DEBUG("AE_status == AE_STOPPED, returning");
+      return;
+      break;
+    case AE_RELEASING:
+      AE_DEBUG("AE_status == AE_RELEASING, returning");
+      return;
+      break;
   }
 
   // No more handles can be created from now.
@@ -319,6 +331,7 @@ VALUE destroy_handle_with_rb_protect(VALUE handle)
 
 /** AE.is_running? method. */
 
+static
 VALUE AsyncEngine_is_running(VALUE self)
 {
   AE_TRACE();
@@ -329,6 +342,7 @@ VALUE AsyncEngine_is_running(VALUE self)
 
 /** ae_is_running_thread() and AE.is_running_thread methods. */
 
+static
 int ae_is_running_thread(void)
 {
   AE_TRACE();
@@ -337,6 +351,7 @@ int ae_is_running_thread(void)
 }
 
 
+static
 VALUE AsyncEngine_is_running_thread(VALUE self)
 {
   AE_TRACE();
@@ -347,6 +362,7 @@ VALUE AsyncEngine_is_running_thread(VALUE self)
 
 /** ae_handle_error and AE.handle_error private methods . */
 
+static
 VALUE AsyncEngine_handle_error(VALUE self, VALUE error)
 {
   AE_TRACE();
@@ -356,7 +372,6 @@ VALUE AsyncEngine_handle_error(VALUE self, VALUE error)
 }
 
 
-// TODO: static? must be in the .h?
 void ae_handle_error(VALUE error)
 {
   AE_TRACE();
@@ -369,7 +384,7 @@ void ae_handle_error(VALUE error)
     if (error_tag) {
       error2 = rb_errinfo();
       rb_set_errinfo(Qnil);
-      AE_WARN("error rescued with rb_protect() while running the user error handler");  // TODO: for testing
+      AE_DEBUG2("error rescued with rb_protect() while running the user error handler");  // TODO: for testing
       rb_ivar_set(mAsyncEngine, att_exit_error, error2);
       ae_release_loop();
     }
@@ -393,6 +408,7 @@ VALUE ae_handle_error_with_rb_protect(VALUE error)
 /** AE.check_status method. */
 
 // TODO: Will be removed after all the handles are created in C land.
+static
 VALUE AsyncEngine_check_status(VALUE self)
 {
   AE_TRACE();

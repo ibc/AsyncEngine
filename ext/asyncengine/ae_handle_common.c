@@ -148,10 +148,8 @@ VALUE ae_block_call_0(VALUE _rb_block)
 {
   AE_TRACE();
 
-  // This could occur if for example the user calls AE.stop and inmediatelly sets a UV async. The
-  // UV async callback would not find it block since it has been removed by AE.stop.
   if (NIL_P(_rb_block)) {
-    AE_WARN("called with nil as _rb_block");
+    AE_ABORT("called with nil as _rb_block");
     return Qfalse;
   }
   return rb_funcall2(_rb_block, method_call, 0, NULL);
@@ -163,7 +161,7 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
   AE_TRACE();
 
   if (NIL_P(_rb_block)) {
-    AE_WARN("called with nil as _rb_block");
+    AE_ABORT("called with nil as _rb_block");
     return Qfalse;
   }
   return rb_funcall2(_rb_block, method_call, 1, &param);
@@ -204,19 +202,16 @@ VALUE ae_run_with_error_handler(void* function)
     // pass it to the error handler?
     error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    AE_DEBUG2("error.class: %s", rb_obj_classname(error));
+    AE_DEBUG("error class: %s", rb_obj_classname(error));
 
-    /* When releasing, errors must be ignored. */
-    // TODO: Probably this check is not needed and should be removed, or put an assert.
+    /* When releasing, errors must be ignored (or maybe it should never happen). */
     if (AE_status == AE_RELEASING) {
-      AE_WARN("error rescued while in releasing status, ignoring it");
-      return Qnil;
+      //AE_DEBUG("error rescued while in releasing status, ignoring it");
+      //return Qnil;
+      AE_ABORT("error rescued while in releasing status");  // TODO: testing, not sure yet.
     }
     else {
-      AE_WARN("error rescued, passing it to the error handler");
-      // TODO: this must also be executed with rb_protect() for the case in which the
-      // AE.on_error block provided by the user raises itself.
-      //rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
+      AE_DEBUG("error rescued, passing it to the error handler");
       ae_handle_error(error);
       return Qnil;
     }

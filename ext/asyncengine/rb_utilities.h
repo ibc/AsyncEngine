@@ -11,16 +11,16 @@
 if (argc < min || argc > max)  \
   rb_raise(rb_eArgError, "wrong number of arguments")
 
-#define AE_RB_GET_BLOCK_OR_PROC(num_arg, save_to)  \
+#define AE_RB_GET_BLOCK_OR_PROC(num_arg, target_proc)  \
   if (rb_block_given_p())  \
-    save_to = rb_block_proc();  \
+    target_proc = rb_block_proc();  \
   else if (argc >= num_arg) {  \
-    save_to = argv[num_arg-1];  \
-    if (! rb_obj_is_kind_of(save_to, rb_cProc))  \
+    target_proc = argv[num_arg-1];  \
+    if (! rb_obj_is_proc(target_proc))  \
       rb_raise(rb_eTypeError, "argument %d is not a Proc", num_arg);  \
     }  \
   else  \
-    save_to = Qnil;
+    target_proc = Qnil;
 
 #define AE_RB_ENSURE_BLOCK_OR_PROC(num_arg, save_to)  \
   AE_RB_GET_BLOCK_OR_PROC(num_arg, save_to);  \
