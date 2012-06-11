@@ -30,6 +30,8 @@ static ID method_call_from_other_thread;
 static ID method_pid;
 static ID method_raise;
 
+static uv_async_t* ae_ubf_uv_async;
+
 
 /** Pre-declaration of static functions. TODO: Add more and so... */
 
@@ -97,7 +99,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 
   VALUE _rb_proc;
   VALUE captured_error;
-  int i;
+  int r, i;
 
   AE_RB_CHECK_NUM_ARGS(0,1);
   AE_RB_ENSURE_BLOCK_OR_PROC(1, _rb_proc);
@@ -117,7 +119,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
     return Qtrue;
   }
 
-    /* Set the UV loop. */
+  /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
 
   // Mark current thread and PID as AE_thread and AE_pid.
@@ -134,6 +136,12 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   /* Load the UV idle (AE.next_tick) and UV async (AE.call_from_other_thread) now. */
   load_ae_next_tick_uv_idle();
   load_ae_call_from_other_thread();
+
+  /* Load the UV async for the ae_ubf() function. */
+  AE_ASSERT(ae_ubf_uv_async == NULL); // TODO: testing.
+  ae_ubf_uv_async = ALLOC(uv_async_t);
+  r = uv_async_init(AE_uv_loop, ae_ubf_uv_async, ae_ubf_uv_async_callback);
+  AE_ASSERT(r == 0);
 
   /* Initial status. */
   AE_status = AE_RUNNING;
@@ -197,7 +205,6 @@ void ae_ubf(void)
 {
   AE_TRACE2();
 
-  // TODO: Not sure if needed.
   if (AE_status != AE_RUNNING)
     return;
 
@@ -209,12 +216,7 @@ void ae_ubf(void)
    * Therefore, do nothing but check interrupts in Ruby land via a thread safe uv_async.
    */
 
-  // TODO: Make it static so no ALLOC required every time.
-
-  uv_async_t* ae_ubf_uv_async = ALLOC(uv_async_t);
-
-  AE_ASSERT(! uv_async_init(AE_uv_loop, ae_ubf_uv_async, ae_ubf_uv_async_callback));
-  AE_ASSERT(! uv_async_send(ae_ubf_uv_async));
+  uv_async_send(ae_ubf_uv_async);
 }
 
 
@@ -223,12 +225,8 @@ void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
   AE_TRACE2();
 
-  // TODO: Exit if RELEASING, creo.
-
-  // TODO: testing, can be error?
-  AE_ASSERT(! status);
-
-  uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
+  if (AE_status != AE_RUNNING)
+    return;
 
   AE_DEBUG("ae_execute_in_ruby_land(rb_thread_check_ints)");
   ae_execute_in_ruby_land(rb_thread_check_ints);
@@ -269,9 +267,12 @@ VALUE AsyncEngine_release_loop(VALUE self)
   // Clear @_blocks.
   rb_funcall2(AE_blocks, method_clear, 0, NULL);
 
-  /* Close AE internal handles. If the async handle is not closed uv_run() won't exit. */
+  /* Close AE internal handles. If the async handles are not closed uv_run() won't exit. */
   unload_ae_next_tick_uv_idle();
   unload_ae_call_from_other_thread();
+  AE_ASSERT(ae_ubf_uv_async != NULL); // TODO: testing.
+  AE_CLOSE_UV_HANDLE(ae_ubf_uv_async);
+  ae_ubf_uv_async = NULL;
 
   return Qnil;
 }
@@ -394,4 +395,6 @@ void Init_asyncengine_ext()
 
   AE_uv_loop = NULL;
   AE_status = AE_STOPPED;
+
+  ae_ubf_uv_async = NULL;
 }
