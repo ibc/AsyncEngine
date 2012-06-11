@@ -204,7 +204,7 @@ VALUE ae_run_with_error_handler(void* function)
     // pass it to the error handler?
     VALUE error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    printf("*** DBG: ae_run_with_error_handler():  error.class: %s\n", rb_obj_classname(error));
+    AE_DEBUG2("error.class: %s", rb_obj_classname(error));
 
     /* When releasing, errors must be ignored. */
     // TODO: Probably this check is not needed and should be removed, or put an assert.
