@@ -78,7 +78,7 @@ void _uv_async_callback(uv_async_t* handle, int status)
   AE_TRACE();
 
   AE_ASSERT(! status);  // TODO: testing
-  ae_execute_in_ruby_land(_ae_async_callback);
+  ae_take_gvl_and_run_with_error_handler(_ae_async_callback);
 }
 
 
@@ -88,6 +88,7 @@ VALUE _ae_async_callback(void)
 {
   AE_TRACE();
 
+  // TODO: must be safe...
   rb_funcall2(mAsyncEngine, method_execute_call_from_other_thread_procs, 0, NULL);
   return Qnil;
 }

@@ -40,7 +40,7 @@ static int ae_is_running_thread(void);
 static int destroy_handle(VALUE key, VALUE handle, VALUE in);
 static int destroy_handle(VALUE key, VALUE handle, VALUE in);
 static VALUE destroy_handle_with_rb_protect(VALUE handle);
-static VALUE run_uv_without_gvl(void);
+static VALUE uv_run_without_gvl(void);
 static void ae_ubf(void);
 static void ae_ubf_uv_async_callback(uv_async_t* handle, int status);
 
@@ -110,7 +110,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   if (AE_status == AE_RELEASING)
     rb_raise(eAsyncEngineStillReleasingError, "AsyncEngine still releasing");
 
-  // If already running pass the block to the reactor.
+  // If already running pass the block to the reactor and return true.
   if (AE_status == AE_RUNNING) {
     if (ae_is_running_thread())
       rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_proc);
@@ -122,12 +122,13 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
 
-  // Mark current thread and PID as AE_thread and AE_pid.
+  // Mark current thread and PID.
   AE_thread = rb_thread_current();
   AE_pid = rb_funcall2(mProcess, method_pid, 0, NULL);
 
   // Get the VALUEs for @_handles and @_blocks (faster).
-  // NOTE: AE_next_ticks cannot be loaded here since its value is changed in runtime.
+  // NOTE: AE_next_ticks cannot be loaded here since its reference is changed in runtime,
+  // same for @_call_from_other_thread_procs.
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
 
@@ -154,7 +155,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 
   AE_DEBUG("UV loop starts...");
   // uv_run() will block here until ae_release_loop() is called.
-  rb_thread_call_without_gvl(run_uv_without_gvl, NULL, ae_ubf, NULL);
+  rb_thread_call_without_gvl(uv_run_without_gvl, NULL, ae_ubf, NULL);
   AE_DEBUG("UV loop terminates");
 
   AE_ASSERT(AE_status == AE_RELEASING);
@@ -174,12 +175,13 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   /*
    * If an exception/error has been captured by the exception manager, raise it now
    * but just in case it's an Exception object. Thread#kill does not set the error
-   * to an Exception (but a Fixnum(8) so ignore it).
+   * to an Exception (but a Fixnum(8) so ignore it and Ruby will do the rest).
    */
-  if (! NIL_P(captured_error = rb_ivar_get(mAsyncEngine, att_exit_error))) {
+  captured_error = rb_ivar_get(mAsyncEngine, att_exit_error);
+  rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
+  if (! NIL_P(captured_error)) {
     if (rb_obj_is_kind_of(captured_error, rb_eException) == Qtrue) {
-      AE_DEBUG("raising captured error");
-      rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
+      AE_DEBUG2("raising captured error");
       rb_funcall2(mKernel, method_raise, 1, &captured_error);
     }
     else {
@@ -192,9 +194,11 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 
 
 static
-VALUE run_uv_without_gvl(void)
+VALUE uv_run_without_gvl(void)
 {
   AE_TRACE();
+
+  KK2("vamos a ver que tal %d, %s\n", 1, "qwe");
 
   uv_run(AE_uv_loop);
 }
@@ -203,7 +207,9 @@ VALUE run_uv_without_gvl(void)
 static
 void ae_ubf(void)
 {
-  AE_TRACE2();
+  AE_TRACE();
+
+  int r;
 
   if (AE_status != AE_RUNNING)
     return;
@@ -216,20 +222,21 @@ void ae_ubf(void)
    * Therefore, do nothing but check interrupts in Ruby land via a thread safe uv_async.
    */
 
-  uv_async_send(ae_ubf_uv_async);
+  r = uv_async_send(ae_ubf_uv_async);
+  AE_ASSERT(r == 0);
 }
 
 
 static
 void ae_ubf_uv_async_callback(uv_async_t* handle, int status)
 {
-  AE_TRACE2();
+  AE_TRACE();
 
   if (AE_status != AE_RUNNING)
     return;
 
-  AE_DEBUG("ae_execute_in_ruby_land(rb_thread_check_ints)");
-  ae_execute_in_ruby_land(rb_thread_check_ints);
+  AE_DEBUG("ae_take_gvl_and_run_with_error_handler(rb_thread_check_ints)");
+  ae_take_gvl_and_run_with_error_handler(rb_thread_check_ints);
 }
 
 

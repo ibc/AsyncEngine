@@ -181,7 +181,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
   last_udp_recv_callback_data.addr = addr;
   last_udp_recv_callback_data.flags = flags;
 
-  ae_execute_in_ruby_land(ae_udp_recv_callback);
+  ae_take_gvl_and_run_with_error_handler(ae_udp_recv_callback);
 }
 
 
@@ -305,7 +305,7 @@ void _uv_udp_send_callback(uv_udp_send_t* req, int status)
   xfree(send_data);
 
   if (do_on_send)
-    ae_execute_in_ruby_land(ae_udp_send_callback);
+    ae_take_gvl_and_run_with_error_handler(ae_udp_send_callback);
 }
 
 

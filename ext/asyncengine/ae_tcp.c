@@ -106,7 +106,6 @@ static void AsyncEngineTcpSocket_free(struct_cdata* cdata);
 static void init_instance(VALUE self, enum_ip_type ip_type, char* dest_ip, int dest_port, char* bind_ip, int bind_port);
 static void _uv_connect_callback(uv_connect_t* req, int status);
 static VALUE _ae_connect_callback(void);
-static VALUE _ae_safe_connect_callback(void);
 static uv_buf_t _uv_alloc_callback(uv_handle_t* handle, size_t suggested_size);
 static void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf);
 static VALUE _ae_read_callback(void);
@@ -372,7 +371,7 @@ void _uv_connect_callback(uv_connect_t* req, int status)
     cdata->_uv_handle = NULL;
   }
 
-  ae_execute_in_ruby_land(_ae_connect_callback);
+  ae_take_gvl_and_run_with_error_handler(_ae_connect_callback);
 }
 
 
@@ -388,44 +387,20 @@ VALUE _ae_connect_callback(void)
   if (! last_uv_connect_callback_data.status) {
     rb_funcall2(cdata->ae_handle, method_on_connected, 0, NULL);
   }
-  /*
-   * Connection failed. Here we must check the flag RELEASING. If set it means that
-   * a pending connection has been interrupted when AsyncEngine is release. In this case
-   * call "on_connection_error()" with rb_protect() to ignore a exception in the user
-   * provided method.
-   */
+  // Connection failed.
   else {
     ae_remove_handle(cdata->ae_handle_id);
 
-    if (! (cdata->flags & RELEASING)) {
-      // Network error, remote rejection or client closed before connecting.
-      if (! (cdata->flags & CONNECT_TIMEOUT))
-        error = ae_get_last_uv_error();
-      // Connection timeout set by the user, so raise UV error 40: ETIMEDOUT, "connection timed out".
-      else
-        error = ae_get_uv_error(UV_ETIMEDOUT);
-
-      rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
-    }
+    // Network error, remote rejection, client closed before connecting or AE releasing.
+    if (! (cdata->flags & CONNECT_TIMEOUT))
+      error = ae_get_last_uv_error();
+    // Connection timeout set by the user, so raise UV error 40: ETIMEDOUT, "connection timed out".
     else
-      ae_safe_run_ruby_function(_ae_safe_connect_callback);
+      error = ae_get_uv_error(UV_ETIMEDOUT);
+
+    rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
   }
 
-  return Qnil;
-}
-
-
-static
-VALUE _ae_safe_connect_callback(void)
-{
-  AE_TRACE2();
-
-  struct_cdata* cdata = last_uv_connect_callback_data.cdata;
-  VALUE error;
-
-  error = ae_get_last_uv_error();
-
-  rb_funcall2(cdata->ae_handle, method_on_connection_error, 1, &error);
   return Qnil;
 }
 
@@ -488,12 +463,12 @@ void _uv_read_callback(uv_stream_t* stream, ssize_t nread, uv_buf_t buf)
     else {
       AE_CLOSE_UV_HANDLE(_uv_handle);
       cdata->_uv_handle = NULL;
-      ae_execute_in_ruby_land(_ae_read_callback);
+      ae_take_gvl_and_run_with_error_handler(_ae_read_callback);
     }
   }
   else {
     if (! (cdata->flags & PAUSED))
-      ae_execute_in_ruby_land(_ae_read_callback);
+      ae_take_gvl_and_run_with_error_handler(_ae_read_callback);
     else
       xfree(buf.base);
   }
@@ -607,7 +582,7 @@ void _uv_write_callback(uv_write_t* req, int status)
   // NOTE: Even if the handle has been destroyed, we need to go to Ruby land to
   // unregister and free the write block.
   if (has_block)
-    ae_execute_in_ruby_land(_ae_write_callback);
+    ae_take_gvl_and_run_with_error_handler(_ae_write_callback);
 }
 
 
@@ -873,7 +848,7 @@ void _uv_shutdown_callback(uv_shutdown_t* req, int status)
     return;
 
   last_uv_shutdown_callback_data.cdata = cdata;
-  ae_execute_in_ruby_land(_ae_shutdown_callback);
+  ae_take_gvl_and_run_with_error_handler(_ae_shutdown_callback);
 }
 
 

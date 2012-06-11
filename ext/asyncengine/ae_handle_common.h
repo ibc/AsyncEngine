@@ -30,6 +30,8 @@ VALUE ae_block_call_1(VALUE rb_block, VALUE param);
 
 VALUE ae_execute_in_ruby_land(void* function);
 VALUE ae_safe_run_ruby_function(void* function);
+VALUE ae_run_with_error_handler(void* function);
+VALUE ae_take_gvl_and_run_with_error_handler(void* function);
 
 
 #endif  /* AE_HANDLE_COMMON_H */

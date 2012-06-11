@@ -68,5 +68,8 @@
 #define AE_ASSERT(condition)  condition
 #endif
 
+// TEST
+#define KK2(...)  fprintf(stderr, __VA_ARGS__)
+
 
 #endif  /* _AE_DEBUG_H */

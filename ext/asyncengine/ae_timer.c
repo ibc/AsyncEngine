@@ -134,7 +134,7 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
 
   last_timer_callback_data.handle = handle;
 
-  ae_execute_in_ruby_land(ae_timer_callback);
+  ae_take_gvl_and_run_with_error_handler(ae_timer_callback);
 }
 
 

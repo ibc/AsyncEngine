@@ -170,73 +170,68 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 }
 
 
-static
-VALUE execute_function_with_glv_and_rb_protect(void* function)
+/*
+ * When any AsyncEngine handler runs a handle method having the GVL,
+ * it must use this function.
+ */
+VALUE ae_run_with_error_handler(void* function)
 {
   AE_TRACE();
 
-  int error_tag = 0;
-  VALUE ret;
-  VALUE error;
+  VALUE ret, error;
+  int error_tag;
 
   ret = rb_protect(function, Qnil, &error_tag);
 
   /*
    * If an error occurs while in function() it can be due:
-   * 
+   *
    * - An Exception (including SystemExit), this is "rescue-able" via "rescue Exception"
-   *   and will run the "ensure" code if present. In this case rb_errinfo() gets the
+   *   and will run the "ensure" code if present. In this case rb_errinfo() returns the
    *   exact Exception object.
    *
    * - A Thread#kill. This is NOT "rescue-able" via "rescue Exception" but it WILL run
-   *   the "ensure" code if present. In this case rb_errinfo() returns FIXNUM 8 (it maybe
-   *   different, no idea).
+   *   the "ensure" code if present. In this case rb_errinfo() returns FIXNUM 8.
    *
    * So, check the class of the object returned by rb_errinfo(). If it's an Exception then
    * store it, release the loop and raise it. Otherwise (Thread#kill) then don't store the
    * exception returned by rb_errinfo() and just release the loop. Ruby will do the rest.
    */
-  if (error_tag) {
-    if (error_tag == 8) AE_WARN("******************************************************************** error_tag == 8");
 
+  if (error_tag) {
+    // TODO: This could return Fixnum 8: https://github.com/ibc/AsyncEngine/issues/4,
+    // so the error handler must check it. Maybe it's better to set error=Qnil and
+    // pass it to the error handler?
     VALUE error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    printf("*** DBG: execute_function_with_glv_and_rb_protect():  exception.class: %s\n", rb_obj_classname(error));
+    printf("*** DBG: ae_run_with_error_handler():  error.class: %s\n", rb_obj_classname(error));
 
-    // Call AsyncEngine.handle_error().
-    return rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
+    /* When releasing, errors must be ignored. */
+    // TODO: Probably this check is not needed and should be removed, or put an assert.
+    if (AE_status == AE_RELEASING) {
+      AE_WARN("error rescued while in releasing status, ignoring it");
+      return Qnil;
+    }
+    else {
+      AE_WARN("error rescued, passing it to the error handler");
+      // TODO: this must also be executed with rb_protect() for the case in which the
+      // AE.on_error block provided by the user raises itself.
+      rb_funcall2(mAsyncEngine, method_handle_error, 1, &error);
+      return Qnil;
+    }
   }
-  // Otherwise just return the VALUE returned by rb_protec() above.
   else
     return ret;
 }
 
 
 /*
- * Executes the given function taking the GVL and using rb_protect().
+ * When any AsyncEngine handler runs a Ruby callback, it must
+ * use this function, which must be called without the GVL.
  */
-VALUE ae_execute_in_ruby_land(void* function)
+VALUE ae_take_gvl_and_run_with_error_handler(void* function)
 {
   AE_TRACE();
 
-  return rb_thread_call_with_gvl(execute_function_with_glv_and_rb_protect, function);
-}
-
-
-/*
- * Executes the given function using rb_protect() and ignoring any error/exception.
- * NOTE: This function MUST be called with the GVL.
- */
-VALUE ae_safe_run_ruby_function(void* function)
-{
-  AE_TRACE2();
-
-  int error_tag;
-
-  rb_protect(function, Qnil, &error_tag);
-
-  if (error_tag) {
-    rb_set_errinfo(Qnil);
-    AE_WARN("error rescued by rb_protect() and ignored while executing the function");
-  }
+  return rb_thread_call_with_gvl(ae_run_with_error_handler, function);
 }

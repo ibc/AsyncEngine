@@ -62,7 +62,7 @@ module AsyncEngine
       end
     else
       # TODO: sometimes I get (e = Fixnum: 8) again: https://github.com/ibc/AsyncEngine/issues/4
-      #puts "WARN: AE.handle_exception(#{e.inspect}) (no exception_handler defined by user)"
+      puts "WARN: AE.handle_error(#{e.inspect})"
       @_exit_error = e
       release_loop()
     end
