@@ -6,70 +6,62 @@
 
 
 /* NOTE: Uncomment these lines for debugging during development. */
-//#define AE_DO_TRACE
+#define AE_DO_TRACE
 #define AE_DO_TRACE2
-//#define AE_DO_DEBUG
+#define AE_DO_DEBUG
 #define AE_DO_DEBUG2
 #define AE_DO_WARN
 #define AE_DO_ASSERT
 
 
-#ifdef HAVE_RUBY_THREAD_HAS_GVL_P
-#define AE_SHOW_THREAD_HAS_GVL_PART1 (GVL:%d)
-#define AE_SHOW_THREAD_HAS_GVL_PART2 " , ruby_thread_has_gvl_p()"
-#else
-#define AE_SHOW_THREAD_HAS_GVL_PART1
-#define AE_SHOW_THREAD_HAS_GVL_PART2
-#endif
-
+#define _AE_DEBUG_STR  "%s:%d:%s()"
+#define _AE_DEBUG_STR_WITH_DESC  _AE_DEBUG_STR ":: "
+#define _AE_DEBUG_ARG  __FILE__, __LINE__, __FUNCTION__
+#define _AE_DEBUG_PRINT(...)  fprintf(stderr, __VA_ARGS__)
 
 #ifdef AE_DO_TRACE
-#define AE_TRACE()  fprintf(stdout, "AE_TRACE: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
+#define AE_TRACE()  _AE_DEBUG_PRINT("AE_TRACE: " _AE_DEBUG_STR "\n", _AE_DEBUG_ARG)
 #else
 #define AE_TRACE()
 #endif
 
 #ifdef AE_DO_TRACE2
-#define AE_TRACE2()  fprintf(stdout, "AE_TRACE2: %s:%d:%s\n", __FILE__, __LINE__, __FUNCTION__)
+#define AE_TRACE2()  _AE_DEBUG_PRINT("AE_TRACE2: " _AE_DEBUG_STR "\n", _AE_DEBUG_ARG)
 #else
 #define AE_TRACE2()
 #endif
 
 #ifdef AE_DO_DEBUG
-#define AE_DEBUG(desc)  fprintf(stdout, "AE_DEBUG: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
+#define AE_DEBUG(_desc, ...)  _AE_DEBUG_PRINT("AE_DEBUG: " _AE_DEBUG_STR_WITH_DESC _desc "\n", _AE_DEBUG_ARG, ##__VA_ARGS__)
 #else
-#define AE_DEBUG(desc)
+#define AE_DEBUG(_desc, ...)
 #endif
 
 #ifdef AE_DO_DEBUG2
-#define AE_DEBUG2(desc)  fprintf(stdout, "AE_DEBUG2: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
+#define AE_DEBUG2(_desc, ...)  _AE_DEBUG_PRINT("AE_DEBUG2: " _AE_DEBUG_STR_WITH_DESC _desc "\n", _AE_DEBUG_ARG, ##__VA_ARGS__)
 #else
-#define AE_DEBUG2(desc)
+#define AE_DEBUG2(_desc, ...)
 #endif
 
 #ifdef AE_DO_WARN
-#define AE_WARN(desc)  fprintf(stderr, "AE_WARN: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc)
+#define AE_WARN(_desc, ...)  _AE_DEBUG_PRINT("AE_WARN: " _AE_DEBUG_STR_WITH_DESC _desc "\n", _AE_DEBUG_ARG, ##__VA_ARGS__)
 #else
-#define AE_WARN(desc)
+#define AE_WARN(_desc, ...)
 #endif
 
-#define AE_ABORT(desc)  fprintf(stderr, "AE_ABORT: %s:%d:%s::  %s\n", __FILE__, __LINE__, __FUNCTION__, desc); exit(1);
+#define AE_ABORT(_desc, ...)  _AE_DEBUG_PRINT("AE_ABORT: " _AE_DEBUG_STR_WITH_DESC _desc "\n", _AE_DEBUG_ARG, ##__VA_ARGS__); exit(1);
 
 #ifdef AE_DO_ASSERT
-#define AE_ASSERT(condition)  \
+#define AE_ASSERT(_condition)  \
   do {  \
-    if (!(condition)) {  \
-      fprintf(stderr, "AE_ASSERT: %s:%d:%s:: assertion `" #condition "' failed\n",  \
-      __FILE__, __LINE__, __FUNCTION__);  \
+    if (!(_condition)) {  \
+      _AE_DEBUG_PRINT("AE_ASSERT: " _AE_DEBUG_STR_WITH_DESC "assertion `" #_condition "' failed\n", _AE_DEBUG_ARG);  \
       abort();  \
     }  \
   } while(0)
 #else
-#define AE_ASSERT(condition)  condition
+#define AE_ASSERT(_condition)  _condition
 #endif
-
-// TEST
-#define KK2(...)  fprintf(stderr, __VA_ARGS__)
 
 
 #endif  /* _AE_DEBUG_H */

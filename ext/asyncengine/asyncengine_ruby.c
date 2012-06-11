@@ -158,8 +158,6 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   rb_thread_call_without_gvl(uv_run_without_gvl, NULL, ae_ubf, NULL);
   AE_DEBUG("UV loop terminates");
 
-  AE_ASSERT(AE_status == AE_RELEASING);
-
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_handlers() == 0);
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
@@ -197,8 +195,6 @@ static
 VALUE uv_run_without_gvl(void)
 {
   AE_TRACE();
-
-  KK2("vamos a ver que tal %d, %s\n", 1, "qwe");
 
   uv_run(AE_uv_loop);
 }
