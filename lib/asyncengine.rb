@@ -50,6 +50,7 @@ module AsyncEngine
     @_user_error_handler = nil
   end
 
+
   class << self
     private :release_loop
     private :check_status

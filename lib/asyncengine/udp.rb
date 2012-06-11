@@ -50,6 +50,7 @@ module AsyncEngine
       puts "#{inspect}: received datagram from #{src_ip} : #{src_port}: #{datagram.inspect}"
     end
 
+
     class << self
       private :new
     end

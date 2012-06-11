@@ -1,7 +1,6 @@
 module AsyncEngine
 
-    # TODO: for testing
-  def self.ensure_no_handles
+  def self.ensure_released
     raise AsyncEngine::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() <= 1
     raise AsyncEngine::Error, "@_handles not empty"  unless @_handles.empty?
     raise AsyncEngine::Error, "@_blocks not empty"  unless @_blocks.empty?
@@ -10,7 +9,6 @@ module AsyncEngine
     @_call_from_other_thread_procs
   end
 
-  # TODO: for testing
   def self.debug
     puts "\nDBG: AsyncEngine debug:"
     puts "- AE.running: #{running?}"
@@ -26,6 +24,7 @@ module AsyncEngine
       @_call_from_other_thread_procs[0..10].each {|n| puts "  - #{n.inspect}"}
     puts
   end
+
 
   class << self
     private :num_uv_active_handles
