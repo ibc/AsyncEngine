@@ -97,25 +97,7 @@ class TestBasic < AETest
     assert_false @var
   end
 
-  def test_06_multiple_stop_in_cascade_from_different_thread
-    @var = false
-
-    AE.run do
-      AE.add_timer(1) { @var = true }  # Won't occur.
-      Thread.new do
-        AE.call_from_other_thread do
-          AE.call_from_other_thread do
-            AE.call_from_other_thread do
-              AE.stop
-            end
-          end
-        end
-      end
-    end
-    assert_false @var
-  end
-
-  def test_07_signal_kills_asyncengine
+  def test_06_signal_kills_asyncengine
     @var = false
 
     assert_raise SignalException do
@@ -129,7 +111,7 @@ class TestBasic < AETest
     assert_false @var
   end
 
-  def test_08_force_still_releasing_error
+  def test_07_force_still_releasing_error
     @var = false
     assert_raise AE::StillReleasingError do
       AE.run do
