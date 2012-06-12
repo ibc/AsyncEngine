@@ -154,4 +154,16 @@ class TestBasic < AETest
     assert_equal 2, num
   end
 
+  def test_09_run_in_on_error
+    num = 0
+
+    AE.on_exit do
+      AE.run { num += 1 ; AE.stop }
+    end
+
+    AE.run { num += 1 ; AE.stop }
+
+    assert_equal 2, num
+  end
+
 end
