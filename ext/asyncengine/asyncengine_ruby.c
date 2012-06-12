@@ -17,7 +17,7 @@ static VALUE AE_pid;
 
 static ID att_handles;
 static ID att_blocks;
-static ID att_next_ticks;
+static ID att_next_tick_procs;
 static ID att_call_from_other_thread_procs;
 static ID att_user_error_handler;
 static ID att_exit_error;
@@ -132,8 +132,6 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_pid = rb_funcall2(mProcess, method_pid, 0, NULL);
 
   // Get the VALUEs for @_handles and @_blocks (faster).
-  // NOTE: AE_next_ticks cannot be loaded here since its reference is changed in runtime,
-  // same for @_call_from_other_thread_procs.
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
 
@@ -279,8 +277,8 @@ void ae_release_loop(void)
   // No more handles can be created from now.
   AE_status = AE_RELEASING;
 
-  // Clear @_next_ticks.
-  rb_ary_clear(rb_ivar_get(mAsyncEngine, att_next_ticks));
+  // Clear @_next_tick_procs.
+  rb_ary_clear(rb_ivar_get(mAsyncEngine, att_next_tick_procs));
 
   // Clear @_call_from_other_thread_procs.
   rb_ary_clear(rb_ivar_get(mAsyncEngine, att_call_from_other_thread_procs));
@@ -445,7 +443,7 @@ void Init_asyncengine_ext()
 
   att_handles = rb_intern("@_handles");
   att_blocks = rb_intern("@_blocks");
-  att_next_ticks = rb_intern("@_next_ticks");
+  att_next_tick_procs = rb_intern("@_next_tick_procs");
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
   att_exit_error = rb_intern("@_exit_error");
   att_user_error_handler = rb_intern("@_user_error_handler");

@@ -9,7 +9,6 @@ require "asyncengine/asyncengine_ext.so"
 # AsyncEngine Ruby library files.
 require "asyncengine/version.rb"
 require "asyncengine/errors.rb"
-require "asyncengine/next_tick.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/udp.rb"
@@ -22,7 +21,7 @@ module AsyncEngine
 
   @_handles = {}
   @_blocks = {}
-  @_next_ticks = []
+  @_next_tick_procs = []
   @_call_from_other_thread_procs = []
   @_user_error_handler = nil
   @_exit_error = nil

@@ -1,5 +1,5 @@
-#ifndef AE_ASYNC_H
-#define AE_ASYNC_H
+#ifndef AE_CALL_FROM_OTHER_THREAD_H
+#define AE_CALL_FROM_OTHER_THREAD_H
 
 
 void init_ae_call_from_other_thread(void);
@@ -9,4 +9,4 @@ void unload_ae_call_from_other_thread_uv_async(void);
 VALUE AsyncEngine_call_from_other_thread(int argc, VALUE *argv, VALUE self);
 
 
-#endif  /* AE_ASYNC_H */
+#endif  /* AE_CALL_FROM_OTHER_THREAD_H */

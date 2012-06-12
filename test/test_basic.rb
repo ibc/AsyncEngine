@@ -111,26 +111,4 @@ class TestBasic < AETest
     assert_false @var
   end
 
-  def test_07_force_still_releasing_error
-    @var = false
-    assert_raise AE::StillReleasingError do
-      AE.run do
-        AE.stop
-        AE.next_tick { AE.run { @var = true } }
-      end
-    end
-    assert_false @var
-
-    @var = false
-    assert_raise AE::StillReleasingError do
-      th = Thread.new { sleep }
-      AE.run do
-        AE.stop
-        AE.next_tick { AE.run { @var = true } }
-      end
-      th.kill
-    end
-    assert_false @var
-  end
-
 end
