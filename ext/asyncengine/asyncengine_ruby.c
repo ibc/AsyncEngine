@@ -369,17 +369,7 @@ VALUE AsyncEngine_is_running_thread(VALUE self)
 }
 
 
-/** ae_handle_error and AE.handle_error private methods . */
-
-static
-VALUE AsyncEngine_handle_error(VALUE self, VALUE error)
-{
-  AE_TRACE();
-
-  ae_handle_error(error);
-  return Qnil;
-}
-
+/** ae_handle_error function. */
 
 void ae_handle_error(VALUE error)
 {
@@ -453,7 +443,6 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
   rb_define_module_function(mAsyncEngine, "running?", AsyncEngine_is_running, 0);
   rb_define_module_function(mAsyncEngine, "running_thread?", AsyncEngine_is_running_thread, 0);
-  rb_define_module_function(mAsyncEngine, "handle_error", AsyncEngine_handle_error, 1);
   rb_define_module_function(mAsyncEngine, "check_status", AsyncEngine_check_status, 0);  // TODO: Should be removed since all will be in C.
   // TODO: temporal methods (for debugging).
   rb_define_module_function(mAsyncEngine, "num_uv_active_handles", AsyncEngine_num_uv_active_handles, 0);

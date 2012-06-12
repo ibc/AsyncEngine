@@ -64,7 +64,6 @@ module AsyncEngine
   class << self
     private :release_loop
     private :check_status
-    private :handle_error
   end
 
 end
