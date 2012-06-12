@@ -21,6 +21,7 @@ static ID att_next_tick_procs;
 static ID att_call_from_other_thread_procs;
 static ID att_user_error_handler;
 static ID att_exit_error;
+static ID att_on_exit_procs;
 
 static ID const_UV_ERRNOS;
 
@@ -102,12 +103,11 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
 
-  VALUE _rb_proc;
-  VALUE captured_error;
+  VALUE proc, captured_error, on_exit_procs;
   int r, i;
 
   AE_RB_CHECK_NUM_ARGS(0,1);
-  AE_RB_ENSURE_BLOCK_OR_PROC(1, _rb_proc);
+  AE_RB_ENSURE_BLOCK_OR_PROC(1, proc);
 
   if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
     rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
@@ -118,9 +118,9 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   // If already running pass the block to the reactor and return true.
   if (AE_status == AE_RUNNING) {
     if (ae_is_running_thread())
-      rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_proc);
+      rb_funcall2(mAsyncEngine, method_next_tick, 1, &proc);
     else
-      rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &_rb_proc);
+      rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &proc);
     return Qtrue;
   }
 
@@ -151,7 +151,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_status = AE_RUNNING;
 
   /* Pass the given block to the reactor via next_tick. */
-  rb_funcall2(mAsyncEngine, method_next_tick, 1, &_rb_proc);
+  rb_funcall2(mAsyncEngine, method_next_tick, 1, &proc);
 
   // TODO: for testing.
   AE_ASSERT(ae_uv_num_active_reqs() == 0);
@@ -173,21 +173,32 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   // Now yes, set the status to AE_STOPPED.
   AE_status = AE_STOPPED;
 
+  // Get the captured error in @_exit_error (if any) and clean @_exit_error.
+  captured_error = rb_ivar_get(mAsyncEngine, att_exit_error);
+  rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
+
+  /*
+   * Run the procs within @_on_exit_procs in order by passing the captured error
+   * (is any) as argument.
+   */
+  on_exit_procs = rb_ivar_get(mAsyncEngine, att_on_exit_procs);
+  rb_ivar_set(mAsyncEngine, att_on_exit_procs, rb_ary_new());
+  for(i=0 ; i<RARRAY_LEN(on_exit_procs) ; i++) {
+    ae_block_call_1(rb_ary_entry(on_exit_procs, i), captured_error);
+  }
+
   /*
    * If an exception/error has been captured by the exception manager, raise it now
    * but just in case it's an Exception object. Thread#kill does not set the error
-   * to an Exception (but a Fixnum(8) so ignore it and Ruby will do the rest).
+   * to an Exception so Ruby will do the rest.
    */
-  captured_error = rb_ivar_get(mAsyncEngine, att_exit_error);
-  rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
   if (! NIL_P(captured_error)) {
     if (rb_obj_is_kind_of(captured_error, rb_eException) == Qtrue) {
       AE_DEBUG2("raising captured error (class: %s)", rb_obj_classname(captured_error));
       rb_funcall2(mKernel, method_raise, 1, &captured_error);
     }
-    else {
+    else
       AE_DEBUG2("AsyncEngine thread killed by Thread#kill");
-    }
   }
 
   return Qtrue;
@@ -311,7 +322,7 @@ int destroy_handle(VALUE key, VALUE handle, VALUE in)
   rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
   if (error_tag) {
     rb_set_errinfo(Qnil);
-    AE_WARN("error rescued with rb_protect() while destroying the handle");  // TODO: for testing
+    AE_DEBUG2("error rescued with rb_protect() while destroying the handle");  // TODO: for testing
   }
 
   return 0;
@@ -388,6 +399,13 @@ void ae_handle_error(VALUE error)
     }
   }
   else {
+    /*
+     * error could return Fixnum 8 when AE thread is killed with Thread#kill:
+     *   https://github.com/ibc/AsyncEngine/issues/4
+     * In this case convert it to nil. TODO: Sure? maybe some custom symbol?
+     */
+    if (FIXNUM_P(error))
+      error = Qnil;
     rb_ivar_set(mAsyncEngine, att_exit_error, error);
     ae_release_loop();
   }
@@ -447,6 +465,7 @@ void Init_asyncengine_ext()
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
   att_exit_error = rb_intern("@_exit_error");
   att_user_error_handler = rb_intern("@_user_error_handler");
+  att_on_exit_procs = rb_intern("@_on_exit_procs");
   const_UV_ERRNOS = rb_intern("UV_ERRNOS");
 
   method_destroy = rb_intern("destroy");

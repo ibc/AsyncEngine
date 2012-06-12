@@ -25,6 +25,7 @@ module AsyncEngine
   @_call_from_other_thread_procs = []
   @_user_error_handler = nil
   @_exit_error = nil
+  @_on_exit_procs = []
 
   def self.stop
     return false  unless check_status()
@@ -46,6 +47,17 @@ module AsyncEngine
 
   def self.unset_on_error
     @_user_error_handler = nil
+  end
+
+  def self.on_exit pr=nil, &bl
+    block = pr || bl
+    raise ArgumentError, "no block given"  unless block.is_a? Proc
+
+    @_on_exit_procs << block
+  end
+
+  def self.unset_on_exit
+    @_on_exit_procs.clear
   end
 
 

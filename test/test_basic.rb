@@ -111,4 +111,47 @@ class TestBasic < AETest
     assert_false @var
   end
 
+  def test_07_on_exit
+    num = 0
+
+    AE.on_exit { num += 1 }
+    AE.on_exit { num += 1 }
+    AE.run do
+      AE.on_exit { num += 1 }
+      AE.next_tick { AE.on_exit { num += 1 } ; AE.stop }
+      AE.on_exit { num += 1 }
+    end
+
+    assert_equal 5, num
+
+    num = 0
+
+    AE.on_exit { num += 1 }
+    AE.run do
+      AE.unset_on_exit
+      AE.stop
+    end
+
+    assert_equal 0, num
+  end
+
+  def test_08_on_exit_with_error
+    num = 0
+
+    AE.on_exit {|error| num += 1 }
+    AE.on_exit {|error| num += 1 ; raise RuntimeError, "runtime error" }
+    AE.on_exit {|error| num += 1 }  # This won't occur.
+
+    begin
+      AE.run do
+        pumpppp  # This will produce NameError.
+      end
+    # But the last exception took place when executing @_on_exit_procs: RuntimeError.
+    rescue => e
+      assert_equal RuntimeError, e.class
+    end
+
+    assert_equal 2, num
+  end
+
 end

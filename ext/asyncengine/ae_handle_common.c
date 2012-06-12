@@ -196,7 +196,7 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
   if (error_tag) {
     // TODO: This could return Fixnum 8: https://github.com/ibc/AsyncEngine/issues/4,
     // so the error handler must check it. Maybe it's better to set error=Qnil and
-    // pass it to the error handler?
+    // pass it to the error handler? NO, let's ae_handle_error(error) to do it.
     error = rb_errinfo();
     rb_set_errinfo(Qnil);
     AE_DEBUG("error class: %s", rb_obj_classname(error));
