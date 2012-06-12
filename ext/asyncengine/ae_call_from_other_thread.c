@@ -4,7 +4,9 @@
 
 
 static ID att_call_from_other_thread_procs;
+
 static ID method_execute_call_from_other_thread_procs;
+static ID method_call;
 
 static uv_async_t* ae_call_from_other_thread_uv_async;
 
@@ -22,7 +24,9 @@ void init_ae_call_from_other_thread(void)
   rb_define_module_function(mAsyncEngine, "call_from_other_thread", AsyncEngine_call_from_other_thread, -1);
 
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
+
   method_execute_call_from_other_thread_procs = rb_intern("execute_call_from_other_thread_procs");
+  method_call = rb_intern("call");
 
   ae_call_from_other_thread_uv_async = NULL;
 }
@@ -62,7 +66,6 @@ VALUE AsyncEngine_call_from_other_thread(int argc, VALUE *argv, VALUE self)
   AE_RB_CHECK_NUM_ARGS(0,1);
   AE_RB_ENSURE_BLOCK_OR_PROC(1, _rb_proc);
 
-  //NOTE: This action is atomic in MRI, so we don't need a Mutex.
   rb_ary_push(rb_ivar_get(mAsyncEngine, att_call_from_other_thread_procs), _rb_proc);
 
   r = uv_async_send(ae_call_from_other_thread_uv_async);
@@ -82,13 +85,26 @@ void _uv_async_callback(uv_async_t* handle, int status)
 }
 
 
-// TODO: If RELEASING don't call the block, just remove it, or not needed...
 static
 VALUE _ae_async_callback(void)
 {
   AE_TRACE();
 
-  // TODO: must be safe...
-  rb_funcall2(mAsyncEngine, method_execute_call_from_other_thread_procs, 0, NULL);
+  VALUE procs;
+  long i;
+
+  AE_ASSERT(AE_status == AE_RUNNING);
+
+  // procs = @_att_call_from_other_thread_procs
+  procs = rb_ivar_get(mAsyncEngine, att_call_from_other_thread_procs);
+  // @_att_call_from_other_thread_procs = []
+  rb_ivar_set(mAsyncEngine, att_call_from_other_thread_procs, rb_ary_new());
+
+  // Iterate procs Array and call each proc.
+  for(i=0 ; i<RARRAY_LEN(procs) ; i++) {
+    ae_run_with_error_handler(ae_block_call_0, rb_ary_entry(procs, i));
+  }
+  procs = Qnil;
+
   return Qnil;
 }

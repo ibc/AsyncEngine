@@ -28,9 +28,7 @@ void ae_raise_last_uv_error(void);
 VALUE ae_block_call_0(VALUE rb_block);
 VALUE ae_block_call_1(VALUE rb_block, VALUE param);
 
-VALUE ae_execute_in_ruby_land(void* function);
-VALUE ae_safe_run_ruby_function(void* function);
-VALUE ae_run_with_error_handler(void* function);
+VALUE ae_run_with_error_handler(void* function, VALUE param);
 VALUE ae_take_gvl_and_run_with_error_handler(void* function);
 
 

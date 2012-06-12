@@ -148,10 +148,7 @@ VALUE ae_block_call_0(VALUE _rb_block)
 {
   AE_TRACE();
 
-  if (NIL_P(_rb_block)) {
-    AE_ABORT("called with nil as _rb_block");
-    return Qfalse;
-  }
+  AE_ASSERT(! NIL_P(_rb_block));
   return rb_funcall2(_rb_block, method_call, 0, NULL);
 }
 
@@ -160,26 +157,26 @@ VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
 {
   AE_TRACE();
 
-  if (NIL_P(_rb_block)) {
-    AE_ABORT("called with nil as _rb_block");
-    return Qfalse;
-  }
+  AE_ASSERT(! NIL_P(_rb_block));
   return rb_funcall2(_rb_block, method_call, 1, &param);
 }
 
 
 /*
  * When any AsyncEngine handler runs a handle method having the GVL,
- * it must use this function.
+ * it must use this function, which can receive an optional VALUE parameter.
  */
-VALUE ae_run_with_error_handler(void* function)
+VALUE ae_run_with_error_handler(void* function, VALUE param)
 {
   AE_TRACE();
 
   VALUE ret, error;
   int error_tag;
 
-  ret = rb_protect(function, Qnil, &error_tag);
+  if (param)
+    ret = rb_protect(function, (VALUE)param, &error_tag);
+  else
+    ret = rb_protect(function, Qnil, &error_tag);
 
   /*
    * If an error occurs while in function() it can be due:
@@ -224,6 +221,7 @@ VALUE ae_run_with_error_handler(void* function)
 /*
  * When any AsyncEngine handler runs a Ruby callback, it must
  * use this function, which must be called without the GVL.
+ * TODO: Allow passing a VALUE parameter...?
  */
 VALUE ae_take_gvl_and_run_with_error_handler(void* function)
 {

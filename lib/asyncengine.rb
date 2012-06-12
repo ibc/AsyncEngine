@@ -9,7 +9,6 @@ require "asyncengine/asyncengine_ext.so"
 # AsyncEngine Ruby library files.
 require "asyncengine/version.rb"
 require "asyncengine/errors.rb"
-require "asyncengine/call_from_other_thread.rb"
 require "asyncengine/next_tick.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"

@@ -785,6 +785,7 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
     ae_remove_handle(cdata->ae_handle_id);
     // NOTE: This should be safe. Ruby wont GC the handle here since the object is
     // in the stack.
+    // TODO: Run this with ae_run_with_error_handler() !
     rb_funcall2(cdata->ae_handle, method_on_disconnected, 1, &error);
   }
 
