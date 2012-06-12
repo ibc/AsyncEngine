@@ -317,12 +317,14 @@ int destroy_handle(VALUE key, VALUE handle, VALUE in)
 {
   AE_TRACE();
 
+  VALUE error;
   int error_tag;
 
   rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
   if (error_tag) {
+    error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    AE_DEBUG2("error rescued with rb_protect() while destroying the handle");  // TODO: for testing
+    AE_DEBUG2("error (class: %s) rescued with rb_protect() while destroying the handle", rb_obj_classname(error));  // TODO: for testing
   }
 
   return 0;
