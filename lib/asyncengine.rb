@@ -8,7 +8,7 @@ require "asyncengine/asyncengine_ext.so"
 
 # AsyncEngine Ruby library files.
 require "asyncengine/version.rb"
-require "asyncengine/errors.rb"
+require "asyncengine/uv_error.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/udp.rb"
