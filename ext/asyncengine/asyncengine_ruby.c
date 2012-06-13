@@ -23,7 +23,7 @@ static ID att_user_error_handler;
 static ID att_exit_error;
 static ID att_on_exit_procs;
 
-static ID const_UV_ERRNOS;
+static ID const_UV_ERRORS;
 
 static ID method_destroy;
 static ID method_clear;
@@ -135,7 +135,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
 
-  AE_UV_ERRNOS = rb_const_get(mAsyncEngine, const_UV_ERRNOS);
+  AE_UV_ERRORS = rb_const_get(mAsyncEngine, const_UV_ERRORS);
 
   /* Load the UV idle (AE.next_tick) and UV async (AE.call_from_other_thread) now. */
   load_ae_next_tick_uv_idle();
@@ -270,7 +270,7 @@ void ae_release_loop(void)
   /*
    * Avoid this function to be called twice. When AE.stop is called it calls this method within
    * a next_tick() or call_from_other_thread(), so when arriving here AE could already be
-   * stopped (by a previous AE.stop, exception or whatever).
+   * releasing (by a previous AE.stop, exception or whatever).
    */
   switch(AE_status) {
     case AE_RUNNING:
@@ -300,15 +300,15 @@ void ae_release_loop(void)
    * */
   rb_hash_foreach(AE_handles, destroy_handle, Qnil);
 
-  // Clear @_blocks.
-  rb_funcall2(AE_blocks, method_clear, 0, NULL);
-
   /* Close AE internal handles. If the async handles are not closed uv_run() won't exit. */
   unload_ae_next_tick_uv_idle();
   unload_ae_call_from_other_thread();
   AE_ASSERT(ae_ubf_uv_async != NULL); // TODO: testing.
   AE_CLOSE_UV_HANDLE(ae_ubf_uv_async);
   ae_ubf_uv_async = NULL;
+
+  // Clear @_blocks.
+  rb_funcall2(AE_blocks, method_clear, 0, NULL);
 }
 
 
@@ -457,7 +457,7 @@ void Init_asyncengine_ext()
   att_exit_error = rb_intern("@_exit_error");
   att_user_error_handler = rb_intern("@_user_error_handler");
   att_on_exit_procs = rb_intern("@_on_exit_procs");
-  const_UV_ERRNOS = rb_intern("UV_ERRNOS");
+  const_UV_ERRORS = rb_intern("UV_ERRORS");
 
   method_destroy = rb_intern("destroy");
   method_clear = rb_intern("clear");

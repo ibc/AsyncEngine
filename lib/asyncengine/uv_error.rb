@@ -13,7 +13,7 @@ module AsyncEngine
   end
 
   # TODO: Update this list according to uv.h.
-  UV_ERRNOS = {
+  UV_ERRORS = {
     -1 => UvError.new(-1, :UNKNOWN, "unknown error"),
     0 => UvError.new(0, :OK, "success"),
     1 => UvError.new(1, :EOF, "end of file"),

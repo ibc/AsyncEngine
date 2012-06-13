@@ -41,7 +41,7 @@ VALUE eAsyncEngineStillReleasingError;
 
 VALUE AE_handles;
 VALUE AE_blocks;
-VALUE AE_UV_ERRNOS;
+VALUE AE_UV_ERRORS;
 
 enum ae_status {
   AE_RUNNING = 1,
