@@ -38,7 +38,6 @@ VALUE cAsyncEngineHandle;
 VALUE eAsyncEngineError;
 VALUE eAsyncEngineUvError;
 VALUE eAsyncEngineNotRunningError;
-VALUE eAsyncEngineStillReleasingError;
 
 VALUE AE_handles;
 VALUE AE_blocks;

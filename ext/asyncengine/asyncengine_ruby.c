@@ -14,6 +14,7 @@ static VALUE mKernel;
 
 static VALUE AE_thread;
 static VALUE AE_pid;
+static VALUE AE_barrier;
 
 static ID att_handles;
 static ID att_blocks;
@@ -110,9 +111,6 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
     rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
 
-  if (AE_status == AE_RELEASING)
-    rb_raise(eAsyncEngineStillReleasingError, "AsyncEngine still releasing");
-
   // If already running pass the block to the reactor and return true.
   if (AE_status == AE_RUNNING) {
     if (ae_is_running_thread())
@@ -121,6 +119,9 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
       rb_funcall2(mAsyncEngine, method_call_from_other_thread, 1, &proc);
     return Qtrue;
   }
+
+  // Acquire the barrier lock.
+  rb_barrier_wait(AE_barrier);
 
   /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
@@ -168,12 +169,15 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_thread = Qnil;
   AE_pid = Qnil;
 
-  // Now yes, set the status to AE_STOPPED.
-  AE_status = AE_STOPPED;
-
   // Get the captured error in @_exit_error (if any) and clean @_exit_error.
   captured_error = rb_ivar_get(mAsyncEngine, att_exit_error);
   rb_ivar_set(mAsyncEngine, att_exit_error, Qnil);
+
+  // Now yes, set the status to AE_STOPPED.
+  AE_status = AE_STOPPED;
+
+  // Release the barrier lock.
+  rb_barrier_release(AE_barrier);
 
   /*
    * Run the procs within @_on_exit_procs in order by passing the captured error
@@ -465,7 +469,6 @@ void Init_asyncengine_ext()
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
   eAsyncEngineUvError = rb_define_class_under(mAsyncEngine, "UvError", eAsyncEngineError);
   eAsyncEngineNotRunningError = rb_define_class_under(mAsyncEngine, "NotRunningError", eAsyncEngineError);
-  eAsyncEngineStillReleasingError = rb_define_class_under(mAsyncEngine, "StillReleasingError", eAsyncEngineError);
 
   rb_define_module_function(mAsyncEngine, "run", AsyncEngine_run, -1);
   rb_define_module_function(mAsyncEngine, "release_loop", AsyncEngine_release_loop, 0);
@@ -503,11 +506,14 @@ void Init_asyncengine_ext()
   init_ae_udp();
   init_ae_tcp();
 
+  ae_ubf_uv_async = NULL;
+
   AE_UV_ERRORS = generate_AE_UV_ERRORS_hash();
   rb_const_set(mAsyncEngine, rb_intern("UV_ERRORS"), AE_UV_ERRORS);
 
+  AE_barrier = rb_barrier_new();
+  rb_gc_register_address(&AE_barrier);
+
   AE_uv_loop = NULL;
   AE_status = AE_STOPPED;
-
-  ae_ubf_uv_async = NULL;
 }
