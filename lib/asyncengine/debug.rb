@@ -1,11 +1,13 @@
 module AsyncEngine
 
   def self.ensure_released
-    raise AsyncEngine::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() <= 1
-    raise AsyncEngine::Error, "@_handles not empty"  unless @_handles.empty?
-    raise AsyncEngine::Error, "@_blocks not empty"  unless @_blocks.empty?
-    raise AsyncEngine::Error, "@_next_tick_procs not empty"  unless @_next_tick_procs.empty?
-    raise AsyncEngine::Error, "@_call_from_other_thread_procs not empty"  unless @_call_from_other_thread_procs.empty?
+    raise AE::Error, "still running"  if running?()
+    raise AE::Error, "num_uv_active_handles = #{num_uv_active_handles()} (> 1)"  unless num_uv_active_handles() == 0
+    raise AE::Error, "num_uv_active_reqs = #{num_uv_active_reqs()} (> 1)"  unless num_uv_active_reqs() == 0
+    raise AE::Error, "@_handles not empty"  unless @_handles.empty?
+    raise AE::Error, "@_blocks not empty"  unless @_blocks.empty?
+    raise AE::Error, "@_next_tick_procs not empty"  unless @_next_tick_procs.empty?
+    raise AE::Error, "@_call_from_other_thread_procs not empty"  unless @_call_from_other_thread_procs.empty?
     @_call_from_other_thread_procs
   end
 

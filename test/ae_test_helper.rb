@@ -3,10 +3,6 @@ require "test/unit"
 require "socket"
 
 
-class AETestError     < ::StandardError  ; end
-class AETestTimeout   < AETestError      ; end
-
-
 class AETest < Test::Unit::TestCase
 
   def assert_true(object, message="")
@@ -15,6 +11,10 @@ class AETest < Test::Unit::TestCase
 
   def assert_false(object, message="")
     assert_equal(false, object, message)
+  end
+
+  def setup
+    AE.ensure_released
   end
 
   def host_loopback_ipv4 ; @@host_loopback_ipv4 ; end

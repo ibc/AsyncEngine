@@ -7,9 +7,9 @@
 
 /* NOTE: Uncomment these lines for debugging during development. */
 //#define AE_DO_TRACE
-#define AE_DO_TRACE2
+//#define AE_DO_TRACE2
 //#define AE_DO_DEBUG
-#define AE_DO_DEBUG2
+//#define AE_DO_DEBUG2
 #define AE_DO_WARN
 #define AE_DO_ASSERT
 

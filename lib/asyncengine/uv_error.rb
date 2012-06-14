@@ -10,7 +10,7 @@ module AsyncEngine
       @type = type
       @description = description
 
-      super "#{@type.inspect} (errno: #{@errno}), #{@description}"
+      super "#{@type.inspect} (errno #{@errno}), #{@description}"
     end
   end
 

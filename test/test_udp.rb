@@ -12,6 +12,7 @@ class TestUdp < AETest
   end
 
   def setup
+    super
     RECEIVED_DATAGRAMS.clear
   end
 
