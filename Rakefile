@@ -10,7 +10,7 @@ AE_LIB_SO = "lib/asyncengine/asyncengine_ext.so"
 file AE_LIB_SO =>
   Dir.glob("#{AE_EXTEN_DIR}/*{.rb,.c,.h}") do
     Dir.chdir(AE_EXTEN_DIR) do
-      ruby "extconf.rb"  # TODO: set ruby version !
+      ruby "extconf.rb"
       sh "make"
     end
     cp "#{AE_EXTEN_DIR}/#{AE_EXTEN_NAME_SO}", AE_LIB_SO

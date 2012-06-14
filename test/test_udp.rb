@@ -189,8 +189,7 @@ class TestUdp < AETest
       sock.send_datagram "3", local_ip, 0 do |error|
         error ? (send_cb_error += 1) : (send_cb_ok += 1)
         assert_equal error.class, AE::UvError
-        assert_equal error.uv_errno, 18
-        assert_equal error.uv_type, :EINVAL
+        assert_equal error.type, :EINVAL
       end
 
       AE.add_timer(0.1) { assert_true sock.close() ; AE.stop }

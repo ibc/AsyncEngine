@@ -132,10 +132,10 @@ VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self)
 
   AE_RB_CHECK_NUM_ARGS(2,3);
 
-  if (TYPE(argv[0]) != T_STRING || TYPE(argv[1]) != T_STRING)
+  if (! RB_TYPE_P(argv[0], T_STRING) || ! RB_TYPE_P(argv[1], T_STRING))
     rb_raise(rb_eTypeError, "first and second arguments must be String");
 
-  if (argc == 3 && TYPE(argv[2]) == T_TRUE)
+  if (argc == 3 && RB_TYPE_P(argv[2], T_TRUE))
     allow_ipv6_reference = 1;
 
   str1 = RSTRING_PTR(argv[0]);

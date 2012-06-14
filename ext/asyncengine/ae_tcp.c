@@ -195,7 +195,7 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
   AE_RB_CHECK_NUM_ARGS(2,4);
 
   // Parameter 1: destination IP.
-  if (TYPE(argv[0]) != T_STRING)
+  if (! RB_TYPE_P(argv[0], T_STRING))
     rb_raise(rb_eTypeError, "destination IP must be a String");
   dest_ip = StringValueCStr(argv[0]);
   dest_ip_len = RSTRING_LEN(argv[0]);
@@ -519,7 +519,7 @@ VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
   AE_RB_GET_BLOCK_OR_PROC(2, _rb_block);
 
   // Parameter 1: data.
-  if (TYPE(argv[0]) != T_STRING)
+  if (! RB_TYPE_P(argv[0], T_STRING))
     rb_raise(rb_eTypeError, "data must be a String");
 
   data_len = RSTRING_LEN(argv[0]);
@@ -664,7 +664,7 @@ VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
   if (cdata->status == CONNECTED || cdata->_uv_timer_connect_timeout)
     return Qnil;
 
-  if (! (FIXNUM_P(_rb_timeout) || TYPE(_rb_timeout) == T_FLOAT))
+  if (! (FIXNUM_P(_rb_timeout) || RB_TYPE_P(_rb_timeout, T_FLOAT)))
     rb_raise(rb_eTypeError, "timeout must be a Fixnum or Float");
 
   delay = (long)(NUM2DBL(_rb_timeout) * 1000);

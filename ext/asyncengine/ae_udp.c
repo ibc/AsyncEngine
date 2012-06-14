@@ -195,11 +195,11 @@ VALUE AsyncEngineUdpSocket_uv_handle_init(VALUE self, VALUE _rb_bind_ip, VALUE _
 
   GET_CDATA_FROM_SELF;
 
-  if (TYPE(_rb_bind_ip) != T_STRING) {
+  if (! RB_TYPE_P(_rb_bind_ip, T_STRING)) {
     destroy(cdata);
     rb_raise(rb_eTypeError, "bind IP must be a String");
   }
-  if (TYPE(_rb_bind_port) != T_FIXNUM) {
+  if (! FIXNUM_P(_rb_bind_port)) {
     destroy(cdata);
     rb_raise(rb_eTypeError, "bind port must be a Fixnum");
   }

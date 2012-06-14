@@ -36,6 +36,7 @@
 VALUE mAsyncEngine;
 VALUE cAsyncEngineHandle;
 VALUE eAsyncEngineError;
+VALUE eAsyncEngineUvError;
 VALUE eAsyncEngineNotRunningError;
 VALUE eAsyncEngineStillReleasingError;
 

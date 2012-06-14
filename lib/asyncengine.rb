@@ -3,12 +3,9 @@ unless RUBY_VERSION >= "1.9.2"
 end
 
 
-# AsyncEngine native C extension.
-require "asyncengine/asyncengine_ext.so"
-
-# AsyncEngine Ruby library files.
-require "asyncengine/version.rb"
 require "asyncengine/uv_error.rb"
+require "asyncengine/asyncengine_ext.so"
+require "asyncengine/version.rb"
 require "asyncengine/handle.rb"
 require "asyncengine/timer.rb"
 require "asyncengine/udp.rb"

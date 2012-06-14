@@ -23,8 +23,6 @@ static ID att_user_error_handler;
 static ID att_exit_error;
 static ID att_on_exit_procs;
 
-static ID const_UV_ERRORS;
-
 static ID method_destroy;
 static ID method_clear;
 static ID method_next_tick;
@@ -36,7 +34,7 @@ static ID method_call;
 static uv_async_t* ae_ubf_uv_async;
 
 
-/** Pre-declaration of static functions. TODO: Add more and so... */
+/** Pre-declaration of static functions. */
 
 static VALUE uv_run_without_gvl(void);
 static void ae_ubf(void);
@@ -135,7 +133,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
   AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
 
-  AE_UV_ERRORS = rb_const_get(mAsyncEngine, const_UV_ERRORS);
+  AE_ASSERT(AE_status == AE_STOPPED);
 
   /* Load the UV idle (AE.next_tick) and UV async (AE.call_from_other_thread) now. */
   load_ae_next_tick_uv_idle();
@@ -391,13 +389,15 @@ void ae_handle_error(VALUE error)
     }
   }
   else {
+    AE_DEBUG2("error (class: %s) occurred with rb_protect(), releasing...", rb_obj_classname(error));
     /*
      * error could return Fixnum 8 when AE thread is killed with Thread#kill:
      *   https://github.com/ibc/AsyncEngine/issues/4
-     * In this case convert it to nil. TODO: Sure? maybe some custom symbol?
+     * In this case convert to Interrupt.
      */
     if (FIXNUM_P(error))
-      error = Qnil;
+      error = rb_exc_new2(rb_eInterrupt, "Thread killed (AsyncEngine workaround for https://github.com/ibc/AsyncEngine/issues/4)");
+
     rb_ivar_set(mAsyncEngine, att_exit_error, error);
     ae_release_loop();
   }
@@ -426,6 +426,31 @@ VALUE AsyncEngine_check_status(VALUE self)
 }
 
 
+/** Function that generates AE::UV_ERRORS hash reading UV error list. */
+
+static
+VALUE generate_AE_UV_ERRORS_hash(void)
+{
+  AE_TRACE();
+
+  VALUE hash = rb_hash_new();
+  VALUE uv_error;
+  VALUE args[3];
+
+#define _AE_FILL_UV_ERRORS(val, name, s)  \
+  args[0] = INT2FIX(val);  \
+  args[1] = ID2SYM(rb_intern(#name));  \
+  args[2] = rb_str_new2(s);  \
+  uv_error = rb_class_new_instance(3, args, eAsyncEngineUvError);  \
+  rb_hash_aset(hash, INT2FIX(val), uv_error);
+
+  UV_ERRNO_MAP(_AE_FILL_UV_ERRORS)
+#undef _AE_FILL_UV_ERRORS
+
+  return hash;
+}
+
+
 
 
 void Init_asyncengine_ext()
@@ -438,6 +463,7 @@ void Init_asyncengine_ext()
   mAsyncEngine = rb_define_module("AsyncEngine");
   cAsyncEngineHandle = rb_define_class_under(mAsyncEngine, "Handle", rb_cObject);
   eAsyncEngineError = rb_define_class_under(mAsyncEngine, "Error", rb_eStandardError);
+  eAsyncEngineUvError = rb_define_class_under(mAsyncEngine, "UvError", eAsyncEngineError);
   eAsyncEngineNotRunningError = rb_define_class_under(mAsyncEngine, "NotRunningError", eAsyncEngineError);
   eAsyncEngineStillReleasingError = rb_define_class_under(mAsyncEngine, "StillReleasingError", eAsyncEngineError);
 
@@ -457,7 +483,6 @@ void Init_asyncengine_ext()
   att_exit_error = rb_intern("@_exit_error");
   att_user_error_handler = rb_intern("@_user_error_handler");
   att_on_exit_procs = rb_intern("@_on_exit_procs");
-  const_UV_ERRORS = rb_intern("UV_ERRORS");
 
   method_destroy = rb_intern("destroy");
   method_clear = rb_intern("clear");
@@ -477,6 +502,9 @@ void Init_asyncengine_ext()
   init_ae_timer();
   init_ae_udp();
   init_ae_tcp();
+
+  AE_UV_ERRORS = generate_AE_UV_ERRORS_hash();
+  rb_const_set(mAsyncEngine, rb_intern("UV_ERRORS"), AE_UV_ERRORS);
 
   AE_uv_loop = NULL;
   AE_status = AE_STOPPED;
