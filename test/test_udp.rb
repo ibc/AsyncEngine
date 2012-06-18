@@ -69,65 +69,33 @@ class TestUdp < AETest
       end
 
       assert_true sock.alive?
-      assert_true sock.receiving?
-      assert_true sock.sending?
+      assert_false sock.paused?
 
       assert_equal ip, local_ip
 
-      # This will be sent and received.
+      # This will be received.
       assert_true sock.send_datagram("1", local_ip, local_port)
 
       AE.add_timer(0.02) do
-        sock.receiving = false
-        assert_false sock.receiving?
+        sock.pause
+        assert_true sock.paused?
 
-        # This will be sent but not received.
+        # This wont be received.
         assert_true sock.send_datagram("2", local_ip, local_port)
       end
 
-      AE.add_timer(0.04) do
-        sock.sending = false
-        assert_false sock.sending?
-
-        # This wont be sent.
-        assert_false sock.send_datagram("3", local_ip, local_port)
-      end
-
       AE.add_timer(0.06) do
-        sock.receiving = true
-        assert_true sock.receiving?
+        sock.resume
+        assert_false sock.paused?
 
-        sock.sending = true
-        assert_true sock.sending?
-
-        # This will be sent and received.
-        assert_true sock.send_datagram("4", local_ip, local_port)
-      end
-
-      AE.add_timer(0.08) do
-        sock.pause()
-        assert_false sock.receiving?
-        assert_false sock.sending?
-
-        # This wont be sent.
-        assert_false sock.send_datagram("5", local_ip, local_port)
-      end
-
-      AE.add_timer(0.10) do
-        sock.resume()
-        assert_true sock.receiving?
-        assert_true sock.sending?
-
-        # This will be sent and received.
-        assert_true sock.send_datagram("6", local_ip, local_port)
+        # This will be received.
+        assert_true sock.send_datagram("3", local_ip, local_port)
       end
 
       AE.add_timer(0.12) do
         assert_true sock.close()
 
         assert_false sock.alive?
-        assert_false sock.receiving?
-        assert_false sock.sending?
 
         # Socket closed, cannot be sent.
         assert_false sock.send_datagram "hello", "1.2.3.4", 1234
@@ -136,7 +104,7 @@ class TestUdp < AETest
       end
     end
 
-    assert_equal ["1", "4", "6"], RECEIVED_DATAGRAMS
+    assert_equal ["1", "3"], RECEIVED_DATAGRAMS
   end
 
   def private_test_02_set_encoding ip

@@ -21,6 +21,7 @@ enum status {
   CONNECTED
 };
 
+// TODO: methods pause(), resume() and paused?().
 enum flags {
   RELEASING = 1 << 1,
   PAUSED = 1 << 2,
@@ -31,13 +32,13 @@ enum flags {
 
 typedef struct {
   uv_tcp_t *_uv_handle;
-  VALUE ae_handle;
-  VALUE ae_handle_id;
   enum_ip_type ip_type;
   unsigned int status;
   unsigned int flags;
   enum_string_encoding encoding;
   uv_timer_t *_uv_timer_connect_timeout;
+  VALUE ae_handle;
+  VALUE ae_handle_id;
 } struct_cdata;
 
 struct _uv_connect_callback_data {
@@ -177,7 +178,6 @@ VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
   VALUE instance;
 
   AE_CHECK_STATUS();
-
   AE_RB_CHECK_NUM_ARGS(2,4);
 
   // Parameter 1: destination IP.
@@ -253,14 +253,14 @@ static
 void init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port, char *bind_ip, int bind_port)
 {
   AE_TRACE();
-  uv_tcp_t *_uv_handle = NULL;
+  uv_tcp_t *_uv_handle;
   uv_connect_t *_uv_tcp_connect_req = NULL;
   int ret;
 
   // Create and init the UV handle.
   _uv_handle = ALLOC(uv_tcp_t);
   if (uv_tcp_init(AE_uv_loop, _uv_handle)) {
-    xfree(_uv_handle);  // TODO: OK?
+    xfree(_uv_handle);
     ae_raise_last_uv_error();
   }
 

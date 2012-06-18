@@ -1,5 +1,6 @@
 module AsyncEngine
 
+  # TODO: Wrong, take a look to timer.rb.
   def self.tcp_connect dest_ip, dest_port, bind_ip=nil, bind_port=nil, klass=AsyncEngine::TCPSocket
     klass.new dest_ip, dest_port, bind_ip, bind_port
   end

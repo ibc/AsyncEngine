@@ -191,16 +191,6 @@ int ae_ip_utils_is_valid_port(int port)
 }
 
 
-/*
- * Parameters:
- * - addr: pointer to a struct sockaddr_storage.
- * - ip_type: if it's ip_type_no_ip then the IP will be parsed.
- * 
- * Returns a Ruby Array with three elements:
- * - ip: Ruby String.
- * - port: Ruby Fixnum.
- * If an error occurs (in ae_inet_ntop() function) nil is returned.
- */
 VALUE ae_ip_utils_get_ip_port(struct sockaddr_storage *addr, enum_ip_type ip_type)
 {
   AE_TRACE();

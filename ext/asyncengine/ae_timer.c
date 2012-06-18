@@ -8,12 +8,12 @@ static VALUE cAsyncEnginePeriodicTimer;
 
 
 typedef struct {
-  VALUE ae_handle_id;
-  VALUE on_fire_proc;
   uv_timer_t *_uv_handle;
   int periodic;
   long delay;
   long interval;
+  VALUE ae_handle_id;
+  VALUE on_fire_proc;
 } struct_cdata;
 
 struct timer_callback_data {
