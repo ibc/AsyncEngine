@@ -1,3 +1,9 @@
 module AsyncEngine
-  class Handle ; end
+
+  class Handle
+    def closed?
+      ! alive?
+    end
+  end
+
 end

@@ -10,31 +10,31 @@ class TestTimer < AETest
       t1 = AE::Timer.new(0.01) { t1_executed = true ; assert_false t1.alive? }
       assert_true t1.alive?
       AE.add_timer(0.02) { assert_false t1.alive? }
-      AE.add_timer(0.03) { assert_false t1.cancel ; AE.stop }
+      AE.add_timer(0.03) { assert_false t1.close ; AE.stop }
     end
 
     assert_true t1_executed
   end
 
-  def test_02_timer_canceled
+  def test_02_timer_closed
     t1_executed = false
     pt1_executed = false
 
     AE.run do
       t1 = AE::Timer.new(0.02) { t1_executed = true }
-      AE.add_timer(0.01) { assert_true t1.cancel ; assert_false t1.alive? }
-      AE.add_timer(0.03) { assert_false t1.cancel }
+      AE.add_timer(0.01) { assert_true t1.close ; assert_false t1.alive? }
+      AE.add_timer(0.03) { assert_false t1.close }
 
       pt1 = AE::PeriodicTimer.new(0.02) { pt1_executed = true }
-      AE.add_timer(0.01) { assert_true pt1.cancel ; assert_false pt1.alive? }
-      AE.add_timer(0.03) { assert_false pt1.cancel ; AE.stop }
+      AE.add_timer(0.01) { assert_true pt1.close ; assert_false pt1.alive? }
+      AE.add_timer(0.03) { assert_false pt1.close ; AE.stop }
     end
 
     assert_false t1_executed
     assert_false pt1_executed
   end
 
-  def test_03_periodic_timer_canceled_after_4_repeats
+  def test_03_periodic_timer_closed_after_4_repeats
     pt1_ticks = 0
 
     AE.run do
@@ -76,7 +76,7 @@ class TestTimer < AETest
       AE.add_timer(0.02) { assert_false t1.restart }  # Timer was terminated so nothing new occurs.
 
       t2 = AE::Timer.new(0.01, Proc.new { str2 << "0" })
-      t2.stop
+      t2.pause
       AE.add_timer(0.001) { t2.restart(0.002) }
 
       AE.add_timer(0.05) { AE.stop }
@@ -86,9 +86,9 @@ class TestTimer < AETest
     assert_equal "0", str2
   end
 
-  def test_06_timer_canceled_on_its_callback_does_not_crash
+  def test_06_timer_closed_on_its_callback_does_not_crash
     AE.run do
-      t1 = AE::Timer.new(0.001) { assert_false t1.cancel ; AE.stop }
+      t1 = AE::Timer.new(0.001) { assert_false t1.close ; AE.stop }
     end
   end
 

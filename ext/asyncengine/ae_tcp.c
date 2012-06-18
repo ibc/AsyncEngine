@@ -4,19 +4,6 @@
 #include "ae_tcp.h"
 
 
-#define GET_CDATA_FROM_SELF  \
-  struct_cdata* cdata;  \
-  Data_Get_Struct(self, struct_cdata, cdata)
-
-#define CHECK_UV_HANDLE_IS_OPEN  \
-  if (! (cdata->_uv_handle))  \
-    return Qfalse;
-
-#define GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN  \
-  GET_CDATA_FROM_SELF;  \
-  CHECK_UV_HANDLE_IS_OPEN
-
-
 static VALUE cAsyncEngineTcpSocket;
 
 static ID method_on_connected;
@@ -150,7 +137,7 @@ void init_ae_tcp()
 }
 
 
-/** Class alloc and free functions. */
+/** Class alloc() and free() functions. */
 
 static
 VALUE AsyncEngineTcpSocket_alloc(VALUE klass)
@@ -172,7 +159,7 @@ void AsyncEngineTcpSocket_free(struct_cdata* cdata)
 }
 
 
-/** Class new() method.
+/** TCPSocket.new() method.
  *
  * Arguments:
  * - destination IP (String).
@@ -183,12 +170,11 @@ void AsyncEngineTcpSocket_free(struct_cdata* cdata)
 VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
-
   char *dest_ip, *bind_ip;
   int dest_ip_len, bind_ip_len;
   int dest_port, bind_port;
   enum_ip_type ip_type, bind_ip_type;
-  VALUE klass, instance;
+  VALUE instance;
 
   AE_CHECK_STATUS();
 
@@ -267,7 +253,6 @@ static
 void init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_port, char *bind_ip, int bind_port)
 {
   AE_TRACE();
-
   uv_tcp_t *_uv_handle = NULL;
   uv_connect_t *_uv_tcp_connect_req = NULL;
   int ret;
@@ -312,9 +297,8 @@ void init_instance(VALUE self, enum_ip_type ip_type, char *dest_ip, int dest_por
     ae_raise_last_uv_error();
   }
 
-  GET_CDATA_FROM_SELF;
-
   // Fill cdata struct.
+  GET_CDATA_FROM_SELF;
   cdata->_uv_handle = _uv_handle;
   cdata->ae_handle = self;
   cdata->ae_handle_id = ae_store_handle(self); // Avoid GC.
@@ -501,8 +485,9 @@ VALUE _ae_read_callback(void)
 }
 
 
-/** send_data() method. */
+/** TCPSocket#send_data() method. */
 
+// TODO: Falta comprobar AE_STATUS y todo eso.
 VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
@@ -608,7 +593,7 @@ VALUE _ae_write_callback(void)
 }
 
 
-/** local_address() and peer_address() methods. */
+/** TCPSocket#local_address() and TCPSocket#peer_address() methods. */
 
 VALUE AsyncEngineTcpSocket_local_address(VALUE self)
 {
@@ -650,7 +635,7 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
 }
 
 
-/** set_connect_timeout() method. */
+/** TCPSocket#set_connect_timeout() method. */
 
 VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
 {
@@ -663,9 +648,6 @@ VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
   // Return nil if the socket already connected or the connect timeout already set.
   if (cdata->status == CONNECTED || cdata->_uv_timer_connect_timeout)
     return Qnil;
-
-  if (! (FIXNUM_P(_rb_timeout) || RB_TYPE_P(_rb_timeout, T_FLOAT)))
-    rb_raise(rb_eTypeError, "timeout must be a Fixnum or Float");
 
   delay = (long)(NUM2DBL(_rb_timeout) * 1000);
   if (delay < 1)
@@ -715,7 +697,7 @@ void _ae_cancel_timer_connect_timeout(struct_cdata* cdata)
 }
 
 
-/** status() method. */
+/** TCPSocket#status() method. */
 
 VALUE AsyncEngineTcpSocket_status(VALUE self)
 {
@@ -737,7 +719,7 @@ VALUE AsyncEngineTcpSocket_status(VALUE self)
 }
 
 
-/** connected?() method. */
+/** TCPSocket#connected?() method. */
 
 VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
 {
@@ -752,7 +734,7 @@ VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
 }
 
 
-/** alive?() method. */
+/** TCPSocket#alive?() method. */
 
 VALUE AsyncEngineTcpSocket_is_alive(VALUE self)
 {
@@ -764,7 +746,7 @@ VALUE AsyncEngineTcpSocket_is_alive(VALUE self)
 }
 
 
-/** close(), close_gracefully() and destroy() methods. */
+/** TCPSocket#close() method. */
 
 VALUE AsyncEngineTcpSocket_close(VALUE self)
 {
@@ -792,6 +774,8 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
   return Qtrue;
 }
 
+
+/** TCPSocket#close_gracefully() method. */
 
 VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
 {
@@ -881,9 +865,11 @@ VALUE _ae_shutdown_callback(void)
 }
 
 
-/*
- * This method is safely called by AsyncEngine_release() by capturing and
- * ignoring any exception/error.
+/**
+ * TCPSocket#destroy() private method.
+ * 
+ * This method is safely called by AsyncEngine_release() by
+ * capturing and ignoring any exception/error.
  */
 VALUE AsyncEngineTcpSocket_destroy(VALUE self)
 {

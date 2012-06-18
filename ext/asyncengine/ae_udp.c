@@ -6,18 +6,6 @@
 
 #define AE_UDP_DATAGRAM_MAX_SIZE 65536
 
-#define GET_CDATA_FROM_SELF \
-  struct_ae_udp_socket_cdata* cdata;  \
-  Data_Get_Struct(self, struct_ae_udp_socket_cdata, cdata)
-
-#define ENSURE_UV_HANDLE_EXISTS \
-  if (! cdata->_uv_handle)  \
-    return Qfalse;
-
-#define GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN \
-  GET_CDATA_FROM_SELF;  \
-  ENSURE_UV_HANDLE_EXISTS
-
 
 static VALUE cAsyncEngineUdpSocket;
 
@@ -35,7 +23,7 @@ typedef struct {
   VALUE ae_handle;
   VALUE ae_handle_id;
   enum_string_encoding encoding;
-} struct_ae_udp_socket_cdata;
+} struct_cdata;
 
 struct udp_recv_callback_data {
   uv_udp_t* handle;
@@ -67,7 +55,7 @@ static void AsyncEngineUdpSocket_free(void *cdata)
 {
   AE_TRACE();
 
-  xfree(((struct_ae_udp_socket_cdata*)cdata)->recv_buffer.base);
+  xfree(((struct_cdata*)cdata)->recv_buffer.base);
   xfree(cdata);
 }
 
@@ -79,7 +67,7 @@ VALUE AsyncEngineUdpSocket_alloc(VALUE klass)
   // NOTE: No need to mark cdata->ae_handle since points to ourself, neither
   // cdata->ae_handle_id since it's a Fixnum.
 
-  struct_ae_udp_socket_cdata* cdata = ALLOC(struct_ae_udp_socket_cdata);
+  struct_cdata* cdata = ALLOC(struct_cdata);
   cdata->recv_buffer = uv_buf_init(ALLOC_N(char, AE_UDP_DATAGRAM_MAX_SIZE), AE_UDP_DATAGRAM_MAX_SIZE);
   cdata->_uv_handle = NULL;
 
@@ -119,7 +107,7 @@ void init_ae_udp()
 
 
 static
-void destroy(struct_ae_udp_socket_cdata* cdata)
+void destroy(struct_cdata* cdata)
 {
   AE_TRACE();
 
@@ -135,7 +123,7 @@ uv_buf_t _uv_udp_recv_alloc_callback(uv_handle_t* handle, size_t suggested_size)
 {
   AE_TRACE();
 
-  return ((struct_ae_udp_socket_cdata*)handle->data)->recv_buffer;
+  return ((struct_cdata*)handle->data)->recv_buffer;
 }
 
 
@@ -144,7 +132,7 @@ VALUE ae_udp_recv_callback(void)
 {
   AE_TRACE();
 
-  struct_ae_udp_socket_cdata* cdata = (struct_ae_udp_socket_cdata*)last_udp_recv_callback_data.handle->data;
+  struct_cdata* cdata = (struct_cdata*)last_udp_recv_callback_data.handle->data;
   VALUE _rb_datagram, _rb_array_ip_port, _rb_src_ip, _rb_src_port;
 
   // In utilities.h:  ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted)
@@ -162,7 +150,7 @@ void _uv_udp_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct
 {
   AE_TRACE();
 
-  struct_ae_udp_socket_cdata* cdata = handle->data;
+  struct_cdata* cdata = handle->data;
 
   if (nread == 0) return;
 

@@ -3,34 +3,21 @@
 #include "ae_timer.h"
 
 
-#define GET_CDATA_FROM_SELF  \
-  struct_ae_timer_cdata* cdata;  \
-  Data_Get_Struct(self, struct_ae_timer_cdata, cdata)
-
-#define ENSURE_UV_HANDLE_EXISTS  \
-  if (! cdata->_uv_handle)  \
-    return Qfalse;
-
-#define GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS  \
-  GET_CDATA_FROM_SELF;  \
-  ENSURE_UV_HANDLE_EXISTS
-
-
 static VALUE cAsyncEngineTimer;
+static VALUE cAsyncEnginePeriodicTimer;
 
 
 typedef struct {
   VALUE ae_handle_id;
-  VALUE on_fire_block;
+  VALUE on_fire_proc;
   uv_timer_t *_uv_handle;
   int periodic;
   long delay;
   long interval;
-} struct_ae_timer_cdata;
-
+} struct_cdata;
 
 struct timer_callback_data {
-  uv_timer_t* handle;
+  struct_cdata* cdata;
 };
 
 
@@ -38,42 +25,14 @@ struct timer_callback_data {
 static struct timer_callback_data last_timer_callback_data;
 
 
-static void AsyncEngineTimer_mark(void *ptr)
-{
-  AE_TRACE();
+/** Predeclaration of static functions. */
 
-  struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)ptr;
-
-  // This tells Ruby not to GC cdata->on_fire_block if the Timer instance
-  // continues alive in Ruby land.
-  if (cdata->_uv_handle)
-    rb_gc_mark(cdata->on_fire_block);
-
-  // NOTE: No need to cdata->mark ae_handle_id since it's a Fixnum (unmutable).
-}
-
-
-static void AsyncEngineTimer_free(void *cdata)
-{
-  AE_TRACE();
-
-  xfree(cdata);
-}
-
-
-VALUE AsyncEngineTimer_alloc(VALUE klass)
-{
-  AE_TRACE();
-
-  struct_ae_timer_cdata* cdata = ALLOC(struct_ae_timer_cdata);
-
-  /* IMPORTANT: Set the _uv_handle to NULL right now since GC could
-   * call our mark() function before cdata->on_fire_block is set.
-   */
-  cdata->_uv_handle = NULL;
-
-  return Data_Wrap_Struct(klass, AsyncEngineTimer_mark, AsyncEngineTimer_free, cdata);
-}
+static VALUE AsyncEngineTimer_alloc(VALUE klass);
+static void AsyncEngineTimer_mark(struct_cdata* cdata);
+static void AsyncEngineTimer_free(struct_cdata* cdata);
+static void init_instance(VALUE self, long delay, long interval, VALUE proc);
+static void _uv_timer_callback(uv_timer_t* handle, int status);
+static VALUE _ae_timer_callback(void);
 
 
 void init_ae_timer()
@@ -81,46 +40,172 @@ void init_ae_timer()
   AE_TRACE();
 
   cAsyncEngineTimer = rb_define_class_under(mAsyncEngine, "Timer", cAsyncEngineHandle);
+  cAsyncEnginePeriodicTimer = rb_define_class_under(mAsyncEngine, "PeriodicTimer", cAsyncEngineTimer);
 
   rb_define_alloc_func(cAsyncEngineTimer, AsyncEngineTimer_alloc);
-  rb_define_private_method(cAsyncEngineTimer, "uv_handle_init", AsyncEngineTimer_uv_handle_init, 3);
-  rb_define_method(cAsyncEngineTimer, "stop", AsyncEngineTimer_stop, 0);
-  rb_define_private_method(cAsyncEngineTimer, "_c_restart", AsyncEngineTimer_c_restart, 2);
+
+  rb_define_singleton_method(cAsyncEngineTimer, "new", AsyncEngineTimer_new, -1);
+  rb_define_singleton_method(cAsyncEnginePeriodicTimer, "new", AsyncEnginePeriodicTimer_new, -1);
+
+  rb_define_method(cAsyncEngineTimer, "pause", AsyncEngineTimer_pause, 0);
+  rb_define_method(cAsyncEngineTimer, "restart", AsyncEngineTimer_restart, -1);
+  rb_define_method(cAsyncEnginePeriodicTimer, "restart", AsyncEnginePeriodicTimer_restart, -1);
   rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
   rb_define_method(cAsyncEngineTimer, "delay", AsyncEngineTimer_delay, 0);
-  rb_define_method(cAsyncEngineTimer, "interval", AsyncEngineTimer_interval, 0);
+  rb_define_method(cAsyncEnginePeriodicTimer, "interval", AsyncEnginePeriodicTimer_interval, 0);
   rb_define_method(cAsyncEngineTimer, "alive?", AsyncEngineTimer_is_alive, 0);
-  rb_define_method(cAsyncEngineTimer, "cancel", AsyncEngineTimer_cancel, 0);
+  rb_define_method(cAsyncEngineTimer, "close", AsyncEngineTimer_close, 0);
+  rb_define_alias(cAsyncEngineTimer, "stop", "close");
   rb_define_private_method(cAsyncEngineTimer, "destroy", AsyncEngineTimer_destroy, 0);
 }
 
 
+/** Class alloc, mark and free functions. */
+
 static
-void destroy(struct_ae_timer_cdata* cdata)
+VALUE AsyncEngineTimer_alloc(VALUE klass)
 {
   AE_TRACE();
 
-  uv_close((uv_handle_t *)cdata->_uv_handle, ae_uv_handle_close_callback);
+  struct_cdata* cdata = ALLOC(struct_cdata);
+
+  /* IMPORTANT: Set the _uv_handle to NULL right now since GC could
+   * call our mark() function before cdata->on_fire_proc is set.
+   */
   cdata->_uv_handle = NULL;
-  // Let the GC work.
-  ae_remove_handle(cdata->ae_handle_id);
+
+  return Data_Wrap_Struct(klass, AsyncEngineTimer_mark, AsyncEngineTimer_free, cdata);
 }
 
 
 static
-VALUE ae_timer_callback(void)
+void AsyncEngineTimer_mark(struct_cdata* cdata)
 {
   AE_TRACE();
 
-  struct_ae_timer_cdata* cdata = (struct_ae_timer_cdata*)last_timer_callback_data.handle->data;
+  // This tells Ruby not to GC cdata->on_fire_proc if the Timer
+  // instance continues alive in Ruby land.
+  if (cdata->_uv_handle)
+    rb_gc_mark(cdata->on_fire_proc);
+}
 
-  ENSURE_UV_HANDLE_EXISTS;
 
-  // Terminate the timer if it is not periodic.
-  if (cdata->periodic == 0)
-    destroy(cdata);
+static
+void AsyncEngineTimer_free(struct_cdata* cdata)
+{
+  AE_TRACE();
 
-  return ae_block_call_0(cdata->on_fire_block);
+  xfree(cdata);
+}
+
+
+/** Timer.new() method.
+ *
+ * Arguments:
+ * - delay (Float).
+ * - proc (Proc) (optional).
+ *
+ * Block optional.
+ */
+VALUE AsyncEngineTimer_new(int argc, VALUE *argv, VALUE self)
+{
+  AE_TRACE();
+  long delay;
+  VALUE proc, instance;
+
+  AE_CHECK_STATUS();
+  AE_RB_CHECK_NUM_ARGS(1,2);
+  AE_RB_ENSURE_BLOCK_OR_PROC(2, proc);
+
+  // Parameter 1: delay.
+  delay = (long)(NUM2DBL(argv[0]) * 1000);
+  if (delay < 1)
+    delay = 1;
+
+  // Allocate the Ruby instance.
+  instance = rb_obj_alloc(self);
+
+  // Init the UV stuff within the instance.
+  init_instance(instance, delay, 0, proc);
+
+  return instance;
+}
+
+
+/** PeriodicTimer.new() method.
+ *
+ * Arguments:
+ * - interval (Float).
+ * - delay (Float) (optional).
+ * - proc (Proc) (optional).
+ *
+ * Block optional.
+ */
+VALUE AsyncEnginePeriodicTimer_new(int argc, VALUE *argv, VALUE self)
+{
+  AE_TRACE();
+  long interval, delay;
+  VALUE proc, instance;
+
+  AE_CHECK_STATUS();
+  AE_RB_CHECK_NUM_ARGS(1,3);
+  AE_RB_ENSURE_BLOCK_OR_PROC(3, proc);
+
+  // Parameter 1: interval.
+  interval = (long)(NUM2DBL(argv[0]) * 1000);
+  if (interval < 1)
+    interval = 1;
+
+  // Parameter 2: delay (optional).
+  if (argc >= 2) {
+    delay = (long)(NUM2DBL(argv[1]) * 1000);
+    if (delay < 1)
+      delay = 1;
+  }
+  else
+    delay = interval;
+
+  // Allocate the Ruby instance.
+  instance = rb_obj_alloc(self);
+
+  // Init the UV stuff within the instance.
+  init_instance(instance, delay, interval, proc);
+
+  return instance;
+}
+
+
+static
+void init_instance(VALUE self, long delay, long interval, VALUE proc)
+{
+  AE_TRACE();
+  uv_timer_t *_uv_handle = NULL;
+  int r;
+
+  // Create and init the UV handle.
+  _uv_handle = ALLOC(uv_timer_t);
+  if (uv_timer_init(AE_uv_loop, _uv_handle)) {
+    xfree(_uv_handle);
+    ae_raise_last_uv_error();
+  }
+
+  // Fill cdata struct.
+  GET_CDATA_FROM_SELF;
+  cdata->_uv_handle = _uv_handle;
+  cdata->delay = delay;
+  cdata->interval = interval;
+  if (interval)
+    cdata->periodic = 1;
+  else
+    cdata->periodic = 0;
+  cdata->on_fire_proc = proc;
+  cdata->ae_handle_id = ae_store_handle(self);  // Avoid GC.
+
+  // Fill data field of the UV handle.
+  cdata->_uv_handle->data = (void *)cdata;
+
+  // Run the timer.
+  uv_timer_start(_uv_handle, _uv_timer_callback, delay, interval);
 }
 
 
@@ -132,138 +217,167 @@ void _uv_timer_callback(uv_timer_t* handle, int status)
   // TODO: testing
   AE_ASSERT(! status);
 
-  last_timer_callback_data.handle = handle;
-
-  ae_take_gvl_and_run_with_error_handler(ae_timer_callback);
+  last_timer_callback_data.cdata = (struct_cdata*)handle->data;
+  ae_take_gvl_and_run_with_error_handler(_ae_timer_callback);
 }
 
 
-// TODO: check that _rb_block is a Proc.
-VALUE AsyncEngineTimer_uv_handle_init(VALUE self, VALUE _rb_delay, VALUE _rb_interval, VALUE _rb_block)
+static
+VALUE _ae_timer_callback(void)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF;
+  struct_cdata* cdata = last_timer_callback_data.cdata;
 
-  if ((cdata->delay = NUM2LONG(_rb_delay)) <= 0)
-    cdata->delay = 1;
-
-  if (NIL_P(_rb_interval)) {
-    cdata->interval = 0;
-    cdata->periodic = 0;
-  }
-  else {
-    if (! NIL_P(_rb_interval)) {
-      if ((cdata->interval = NUM2LONG(_rb_interval)) <= 0)
-        cdata->interval = 1;
-    }
-    cdata->periodic = 1;
+  // Terminate the timer if it is not periodic.
+  if (cdata->periodic == 0) {
+    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+    cdata->_uv_handle = NULL;
+    ae_remove_handle(cdata->ae_handle_id);
   }
 
-  cdata->on_fire_block = _rb_block;
-  cdata->_uv_handle = ALLOC(uv_timer_t);
-
-  // Avoid GC.
-  cdata->ae_handle_id = ae_store_handle(self);
-
-  // Initialize the UV handle.
-  uv_timer_init(AE_uv_loop, cdata->_uv_handle);
-
-  // Store the cdata within the UV handle.
-  cdata->_uv_handle->data = cdata;
-
-  // Run the timer.
-  uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
-  return self;
+  return ae_block_call_0(cdata->on_fire_proc);
 }
 
 
-VALUE AsyncEngineTimer_stop(VALUE self)
+/** Timer#pause() method. */
+
+VALUE AsyncEngineTimer_pause(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  if (uv_is_active((uv_handle_t*)cdata->_uv_handle)) {
-    uv_timer_stop(cdata->_uv_handle);
-    return Qtrue;
-  }
-  else
-    return Qnil;
-}
+  if (uv_timer_stop(cdata->_uv_handle))
+    ae_raise_last_uv_error();
 
-
-VALUE AsyncEngineTimer_c_restart(VALUE self, VALUE _rb_delay, VALUE _rb_interval)
-{
-  AE_TRACE();
-
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
-
-  if (uv_is_active((uv_handle_t*)cdata->_uv_handle))
-    uv_timer_stop(cdata->_uv_handle);
-
-  if (! NIL_P(_rb_delay)) {
-    if ((cdata->delay = NUM2LONG(_rb_delay)) <= 0)
-      cdata->delay = 1;
-  }
-
-  if (! NIL_P(_rb_interval)) {
-    if ((cdata->interval = NUM2LONG(_rb_interval)) <= 0)
-      cdata->interval = 1;
-  }
-
-  uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
   return Qtrue;
 }
 
+
+VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
+{
+  AE_TRACE();
+  long delay;
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+  AE_RB_CHECK_NUM_ARGS(0,1);
+
+  // Parameter 1: delay.
+  if (argc == 1 && ! NIL_P(argv[0])) {
+    delay = (long)(NUM2DBL(argv[0]) * 1000);
+    if (delay < 1)
+      delay = 1;
+    cdata->delay = delay;
+  }
+
+  if (uv_timer_stop(cdata->_uv_handle))
+    ae_raise_last_uv_error();
+
+  if (uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, 0))
+    ae_raise_last_uv_error();
+
+  return Qtrue;
+}
+
+
+VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
+{
+  AE_TRACE();
+  long interval, delay;
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+  AE_RB_CHECK_NUM_ARGS(0,2);
+
+  // Parameter 1: interval.
+  if (argc >= 1 && ! NIL_P(argv[0])) {
+    interval = (long)(NUM2DBL(argv[0]) * 1000);
+    if (interval < 1)
+      interval = 1;
+    cdata->interval = interval;
+
+    // Parameter 2: delay.
+    if (argc == 2 && ! NIL_P(argv[1])) {
+      delay = (long)(NUM2DBL(argv[1]) * 1000);
+      if (delay < 1)
+        delay = 1;
+      cdata->delay = delay;
+    }
+    else
+      cdata->delay = interval;
+  }
+
+  if (uv_timer_stop(cdata->_uv_handle))
+    ae_raise_last_uv_error();
+
+  if (uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval))
+    ae_raise_last_uv_error();
+
+  return Qtrue;
+}
+
+
+/** Timer#delay() method. */
 
 VALUE AsyncEngineTimer_delay(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   return rb_float_new((double)(cdata->delay / 1000.0));
 }
 
 
-VALUE AsyncEngineTimer_interval(VALUE self)
+/** PeriodicTimer#interval() method. */
+
+VALUE AsyncEnginePeriodicTimer_interval(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   return rb_float_new((double)(uv_timer_get_repeat(cdata->_uv_handle) / 1000.0));
 }
 
 
+/** Timer#alive?() method. */
+
 VALUE AsyncEngineTimer_is_alive(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
   return Qtrue;
 }
 
 
-VALUE AsyncEngineTimer_cancel(VALUE self)
+/** TCPSocket#close() method. */
+
+VALUE AsyncEngineTimer_close(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  destroy(cdata);
+  AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+  cdata->_uv_handle = NULL;
+  ae_remove_handle(cdata->ae_handle_id);
   return Qtrue;
 }
 
+
+/** TCPSocket#destroy() private method. */
 
 VALUE AsyncEngineTimer_destroy(VALUE self)
 {
   AE_TRACE();
 
-  GET_CDATA_FROM_SELF_AND_ENSURE_UV_HANDLE_EXISTS;
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  destroy(cdata);
+  AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
+  cdata->_uv_handle = NULL;
+  ae_remove_handle(cdata->ae_handle_id);
   return Qtrue;
 }

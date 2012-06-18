@@ -5,6 +5,18 @@
 #define AE_CLOSE_UV_HANDLE(handle)  \
   uv_close((uv_handle_t *)handle, ae_uv_handle_close_callback);
 
+#define GET_CDATA_FROM_SELF  \
+  struct_cdata* cdata;  \
+  Data_Get_Struct(self, struct_cdata, cdata)
+
+#define CHECK_UV_HANDLE_IS_OPEN  \
+  if (! (cdata->_uv_handle))  \
+    return Qfalse;
+
+#define GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN  \
+  GET_CDATA_FROM_SELF;  \
+  CHECK_UV_HANDLE_IS_OPEN
+
 
 void init_ae_handle_common(void);
 
