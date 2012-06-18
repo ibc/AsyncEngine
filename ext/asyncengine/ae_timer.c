@@ -158,7 +158,7 @@ VALUE AsyncEnginePeriodicTimer_new(int argc, VALUE *argv, VALUE self)
     interval = 1;
 
   // Parameter 2: delay (optional).
-  if (argc >= 2) {
+  if (argc >= 2 && ! NIL_P(argv[1])) {
     delay = (long)(NUM2DBL(argv[1]) * 1000);
     if (delay < 1)
       delay = 1;
@@ -257,6 +257,13 @@ VALUE AsyncEngineTimer_pause(VALUE self)
 }
 
 
+/**
+ * Timer#restart() method.
+ *
+ * Arguments:
+ * - New delay (Float) (optional). If not set, previous delay is used.
+ */
+
 VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -286,6 +293,15 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
 }
 
 
+/**
+ * PeriodicTimer#restart() method.
+ *
+ * Arguments:
+ * - New interval (Float) (optional). If not set, previous interval is used.
+ * - New delay (Float) (optional). If not set, new interval value is used,
+ *   or previous delay value if no new interval is set.
+ */
+
 VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -295,14 +311,14 @@ VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_CHECK_NUM_ARGS(0,2);
 
-  // Parameter 1: interval.
+  // Parameter 1: interval (optional).
   if (argc >= 1 && ! NIL_P(argv[0])) {
     interval = (long)(NUM2DBL(argv[0]) * 1000);
     if (interval < 1)
       interval = 1;
     cdata->interval = interval;
 
-    // Parameter 2: delay.
+    // Parameter 2: delay (optional).
     if (argc == 2 && ! NIL_P(argv[1])) {
       delay = (long)(NUM2DBL(argv[1]) * 1000);
       if (delay < 1)
@@ -361,7 +377,7 @@ VALUE AsyncEngineTimer_is_alive(VALUE self)
 }
 
 
-/** TCPSocket#close() method. */
+/** Timer#close() method. */
 
 VALUE AsyncEngineTimer_close(VALUE self)
 {
@@ -374,7 +390,7 @@ VALUE AsyncEngineTimer_close(VALUE self)
 }
 
 
-/** TCPSocket#destroy() private method. */
+/** Timer#destroy() private method. */
 
 VALUE AsyncEngineTimer_destroy(VALUE self)
 {
