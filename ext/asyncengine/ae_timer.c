@@ -261,7 +261,7 @@ VALUE AsyncEngineTimer_pause(VALUE self)
  * Timer#restart() method.
  *
  * Arguments:
- * - New delay (Float) (optional). If not set, previous delay is used.
+ * - new delay (Float) (optional). If not set, previous delay is used.
  */
 
 VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
@@ -273,7 +273,7 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_CHECK_NUM_ARGS(0,1);
 
-  // Parameter 1: delay.
+  // Parameter 1: delay (optional).
   if (argc == 1 && ! NIL_P(argv[0])) {
     delay = (long)(NUM2DBL(argv[0]) * 1000);
     if (delay < 1)
@@ -297,8 +297,8 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
  * PeriodicTimer#restart() method.
  *
  * Arguments:
- * - New interval (Float) (optional). If not set, previous interval is used.
- * - New delay (Float) (optional). If not set, new interval value is used,
+ * - new interval (Float) (optional). If not set, previous interval is used.
+ * - new delay (Float) (optional). If not set, new interval value is used,
  *   or previous delay value if no new interval is set.
  */
 
