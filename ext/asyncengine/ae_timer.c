@@ -33,6 +33,7 @@ static void AsyncEngineTimer_free(struct_cdata* cdata);
 static void init_instance(VALUE self, long delay, long interval, VALUE proc);
 static void _uv_timer_callback(uv_timer_t* handle, int status);
 static VALUE _ae_timer_callback(void);
+static void close_handle(struct_cdata *cdata);
 
 
 void init_ae_timer()
@@ -179,12 +180,13 @@ static
 void init_instance(VALUE self, long delay, long interval, VALUE proc)
 {
   AE_TRACE();
-  uv_timer_t *_uv_handle = NULL;
+  uv_timer_t *_uv_handle;
   int r;
 
   // Create and init the UV handle.
   _uv_handle = ALLOC(uv_timer_t);
-  if (uv_timer_init(AE_uv_loop, _uv_handle)) {
+  r = uv_timer_init(AE_uv_loop, _uv_handle);
+  if (r != 0) {
     xfree(_uv_handle);
     ae_raise_last_uv_error();
   }
@@ -205,7 +207,11 @@ void init_instance(VALUE self, long delay, long interval, VALUE proc)
   cdata->_uv_handle->data = (void *)cdata;
 
   // Run the timer.
-  uv_timer_start(_uv_handle, _uv_timer_callback, delay, interval);
+  r = uv_timer_start(_uv_handle, _uv_timer_callback, delay, interval);
+  if (r != 0) {
+    close_handle(cdata);
+    ae_raise_last_uv_error();
+  }
 }
 
 
@@ -213,9 +219,6 @@ static
 void _uv_timer_callback(uv_timer_t* handle, int status)
 {
   AE_TRACE();
-
-  // TODO: testing
-  AE_ASSERT(! status);
 
   last_timer_callback_data.cdata = (struct_cdata*)handle->data;
   ae_take_gvl_and_run_with_error_handler(_ae_timer_callback);
@@ -230,11 +233,8 @@ VALUE _ae_timer_callback(void)
   struct_cdata* cdata = last_timer_callback_data.cdata;
 
   // Terminate the timer if it is not periodic.
-  if (cdata->periodic == 0) {
-    AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
-    cdata->_uv_handle = NULL;
-    ae_remove_handle(cdata->ae_handle_id);
-  }
+  if (cdata->periodic == 0)
+    close_handle(cdata);
 
   return ae_block_call_0(cdata->on_fire_proc);
 }
@@ -245,10 +245,12 @@ VALUE _ae_timer_callback(void)
 VALUE AsyncEngineTimer_pause(VALUE self)
 {
   AE_TRACE();
+  int r;
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  if (uv_timer_stop(cdata->_uv_handle))
+  r = uv_timer_stop(cdata->_uv_handle);
+  if (r != 0)
     ae_raise_last_uv_error();
 
   return Qtrue;
@@ -259,6 +261,7 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
   long delay;
+  int r;
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_CHECK_NUM_ARGS(0,1);
@@ -271,10 +274,12 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
     cdata->delay = delay;
   }
 
-  if (uv_timer_stop(cdata->_uv_handle))
+  r = uv_timer_stop(cdata->_uv_handle);
+  if (r != 0)
     ae_raise_last_uv_error();
 
-  if (uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, 0))
+  r = uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, 0);
+  if (r != 0)
     ae_raise_last_uv_error();
 
   return Qtrue;
@@ -285,6 +290,7 @@ VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
   long interval, delay;
+  int r;
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
   AE_RB_CHECK_NUM_ARGS(0,2);
@@ -307,10 +313,12 @@ VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
       cdata->delay = interval;
   }
 
-  if (uv_timer_stop(cdata->_uv_handle))
+  r = uv_timer_stop(cdata->_uv_handle);
+  if (r != 0)
     ae_raise_last_uv_error();
 
-  if (uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval))
+  r = uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
+  if (r != 0)
     ae_raise_last_uv_error();
 
   return Qtrue;
@@ -361,9 +369,7 @@ VALUE AsyncEngineTimer_close(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
-  cdata->_uv_handle = NULL;
-  ae_remove_handle(cdata->ae_handle_id);
+  close_handle(cdata);
   return Qtrue;
 }
 
@@ -376,8 +382,17 @@ VALUE AsyncEngineTimer_destroy(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
+  close_handle(cdata);
+  return Qtrue;
+}
+
+
+static
+void close_handle(struct_cdata *cdata)
+{
+  AE_TRACE();
+
   AE_CLOSE_UV_HANDLE(cdata->_uv_handle);
   cdata->_uv_handle = NULL;
   ae_remove_handle(cdata->ae_handle_id);
-  return Qtrue;
 }
