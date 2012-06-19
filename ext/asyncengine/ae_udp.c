@@ -237,7 +237,6 @@ static
 void _uv_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct sockaddr* addr, unsigned flags)
 {
   AE_TRACE();
-
   struct_cdata* cdata =  (struct_cdata*)handle->data;
 
   // Don't execute the callback when AsyncEngine is releasing.
@@ -270,7 +269,6 @@ static
 VALUE _ae_recv_callback(void)
 {
   AE_TRACE();
-
   struct_cdata* cdata = last_uv_recv_callback_data.cdata;
   VALUE datagram, array_ip_port, _rb_src_ip, _rb_src_port;
 
@@ -372,7 +370,6 @@ static
 void _uv_send_callback(uv_udp_send_t* req, int status)
 {
   AE_TRACE();
-
   struct_send_data* send_data = (struct_send_data*)req->data;
   int do_on_send = 0;
 
@@ -396,7 +393,6 @@ static
 VALUE _ae_send_callback(void)
 {
   AE_TRACE();
-
   VALUE proc = ae_remove_proc(last_uv_send_callback_data.on_send_proc_id);
 
   // Don't execute the callback when AsyncEngine is releasing.
