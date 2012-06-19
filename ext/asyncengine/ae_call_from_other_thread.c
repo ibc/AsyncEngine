@@ -50,6 +50,7 @@ void unload_ae_call_from_other_thread(void)
 }
 
 
+static
 VALUE AsyncEngine_call_from_other_thread(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -97,7 +98,7 @@ VALUE _ae_async_callback(void)
     // stop iterating.
     if (AE_status != AE_RUNNING)
       break;
-    ae_run_with_error_handler(ae_block_call_0, rb_ary_entry(procs, i));
+    ae_run_with_error_handler(ae_proc_call_0, rb_ary_entry(procs, i));
   }
   procs = Qnil;
 

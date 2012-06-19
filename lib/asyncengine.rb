@@ -17,7 +17,7 @@ require "asyncengine/debug.rb"  # TODO: Temporal.
 module AsyncEngine
 
   @_handles = {}
-  @_blocks = {}
+  @_procs = {}
   @_next_tick_procs = []
   @_call_from_other_thread_procs = []
   @_user_error_handler = nil

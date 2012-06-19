@@ -78,7 +78,7 @@ class TestUdp < AETest
       # This will be received.
       assert_true sock.send_datagram("1", local_ip, local_port)
 
-      AE.add_timer(0.02) do
+      AE.add_timer(0.1) do
         sock.pause
         assert_true sock.paused?
 
@@ -86,7 +86,7 @@ class TestUdp < AETest
         assert_true sock.send_datagram("2", local_ip, local_port)
       end
 
-      AE.add_timer(0.06) do
+      AE.add_timer(0.15) do
         sock.resume
         assert_false sock.paused?
 
@@ -94,9 +94,8 @@ class TestUdp < AETest
         assert_true sock.send_datagram("3", local_ip, local_port)
       end
 
-      AE.add_timer(0.12) do
+      AE.add_timer(0.2) do
         assert_true sock.close()
-
         assert_false sock.alive?
 
         # Socket closed, cannot be sent.

@@ -17,7 +17,7 @@ static VALUE AE_pid;
 static VALUE AE_barrier;
 
 static ID att_handles;
-static ID att_blocks;
+static ID att_procs;
 static ID att_next_tick_procs;
 static ID att_call_from_other_thread_procs;
 static ID att_user_error_handler;
@@ -111,7 +111,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
     rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
 
-  // If already running pass the block to the reactor and return true.
+  // If already running pass the Proc to the reactor and return true.
   if (AE_status == AE_RUNNING) {
     if (ae_is_running_thread())
       rb_funcall2(mAsyncEngine, method_next_tick, 1, &proc);
@@ -130,9 +130,9 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_thread = rb_thread_current();
   AE_pid = rb_funcall2(mProcess, method_pid, 0, NULL);
 
-  // Get the VALUEs for @_handles and @_blocks (faster).
+  // Get the VALUEs for @_handles and @_procs (faster).
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
-  AE_blocks = rb_ivar_get(mAsyncEngine, att_blocks);
+  AE_procs = rb_ivar_get(mAsyncEngine, att_procs);
 
   AE_ASSERT(AE_status == AE_STOPPED);
 
@@ -149,7 +149,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   /* Initial status. */
   AE_status = AE_RUNNING;
 
-  /* Pass the given block to the reactor via next_tick. */
+  /* Pass the given Proc to the reactor via next_tick. */
   rb_funcall2(mAsyncEngine, method_next_tick, 1, &proc);
 
   // TODO: for testing.
@@ -186,7 +186,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   on_exit_procs = rb_ivar_get(mAsyncEngine, att_on_exit_procs);
   rb_ivar_set(mAsyncEngine, att_on_exit_procs, rb_ary_new());
   for(i=0 ; i<RARRAY_LEN(on_exit_procs) ; i++) {
-    ae_block_call_1(rb_ary_entry(on_exit_procs, i), captured_error);
+    ae_proc_call_1(rb_ary_entry(on_exit_procs, i), captured_error);
   }
 
   /*
@@ -309,8 +309,8 @@ void ae_release_loop(void)
   AE_CLOSE_UV_HANDLE(ae_ubf_uv_async);
   ae_ubf_uv_async = NULL;
 
-  // Clear @_blocks.
-  rb_funcall2(AE_blocks, method_clear, 0, NULL);
+  // Clear @_procs.  TODO: It should not be needed.
+  //rb_funcall2(AE_procs, method_clear, 0, NULL);
 }
 
 
@@ -419,7 +419,6 @@ VALUE ae_handle_error_with_rb_protect(VALUE error)
 
 /** AE.check_status method. */
 
-// TODO: Will be removed after all the handles are created in C land.
 static
 VALUE AsyncEngine_check_status(VALUE self)
 {
@@ -480,7 +479,7 @@ void Init_asyncengine_ext()
   rb_define_module_function(mAsyncEngine, "num_uv_active_reqs", AsyncEngine_num_uv_active_reqs, 0);
 
   att_handles = rb_intern("@_handles");
-  att_blocks = rb_intern("@_blocks");
+  att_procs = rb_intern("@_procs");
   att_next_tick_procs = rb_intern("@_next_tick_procs");
   att_call_from_other_thread_procs = rb_intern("@_call_from_other_thread_procs");
   att_exit_error = rb_intern("@_exit_error");

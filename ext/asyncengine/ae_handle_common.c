@@ -10,8 +10,8 @@ static ID method_call;
 static ID method_handle_error;
 static ID method_raise;
 
-// C variable holding current block number.
-static long block_long_id;
+// C variable holding current proc number.
+static long proc_long_id;
 
 
 void init_ae_handle_common(void)
@@ -24,7 +24,7 @@ void init_ae_handle_common(void)
   method_handle_error = rb_intern("handle_error");
   method_raise = rb_intern("raise");
 
-  block_long_id = 0;
+  proc_long_id = 0;
 }
 
 
@@ -55,30 +55,30 @@ VALUE ae_remove_handle(VALUE ae_handle_id)
 }
 
 
-VALUE ae_store_block(VALUE block)
+VALUE ae_store_proc(VALUE proc)
 {
   AE_TRACE();
 
-  VALUE block_id = LONG2FIX(++block_long_id);
-  rb_hash_aset(AE_blocks, block_id, block);
+  VALUE proc_id = LONG2FIX(++proc_long_id);
+  rb_hash_aset(AE_procs, proc_id, proc);
 
-  return block_id;
+  return proc_id;
 }
 
 
-VALUE ae_get_block(VALUE block_id)
+VALUE ae_get_proc(VALUE proc_id)
 {
   AE_TRACE();
 
-  return rb_hash_aref(AE_blocks, block_id);
+  return rb_hash_aref(AE_procs, proc_id);
 }
 
 
-VALUE ae_remove_block(VALUE block_id)
+VALUE ae_remove_proc(VALUE proc_id)
 {
   AE_TRACE();
 
-  return rb_hash_delete(AE_blocks, block_id);
+  return rb_hash_delete(AE_procs, proc_id);
 }
 
 
@@ -144,21 +144,21 @@ void ae_raise_last_uv_error(void)
 }
 
 
-VALUE ae_block_call_0(VALUE _rb_block)
+VALUE ae_proc_call_0(VALUE proc)
 {
   AE_TRACE();
 
-  AE_ASSERT(! NIL_P(_rb_block));
-  return rb_funcall2(_rb_block, method_call, 0, NULL);
+  AE_ASSERT(! NIL_P(proc));
+  return rb_funcall2(proc, method_call, 0, NULL);
 }
 
 
-VALUE ae_block_call_1(VALUE _rb_block, VALUE param)
+VALUE ae_proc_call_1(VALUE proc, VALUE param)
 {
   AE_TRACE();
 
-  AE_ASSERT(! NIL_P(_rb_block));
-  return rb_funcall2(_rb_block, method_call, 1, &param);
+  AE_ASSERT(! NIL_P(proc));
+  return rb_funcall2(proc, method_call, 1, &param);
 }
 
 

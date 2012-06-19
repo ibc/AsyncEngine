@@ -108,6 +108,7 @@ void AsyncEngineTimer_free(struct_cdata* cdata)
  *
  * Block optional.
  */
+static
 VALUE AsyncEngineTimer_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -142,6 +143,7 @@ VALUE AsyncEngineTimer_new(int argc, VALUE *argv, VALUE self)
  *
  * Block optional.
  */
+static
 VALUE AsyncEnginePeriodicTimer_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -236,12 +238,13 @@ VALUE _ae_timer_callback(void)
   if (cdata->periodic == 0)
     close_handle(cdata);
 
-  return ae_block_call_0(cdata->on_fire_proc);
+  return ae_proc_call_0(cdata->on_fire_proc);
 }
 
 
 /** Timer#pause() method. */
 
+static
 VALUE AsyncEngineTimer_pause(VALUE self)
 {
   AE_TRACE();
@@ -264,6 +267,7 @@ VALUE AsyncEngineTimer_pause(VALUE self)
  * - new delay (Float) (optional). If not set, previous delay is used.
  */
 
+static
 VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -302,6 +306,7 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
  *   or previous delay value if no new interval is set.
  */
 
+static
 VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -343,6 +348,7 @@ VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
 
 /** Timer#delay() method. */
 
+static
 VALUE AsyncEngineTimer_delay(VALUE self)
 {
   AE_TRACE();
@@ -355,6 +361,7 @@ VALUE AsyncEngineTimer_delay(VALUE self)
 
 /** PeriodicTimer#interval() method. */
 
+static
 VALUE AsyncEnginePeriodicTimer_interval(VALUE self)
 {
   AE_TRACE();
@@ -367,6 +374,7 @@ VALUE AsyncEnginePeriodicTimer_interval(VALUE self)
 
 /** Timer#alive?() method. */
 
+static
 VALUE AsyncEngineTimer_is_alive(VALUE self)
 {
   AE_TRACE();
@@ -379,6 +387,7 @@ VALUE AsyncEngineTimer_is_alive(VALUE self)
 
 /** Timer#close() method. */
 
+static
 VALUE AsyncEngineTimer_close(VALUE self)
 {
   AE_TRACE();
@@ -392,6 +401,7 @@ VALUE AsyncEngineTimer_close(VALUE self)
 
 /** Timer#destroy() private method. */
 
+static
 VALUE AsyncEngineTimer_destroy(VALUE self)
 {
   AE_TRACE();

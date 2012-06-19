@@ -168,6 +168,8 @@ void AsyncEngineTcpSocket_free(struct_cdata* cdata)
  * - bind IP (String or Nil) (optional).
  * - bind port (Fixnum or Nil) (optional).
  */
+
+static
 VALUE AsyncEngineTcpSocket_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -487,7 +489,7 @@ VALUE _ae_read_callback(void)
 
 /** TCPSocket#send_data() method. */
 
-// TODO: Falta comprobar AE_STATUS y todo eso.
+static
 VALUE AsyncEngineTcpSocket_send_data(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
@@ -584,9 +586,9 @@ VALUE _ae_write_callback(void)
   // Don't run the write block when releasing.
   if (! (last_uv_write_callback_data.cdata->flags & RELEASING)) {
     if (! last_uv_write_callback_data.status)
-      ae_block_call_1(rb_on_write_block, Qnil);
+      ae_proc_call_1(rb_on_write_block, Qnil);
     else
-      ae_block_call_1(rb_on_write_block, ae_get_last_uv_error());
+      ae_proc_call_1(rb_on_write_block, ae_get_last_uv_error());
   }
 
   return Qnil;
@@ -595,6 +597,7 @@ VALUE _ae_write_callback(void)
 
 /** TCPSocket#local_address() and TCPSocket#peer_address() methods. */
 
+static
 VALUE AsyncEngineTcpSocket_local_address(VALUE self)
 {
   AE_TRACE();
@@ -614,6 +617,7 @@ VALUE AsyncEngineTcpSocket_local_address(VALUE self)
 }
 
 
+static
 VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
 {
   AE_TRACE();
@@ -637,6 +641,7 @@ VALUE AsyncEngineTcpSocket_peer_address(VALUE self)
 
 /** TCPSocket#set_connect_timeout() method. */
 
+static
 VALUE AsyncEngineTcpSocket_set_connect_timeout(VALUE self, VALUE _rb_timeout)
 {
   AE_TRACE2();
@@ -699,6 +704,7 @@ void _ae_cancel_timer_connect_timeout(struct_cdata* cdata)
 
 /** TCPSocket#status() method. */
 
+static
 VALUE AsyncEngineTcpSocket_status(VALUE self)
 {
   AE_TRACE();
@@ -721,6 +727,7 @@ VALUE AsyncEngineTcpSocket_status(VALUE self)
 
 /** TCPSocket#connected?() method. */
 
+static
 VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
 {
   AE_TRACE();
@@ -736,6 +743,7 @@ VALUE AsyncEngineTcpSocket_is_connected(VALUE self)
 
 /** TCPSocket#alive?() method. */
 
+static
 VALUE AsyncEngineTcpSocket_is_alive(VALUE self)
 {
   AE_TRACE();
@@ -748,6 +756,7 @@ VALUE AsyncEngineTcpSocket_is_alive(VALUE self)
 
 /** TCPSocket#close() method. */
 
+static
 VALUE AsyncEngineTcpSocket_close(VALUE self)
 {
   AE_TRACE2();
@@ -777,6 +786,7 @@ VALUE AsyncEngineTcpSocket_close(VALUE self)
 
 /** TCPSocket#close_gracefully() method. */
 
+static
 VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
@@ -871,6 +881,8 @@ VALUE _ae_shutdown_callback(void)
  * This method is safely called by AsyncEngine_release() by
  * capturing and ignoring any exception/error.
  */
+
+static
 VALUE AsyncEngineTcpSocket_destroy(VALUE self)
 {
   AE_TRACE2();

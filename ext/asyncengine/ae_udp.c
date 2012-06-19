@@ -133,6 +133,8 @@ void AsyncEngineUdpSocket_free(struct_cdata* cdata)
  * - bind IP (String).
  * - bind port (Fixnum).
  */
+
+static
 VALUE AsyncEngineUdpSocket_new(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -292,6 +294,8 @@ VALUE _ae_recv_callback(void)
  *
  * Block optional.
  */
+
+static
 VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -336,7 +340,7 @@ VALUE AsyncEngineUdpSocket_send_datagram(int argc, VALUE *argv, VALUE self)
   send_data->datagram = datagram;
 
   if (! NIL_P(proc))
-    send_data->on_send_proc_id = ae_store_block(proc);
+    send_data->on_send_proc_id = ae_store_proc(proc);
   else
     send_data->on_send_proc_id = Qnil;
 
@@ -393,21 +397,22 @@ VALUE _ae_send_callback(void)
 {
   AE_TRACE();
 
-  VALUE proc = ae_remove_block(last_uv_send_callback_data.on_send_proc_id);
+  VALUE proc = ae_remove_proc(last_uv_send_callback_data.on_send_proc_id);
 
   // Don't execute the callback when AsyncEngine is releasing.
   if (AE_status == AE_RELEASING)
     return Qnil;
 
   if (last_uv_send_callback_data.status == 0)
-    return ae_block_call_1(proc, Qnil);
+    return ae_proc_call_1(proc, Qnil);
   else
-    return ae_block_call_1(proc, ae_get_last_uv_error());
+    return ae_proc_call_1(proc, ae_get_last_uv_error());
 }
 
 
 /** UDPSocket#local_address() method. */
 
+static
 VALUE AsyncEngineUdpSocket_local_address(VALUE self)
 {
   AE_TRACE();
@@ -427,6 +432,7 @@ VALUE AsyncEngineUdpSocket_local_address(VALUE self)
 
 /** UDPSocket#ip_type() method. */
 
+static
 VALUE AsyncEngineUdpSocket_ip_type(VALUE self)
 {
   AE_TRACE();
@@ -439,6 +445,7 @@ VALUE AsyncEngineUdpSocket_ip_type(VALUE self)
 
 /** UDPSocket#pause() method. */
 
+static
 VALUE AsyncEngineUdpSocket_pause(VALUE self)
 {
   AE_TRACE();
@@ -452,6 +459,7 @@ VALUE AsyncEngineUdpSocket_pause(VALUE self)
 
 /** UDPSocket#resume() method. */
 
+static
 VALUE AsyncEngineUdpSocket_resume(VALUE self)
 {
   AE_TRACE();
@@ -465,6 +473,7 @@ VALUE AsyncEngineUdpSocket_resume(VALUE self)
 
 /** UDPSocket#paused?() method. */
 
+static
 VALUE AsyncEngineUdpSocket_is_paused(VALUE self)
 {
   AE_TRACE();
@@ -480,6 +489,7 @@ VALUE AsyncEngineUdpSocket_is_paused(VALUE self)
 
 /** UDPSocket#set_encoding_external() method. */
 
+static
 VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self)
 {
   AE_TRACE();
@@ -493,6 +503,7 @@ VALUE AsyncEngineUdpSocket_set_encoding_external(VALUE self)
 
 /** UDPSocket#set_encoding_utf8() method. */
 
+static
 VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self)
 {
   AE_TRACE();
@@ -506,6 +517,7 @@ VALUE AsyncEngineUdpSocket_set_encoding_utf8(VALUE self)
 
 /** UDPSocket#set_encoding_ascii() method. */
 
+static
 VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self)
 {
   AE_TRACE();
@@ -519,6 +531,7 @@ VALUE AsyncEngineUdpSocket_set_encoding_ascii(VALUE self)
 
 /** UDPSocket#encoding() method. */
 
+static
 VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 {
   AE_TRACE();
@@ -531,6 +544,7 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 
 /** UDPSocket#alive?() method. */
 
+static
 VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
 {
   AE_TRACE();
@@ -543,6 +557,7 @@ VALUE AsyncEngineUdpSocket_is_alive(VALUE self)
 
 /** UDPSocket#close() method. */
 
+static
 VALUE AsyncEngineUdpSocket_close(VALUE self)
 {
   AE_TRACE();
@@ -556,6 +571,7 @@ VALUE AsyncEngineUdpSocket_close(VALUE self)
 
 /** UDPSocket#destroy() private method. */
 
+static
 VALUE AsyncEngineUdpSocket_destroy(VALUE self)
 {
   AE_TRACE();

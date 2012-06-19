@@ -50,6 +50,7 @@ void unload_ae_next_tick_uv_idle(void)
 }
 
 
+static
 VALUE AsyncEngine_next_tick(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
@@ -102,7 +103,7 @@ VALUE _ae_idle_callback(void)
     // stop iterating.
     if (AE_status != AE_RUNNING)
       break;
-    ae_run_with_error_handler(ae_block_call_0, rb_ary_entry(procs, i));
+    ae_run_with_error_handler(ae_proc_call_0, rb_ary_entry(procs, i));
   }
   procs = Qnil;
 

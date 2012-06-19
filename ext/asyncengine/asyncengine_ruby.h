@@ -40,7 +40,7 @@ VALUE eAsyncEngineUvError;
 VALUE eAsyncEngineNotRunningError;
 
 VALUE AE_handles;
-VALUE AE_blocks;
+VALUE AE_procs;
 VALUE AE_UV_ERRORS;
 
 enum ae_status {
