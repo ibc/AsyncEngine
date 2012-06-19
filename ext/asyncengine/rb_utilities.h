@@ -38,6 +38,8 @@ if (argc < min || argc > max)  \
 #define AE_RB_STR_TAINTED_ASCII_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_ascii8bit_encoding()))
 
 
+/* Exported C variables. */
+
 typedef enum {
   string_encoding_external = 0,
   string_encoding_utf8,
@@ -55,7 +57,7 @@ VALUE symbol_encoding_ascii;
 void init_rb_utilities(void);
 
 VALUE ae_rb_str_new(char* ptr, long len, enum_string_encoding enc, int tainted);
-VALUE ae_get_rb_encoding(enum_string_encoding encoding);
+VALUE ae_encoding_to_rb_symbol(enum_string_encoding encoding);
 
 
 #endif  /* _AE_RB_UTILITIES_H */

@@ -5,6 +5,8 @@
 #include "ip_parser.h"
 
 
+/* Exported Ruby symbols. */
+
 VALUE symbol_ipv4;
 VALUE symbol_ipv6;
 VALUE symbol_ipv6_reference;
@@ -17,6 +19,7 @@ VALUE AsyncEngineIpUtils_compare_ips(int argc, VALUE *argv, VALUE self);
 
 int ae_ip_utils_is_valid_port(int port);
 VALUE ae_ip_utils_get_ip_port(struct sockaddr_storage *addr, enum_ip_type ip_type);
+VALUE ae_ip_type_to_rb_symbol(enum_ip_type ip_type);
 
 
 #endif  /* AE_IP_UTILS_H */

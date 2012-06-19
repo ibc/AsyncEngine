@@ -64,6 +64,8 @@ class TestUdp < AETest
       sock = AE.open_udp_socket ip, 0
       local_ip, local_port = sock.local_address()
 
+      assert_true [:ipv4, :ipv6].include?(sock.ip_type)
+
       def sock.on_datagram_received datagram, ip, port
         RECEIVED_DATAGRAMS << datagram
       end

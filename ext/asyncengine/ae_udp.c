@@ -77,6 +77,7 @@ void init_ae_udp()
 
   rb_define_method(cAsyncEngineUdpSocket, "send_datagram", AsyncEngineUdpSocket_send_datagram, -1);
   rb_define_method(cAsyncEngineUdpSocket, "local_address", AsyncEngineUdpSocket_local_address, 0);
+  rb_define_method(cAsyncEngineUdpSocket, "ip_type", AsyncEngineUdpSocket_ip_type, 0);
   rb_define_method(cAsyncEngineUdpSocket, "pause", AsyncEngineUdpSocket_pause, 0);
   rb_define_method(cAsyncEngineUdpSocket, "resume", AsyncEngineUdpSocket_resume, 0);
   rb_define_method(cAsyncEngineUdpSocket, "paused?", AsyncEngineUdpSocket_is_paused, 0);
@@ -421,6 +422,18 @@ VALUE AsyncEngineUdpSocket_local_address(VALUE self)
     ae_raise_last_uv_error();
 
   return ae_ip_utils_get_ip_port(&local_addr, cdata->ip_type);
+}
+
+
+/** UDPSocket#ip_type() method. */
+
+VALUE AsyncEngineUdpSocket_ip_type(VALUE self)
+{
+  AE_TRACE();
+
+  GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+
+  return ae_ip_type_to_rb_symbol(cdata->ip_type);
 }
 
 

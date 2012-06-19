@@ -6,7 +6,7 @@ module AsyncEngine
     # Run the given block.
     yield sock  if block_given?
 
-    # Return the klass instance.
+    # Return the instance.
     sock
   end
 

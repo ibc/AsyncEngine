@@ -222,3 +222,25 @@ VALUE ae_ip_utils_get_ip_port(struct sockaddr_storage *addr, enum_ip_type ip_typ
 
   return _rb_array_ip_port;
 }
+
+
+VALUE ae_ip_type_to_rb_symbol(enum_ip_type ip_type)
+{
+  AE_TRACE();
+
+  switch(ip_type) {
+    case ip_type_ipv4:
+      return symbol_ipv4;
+      break;
+    case ip_type_ipv6:
+      return symbol_ipv6;
+      break;
+    case ip_type_ipv6_reference:
+      return symbol_ipv6_reference;
+      break;
+    case ip_type_no_ip:
+      return Qnil;
+    default:
+      AE_ABORT("invalid enum_ip_type %d", ip_type);
+  }
+}
