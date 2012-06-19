@@ -512,7 +512,7 @@ VALUE AsyncEngineUdpSocket_encoding(VALUE self)
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
 
-  return ae_get_rb_encoding(cdata->encoding);
+  return ae_encoding_to_rb_symbol(cdata->encoding);
 }
 
 

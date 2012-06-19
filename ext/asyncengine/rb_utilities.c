@@ -4,14 +4,6 @@
 #include "rb_utilities.h"
 
 
-#define AE_RB_STR_EXTERNAL_NEW(s, len) (rb_enc_str_new(s, len, rb_default_external_encoding()))
-#define AE_RB_STR_TAINTED_EXTERNAL_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_default_external_encoding()))
-#define AE_RB_STR_UTF8_NEW(s, len) (rb_enc_str_new(s, len, rb_utf8_encoding()))
-#define AE_RB_STR_TAINTED_UTF8_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_utf8_encoding()))
-#define AE_RB_STR_ASCII_NEW(s, len) (rb_enc_str_new(s, len, rb_ascii8bit_encoding()))
-#define AE_RB_STR_TAINTED_ASCII_NEW(s, len) (rb_external_str_new_with_enc(s, len, rb_ascii8bit_encoding()))
-
-
 void init_rb_utilities(void)
 {
   AE_TRACE();
@@ -37,16 +29,16 @@ VALUE ae_rb_str_new(char* s, long len, enum_string_encoding enc, int tainted)
       return ( tainted ? AE_RB_STR_TAINTED_ASCII_NEW(s, len) : AE_RB_STR_ASCII_NEW(s, len) );
       break;
     default:
-      AE_ASSERT("invalid enum_string_encoding");
+      AE_ABORT("invalid enum_string_encoding %d", enc);
   }
 }
 
 
-VALUE ae_get_rb_encoding(enum_string_encoding encoding)
+VALUE ae_encoding_to_rb_symbol(enum_string_encoding enc)
 {
   AE_TRACE();
 
-  switch(encoding) {
+  switch(enc) {
     case string_encoding_external:
       return symbol_encoding_external;
       break;
@@ -57,7 +49,6 @@ VALUE ae_get_rb_encoding(enum_string_encoding encoding)
       return symbol_encoding_ascii;
       break;
     default:
-      AE_ASSERT("invalid enum_string_encoding");
-      return Qfalse;
+      AE_ABORT("invalid enum_string_encoding %d", enc);
   }
 }
