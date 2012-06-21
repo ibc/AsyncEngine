@@ -81,15 +81,14 @@ VALUE AsyncEngineResolver_resolve(int argc, VALUE *argv, VALUE self)
   data = ALLOC(struct_getaddrinfo_data);
   _uv_handle->data = (void*)data;
 
-  data->on_result_proc_id = ae_store_proc(proc);
-
   r = uv_getaddrinfo(AE_uv_loop, _uv_handle, &_uv_getaddrinfo_callback, hostname, NULL, &addrinfo_hints);
   if (r != 0) {
-    ae_remove_proc(data->on_result_proc_id);
     xfree(data);
     xfree(_uv_handle);
     ae_raise_last_uv_error();
   }
+
+  data->on_result_proc_id = ae_store_proc(proc);
 
   return Qtrue;
 }

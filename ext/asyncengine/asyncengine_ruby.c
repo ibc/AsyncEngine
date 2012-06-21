@@ -310,8 +310,8 @@ void ae_release_loop(void)
   AE_CLOSE_UV_HANDLE(ae_ubf_uv_async);
   ae_ubf_uv_async = NULL;
 
-  // Clear @_procs.  TODO: It should not be needed.
-  //rb_funcall2(AE_procs, method_clear, 0, NULL);
+  // Clear @_procs.
+  rb_funcall2(AE_procs, method_clear, 0, NULL);
 }
 
 
