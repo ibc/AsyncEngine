@@ -37,6 +37,8 @@ void ae_raise_last_uv_error(void);
 
 VALUE ae_proc_call_0(VALUE proc);
 VALUE ae_proc_call_1(VALUE proc, VALUE param);
+VALUE ae_proc_call_2(VALUE proc, VALUE param1, VALUE param2);
+VALUE ae_proc_call_3(VALUE proc, VALUE param1, VALUE param2, VALUE param3);
 
 VALUE ae_run_with_error_handler(void* function, VALUE param);
 VALUE ae_take_gvl_and_run_with_error_handler(void* function);

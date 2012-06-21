@@ -162,6 +162,24 @@ VALUE ae_proc_call_1(VALUE proc, VALUE param)
 }
 
 
+VALUE ae_proc_call_2(VALUE proc, VALUE param1, VALUE param2)
+{
+  AE_TRACE();
+
+  AE_ASSERT(! NIL_P(proc));
+  return rb_funcall(proc, method_call, 2, param1, param2);
+}
+
+
+VALUE ae_proc_call_3(VALUE proc, VALUE param1, VALUE param2, VALUE param3)
+{
+  AE_TRACE();
+
+  AE_ASSERT(! NIL_P(proc));
+  return rb_funcall(proc, method_call, 3, param1, param2, param3);
+}
+
+
 /*
  * When any AsyncEngine handler runs a handle method having the GVL,
  * it must use this function, which can receive an optional VALUE parameter.
