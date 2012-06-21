@@ -39,7 +39,7 @@ module AsyncEngine
 
   def self.on_error pr=nil, &bl
     block = pr || bl
-    raise ArgumentError, "no block given"  unless block.is_a? Proc
+    raise ::ArgumentError, "no block given"  unless block.is_a? ::Proc
 
     @_user_error_handler = block
   end
@@ -50,7 +50,7 @@ module AsyncEngine
 
   def self.on_exit pr=nil, &bl
     block = pr || bl
-    raise ArgumentError, "no block given"  unless block.is_a? Proc
+    raise ::ArgumentError, "no block given"  unless block.is_a? ::Proc
 
     @_on_exit_procs << block
   end
