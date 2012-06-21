@@ -71,7 +71,7 @@ VALUE AsyncEngineResolver_resolve(int argc, VALUE *argv, VALUE self)
   addrinfo_hints.ai_socktype = SOCK_STREAM;  // Avoid duplicated results (with some IP but different socktype).
 
   // Parameter 2: IP family (optional).
-  if (argc > 1) {
+  if (argc > 1 && ! NIL_P(argv[1])) {
     if (! FIXNUM_P(argv[1]))
       rb_raise(rb_eTypeError, "IP family must be a Fixnum");
     addrinfo_hints.ai_family = FIX2INT(argv[1]);
