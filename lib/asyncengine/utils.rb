@@ -20,9 +20,13 @@ module AsyncEngine::Utils
 
     alias :orig_to_s :to_s
     def to_s
-      "#{self.orig_to_s} (model: #{@model.inspect}, speed: #{speed} MHz)"
+      "#{self.orig_to_s} (model: #{@model}, speed: #{speed} MHz)"
     end
-    alias :inspect :to_s
+
+    def inspect
+      sprintf("%s sys: %.2f%%, user: %.2f%%, idle: %.2f%%, irq: %.2f%%, nice: %.2f%%",
+              to_s, @time_sys, @time_user, @time_idle, @time_irq, @time_nice)
+    end
   end
 
 end

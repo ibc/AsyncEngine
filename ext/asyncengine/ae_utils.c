@@ -159,6 +159,7 @@ VALUE AsyncEngineUtils_get_cpu_info(VALUE self)
   int i, num_cpus;
   uv_cpu_info_t* cpus;
   uv_err_t error;
+  uint64_t cpu_times_total;
   VALUE ae_cpu_info, result_array;
 
   error = uv_cpu_info(&cpus, &num_cpus);
@@ -169,20 +170,20 @@ VALUE AsyncEngineUtils_get_cpu_info(VALUE self)
 
   for (i = 0; i < num_cpus; i++) {
     ae_cpu_info = rb_obj_alloc(cAsyncEngineUtilsCpuInfo);
+
     rb_ivar_set(ae_cpu_info, att_model, rb_str_new2(cpus[i].model));
     rb_ivar_set(ae_cpu_info, att_speed, INT2FIX(cpus[i].speed));
-    rb_ivar_set(ae_cpu_info, att_time_sys, INT2FIX(cpus[i].cpu_times.sys));
-    rb_ivar_set(ae_cpu_info, att_time_user, INT2FIX(cpus[i].cpu_times.user));
-    rb_ivar_set(ae_cpu_info, att_time_idle, INT2FIX(cpus[i].cpu_times.idle));
-    rb_ivar_set(ae_cpu_info, att_time_irq, INT2FIX(cpus[i].cpu_times.irq));
-    rb_ivar_set(ae_cpu_info, att_time_nice, INT2FIX(cpus[i].cpu_times.nice));
 
-    // TODO: ¿Igual es mejor sumar todos los times, y dividir cada uno por la suma total y multiplicar por 100
-    // para tener un porcentaje? Aunque el resultado no es exacto a la salida de top... ¿?
-    // Idea:
-    // //rb_ivar_set(ae_cpu_info, att_time_sys, rb_float_new((cpus[i].cpu_times.sys / 1000000)));
+    cpu_times_total = cpus[i].cpu_times.sys + cpus[i].cpu_times.user + cpus[i].cpu_times.idle +
+                      cpus[i].cpu_times.irq + cpus[i].cpu_times.nice;
 
-    rb_ary_store(result_array, i, ae_cpu_info);
+    rb_ivar_set(ae_cpu_info, att_time_sys, rb_float_new((cpus[i].cpu_times.sys * 100.0 / cpu_times_total)));
+    rb_ivar_set(ae_cpu_info, att_time_user, rb_float_new((cpus[i].cpu_times.user * 100.0 / cpu_times_total)));
+    rb_ivar_set(ae_cpu_info, att_time_idle, rb_float_new((cpus[i].cpu_times.idle * 100.0 / cpu_times_total)));
+    rb_ivar_set(ae_cpu_info, att_time_irq, rb_float_new((cpus[i].cpu_times.irq * 100.0 / cpu_times_total)));
+    rb_ivar_set(ae_cpu_info, att_time_nice, rb_float_new((cpus[i].cpu_times.nice * 100.0 / cpu_times_total)));
+
+    rb_ary_push(result_array, ae_cpu_info);
   }
 
   uv_free_cpu_info(cpus, num_cpus);
