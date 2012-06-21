@@ -108,6 +108,7 @@ void AsyncEngineTimer_free(struct_cdata* cdata)
  *
  * Block optional.
  */
+
 static
 VALUE AsyncEngineTimer_new(int argc, VALUE *argv, VALUE self)
 {
@@ -143,6 +144,7 @@ VALUE AsyncEngineTimer_new(int argc, VALUE *argv, VALUE self)
  *
  * Block optional.
  */
+
 static
 VALUE AsyncEnginePeriodicTimer_new(int argc, VALUE *argv, VALUE self)
 {

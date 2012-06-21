@@ -237,7 +237,7 @@ static
 void _uv_recv_callback(uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct sockaddr* addr, unsigned flags)
 {
   AE_TRACE();
-  struct_cdata* cdata =  (struct_cdata*)handle->data;
+  struct_cdata* cdata = (struct_cdata*)handle->data;
 
   // Don't execute the callback when AsyncEngine is releasing.
   if (AE_status == AE_RELEASING)
