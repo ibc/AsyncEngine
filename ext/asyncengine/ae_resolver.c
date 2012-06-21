@@ -105,6 +105,9 @@ void _uv_getaddrinfo_callback(uv_getaddrinfo_t* handle, int status, struct addri
   last_uv_getaddrinfo_callback_data.res = res;
   last_uv_getaddrinfo_callback_data.on_result_proc_id = data->on_result_proc_id;
 
+  xfree(handle->data);
+  xfree(handle);
+
   ae_take_gvl_and_run_with_error_handler(_ae_getaddrinfo_callback);
 }
 
@@ -138,8 +141,11 @@ VALUE _ae_getaddrinfo_callback(void)
           break;
       }
     }
+    uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
     return ae_proc_call_2(proc, Qnil, ips);
   }
-  else
+  else {
+    uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
     return ae_proc_call_2(proc, ae_get_last_uv_error(), Qnil);
+  }
 }
