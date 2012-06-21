@@ -13,6 +13,8 @@ require "asyncengine/tcp.rb"
 require "asyncengine/utils.rb"
 require "asyncengine/debug.rb"  # TODO: Temporal.
 
+require "socket"
+
 
 module AsyncEngine
 
