@@ -121,7 +121,7 @@ VALUE _ae_getaddrinfo_callback(void)
   struct sockaddr_in6 *addr6;
   char ip[INET6_ADDRSTRLEN];
   VALUE ips;
-  VALUE proc = ae_remove_proc(last_uv_getaddrinfo_callback_data.on_result_proc_id);
+  VALUE proc;
 
   if (last_uv_getaddrinfo_callback_data.status == 0) {
     ips = rb_ary_new();
@@ -141,15 +141,17 @@ VALUE _ae_getaddrinfo_callback(void)
           break;
       }
     }
-    uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
-    // Don't execute the callback when AsyncEngine is releasing.
-    if (AE_status != AE_RELEASING)
-      return ae_proc_call_2(proc, Qnil, ips);
   }
-  else {
-    uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
-    // Don't execute the callback when AsyncEngine is releasing.
-    if (AE_status != AE_RELEASING)
-      return ae_proc_call_2(proc, ae_get_last_uv_error(), Qnil);
-  }
+
+  uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
+
+  // Don't execute the callback when AsyncEngine is releasing.
+  if (AE_status == AE_RELEASING)
+    return Qnil;
+
+  proc = ae_remove_proc(last_uv_getaddrinfo_callback_data.on_result_proc_id);
+  if (last_uv_getaddrinfo_callback_data.status == 0)
+    return ae_proc_call_2(proc, Qnil, ips);
+  else
+    return ae_proc_call_2(proc, ae_get_last_uv_error(), Qnil);
 }
