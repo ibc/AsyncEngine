@@ -7,6 +7,7 @@
 #include "ae_timer.h"
 #include "ae_udp.h"
 #include "ae_tcp.h"
+#include "ae_resolver.h"
 
 
 static VALUE mProcess;
@@ -504,6 +505,7 @@ void Init_asyncengine_ext()
   init_ae_timer();
   init_ae_udp();
   init_ae_tcp();
+  init_ae_resolver();
 
   ae_ubf_uv_async = NULL;
 
