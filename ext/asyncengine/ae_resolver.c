@@ -142,10 +142,14 @@ VALUE _ae_getaddrinfo_callback(void)
       }
     }
     uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
-    return ae_proc_call_2(proc, Qnil, ips);
+    // Don't execute the callback when AsyncEngine is releasing.
+    if (AE_status != AE_RELEASING)
+      return ae_proc_call_2(proc, Qnil, ips);
   }
   else {
     uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
-    return ae_proc_call_2(proc, ae_get_last_uv_error(), Qnil);
+    // Don't execute the callback when AsyncEngine is releasing.
+    if (AE_status != AE_RELEASING)
+      return ae_proc_call_2(proc, ae_get_last_uv_error(), Qnil);
   }
 }
