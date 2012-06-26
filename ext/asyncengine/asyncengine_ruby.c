@@ -102,7 +102,6 @@ static
 VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
-
   VALUE proc, captured_error, on_exit_procs;
   int r, i;
 
@@ -221,7 +220,6 @@ static
 void ae_ubf(void)
 {
   AE_TRACE();
-
   int r;
 
   if (AE_status != AE_RUNNING)
@@ -319,7 +317,6 @@ static
 int destroy_handle(VALUE key, VALUE handle, VALUE in)
 {
   AE_TRACE();
-
   VALUE error;
   int error_tag;
 
@@ -379,7 +376,6 @@ VALUE AsyncEngine_is_running_thread(VALUE self)
 void ae_handle_error(VALUE error)
 {
   AE_TRACE();
-
   VALUE error2;
   int error_tag;
 
@@ -436,7 +432,6 @@ static
 VALUE generate_AE_UV_ERRORS_hash(void)
 {
   AE_TRACE();
-
   VALUE hash = rb_hash_new();
   VALUE uv_error;
   VALUE args[3];
