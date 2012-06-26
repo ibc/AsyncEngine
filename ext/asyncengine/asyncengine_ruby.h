@@ -17,18 +17,18 @@
 #define AE_CHECK_STATUS()  \
   switch(AE_status) {  \
     case AE_RUNNING:  \
-      AE_DEBUG("AE running, let's go with the new handle...");  \
+      AE_DEBUG("AsyncEngine status: RUNNING => let's go");  \
       break;  \
     case AE_RELEASING:  \
-      AE_DEBUG("AE releasing, return false");  \
+      AE_DEBUG("AsyncEngine status: RELEASING => return Qfalse");  \
       return Qfalse;  \
       break;  \
     case AE_STOPPED:  \
-      AE_DEBUG("AE stopped, raise");  \
+      AE_DEBUG("AsyncEngine status: STOPPED => raise error");  \
       rb_raise(eAsyncEngineNotRunningError, "AsyncEngine is not running");  \
       break;  \
     default:  \
-      AE_ABORT("unknown AE_status ???");  \
+      AE_ABORT("AsyncEngine status: unknown => abort!");  \
       break;  \
   }
 
