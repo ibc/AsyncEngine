@@ -1,9 +1,9 @@
 #include "asyncengine_ruby.h"
 #include "ae_handle_common.h"
-#include "ae_resolver.h"
+#include "ae_dns.h"
 
 
-static VALUE cAsyncEngineResolver;
+static VALUE cAsyncEngineDns;
 
 
 typedef struct {
@@ -27,17 +27,17 @@ static void _uv_getaddrinfo_callback(uv_getaddrinfo_t* handle, int status, struc
 static VALUE _ae_getaddrinfo_callback(void);
 
 
-void init_ae_resolver()
+void init_ae_dns()
 {
   AE_TRACE();
 
-  cAsyncEngineResolver = rb_define_class_under(mAsyncEngine, "Resolver", cAsyncEngineHandle);
+  cAsyncEngineDns = rb_define_module_under(mAsyncEngine, "DNS");
 
-  rb_define_singleton_method(cAsyncEngineResolver, "resolve", AsyncEngineResolver_resolve, -1);
+  rb_define_module_function(cAsyncEngineDns, "resolve", AsyncEngineDns_resolve, -1);
 }
 
 
-/** Resolver.resolve() class method.
+/** DNS.resolve() class method.
  *
  * Arguments:
  * - hostname (String).
@@ -48,7 +48,7 @@ void init_ae_resolver()
  */
 
 static
-VALUE AsyncEngineResolver_resolve(int argc, VALUE *argv, VALUE self)
+VALUE AsyncEngineDns_resolve(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE();
   uv_getaddrinfo_t* _uv_handle;
