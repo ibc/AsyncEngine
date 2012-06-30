@@ -144,11 +144,12 @@ VALUE _ae_getaddrinfo_callback(void)
 
   uv_freeaddrinfo(last_uv_getaddrinfo_callback_data.res);
 
+  proc = ae_remove_proc(last_uv_getaddrinfo_callback_data.on_result_proc_id);
+
   // Don't execute the callback when AsyncEngine is releasing.
   if (AE_status == AE_RELEASING)
     return Qnil;
 
-  proc = ae_remove_proc(last_uv_getaddrinfo_callback_data.on_result_proc_id);
   if (last_uv_getaddrinfo_callback_data.status == 0)
     return ae_proc_call_2(proc, Qnil, ips);
   else
