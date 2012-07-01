@@ -10,27 +10,29 @@
 
 /*
  * This macro behaves as follows:
- * - Returns false if AE is releasing.
+ * - Returns Qfalse if AE is releasing.
  * - Raises a AE::NotRunningError exception if stopped.
  * - Does nothing if AE is running.
  */
 #define AE_CHECK_STATUS()  \
-  switch(AE_status) {  \
-    case AE_RUNNING:  \
-      AE_DEBUG("AsyncEngine status: RUNNING => let's go");  \
-      break;  \
-    case AE_RELEASING:  \
-      AE_DEBUG("AsyncEngine status: RELEASING => return Qfalse");  \
-      return Qfalse;  \
-      break;  \
-    case AE_STOPPED:  \
-      AE_DEBUG("AsyncEngine status: STOPPED => raise error");  \
-      rb_raise(eAsyncEngineNotRunningError, "AsyncEngine is not running");  \
-      break;  \
-    default:  \
-      AE_ABORT("AsyncEngine status: unknown => abort!");  \
-      break;  \
-  }
+  do {  \
+    switch(AE_status) {  \
+      case AE_RUNNING:  \
+        AE_DEBUG("AsyncEngine status: RUNNING => let's go");  \
+        break;  \
+      case AE_RELEASING:  \
+        AE_DEBUG("AsyncEngine status: RELEASING => return Qfalse");  \
+        return Qfalse;  \
+        break;  \
+      case AE_STOPPED:  \
+        AE_DEBUG("AsyncEngine status: STOPPED => raise error");  \
+        rb_raise(eAsyncEngineNotRunningError, "AsyncEngine is not running");  \
+        break;  \
+      default:  \
+        AE_ABORT("AsyncEngine status: unknown => abort!");  \
+        break;  \
+    }  \
+  } while(0)
 
 
 VALUE mAsyncEngine;

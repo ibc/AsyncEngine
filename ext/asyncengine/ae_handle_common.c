@@ -101,7 +101,6 @@ int ae_get_last_uv_error_int(void)
 VALUE ae_get_uv_error(int uv_errno)
 {
   AE_TRACE();
-
   VALUE ae_uv_error;
 
   if (NIL_P(ae_uv_error = rb_hash_aref(AE_UV_ERRORS, INT2FIX(uv_errno))))
@@ -114,7 +113,6 @@ VALUE ae_get_uv_error(int uv_errno)
 VALUE ae_get_last_uv_error(void)
 {
   AE_TRACE();
-
   VALUE ae_uv_error;
 
   if (NIL_P(ae_uv_error = rb_hash_aref(AE_UV_ERRORS, INT2FIX(uv_last_error(AE_uv_loop).code))))
@@ -127,7 +125,6 @@ VALUE ae_get_last_uv_error(void)
 void ae_raise_uv_error(int uv_errno)
 {
   AE_TRACE();
-
   VALUE ae_uv_error = ae_get_uv_error(uv_errno);
 
   rb_funcall2(mKernel, method_raise, 1, &ae_uv_error);
@@ -137,7 +134,6 @@ void ae_raise_uv_error(int uv_errno)
 void ae_raise_last_uv_error(void)
 {
   AE_TRACE();
-
   VALUE ae_uv_error = ae_get_last_uv_error();
 
   rb_funcall2(mKernel, method_raise, 1, &ae_uv_error);
@@ -212,16 +208,14 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
    */
 
   if (error_tag) {
-    // TODO: This could return Fixnum 8: https://github.com/ibc/AsyncEngine/issues/4,
-    // so the error handler must check it. Maybe it's better to set error=Qnil and
-    // pass it to the error handler? NO, let's ae_handle_error(error) to do it.
+    // NOTE: This could return Fixnum 8: https://github.com/ibc/AsyncEngine/issues/4,
+    // so the error handler must check it.
     error = rb_errinfo();
     rb_set_errinfo(Qnil);
-    AE_DEBUG("error class: %s", rb_obj_classname(error));
 
     // NOTE: This function should never been called when releasing.
     if (AE_status == AE_RELEASING)
-      AE_ABORT("error (class: %s) rescued while in releasing status", rb_obj_classname(error));  // TODO: testing, not sure yet.
+      AE_ABORT("error (class: %s) rescued while in RELEASING status", rb_obj_classname(error));
 
     AE_DEBUG("error (class: %s) rescued, passing it to the error handler", rb_obj_classname(error));
     ae_handle_error(error);

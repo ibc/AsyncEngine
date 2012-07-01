@@ -45,10 +45,3 @@ So maybe AsyncEngine should trap and ignore SIGPIPE from the beginning.
 
 UPDATE: Ruby ignores PIPE signal by default, and also uv so nothing must be done.
 
-
-
-Wait for uv_run_nowait()
-------------------------
-
-https://github.com/joyent/libuv/issues/410
-
