@@ -215,11 +215,11 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
 
     // NOTE: While in RELEASING status ignore errors in user's provided callback/method.
     if (AE_status == AE_RELEASING) {
-      AE_DEBUG2("error (class: %s) rescued while in RELEASING status, ignoring it", rb_obj_classname(error));
+      AE_DEBUG2("error %s rescued while in RELEASING status, ignoring it", rb_obj_classname(error));
       return Qnil;
     }
     else {
-      AE_DEBUG("error (class: %s) rescued, passing it to the error handler", rb_obj_classname(error));
+      AE_DEBUG("error %s rescued, passing it to the error handler", rb_obj_classname(error));
       ae_handle_error(error);
       return Qnil;
     }

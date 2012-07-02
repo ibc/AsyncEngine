@@ -376,13 +376,13 @@ void ae_handle_error(VALUE error)
     if (error_tag) {
       error2 = rb_errinfo();
       rb_set_errinfo(Qnil);
-      AE_DEBUG2("error (class: %s) rescued with rb_protect() while running the user error handler", rb_obj_classname(error2));  // TODO: for testing
+      AE_DEBUG2("error %s rescued with rb_protect() while running the user error handler", rb_obj_classname(error2));
       rb_ivar_set(mAsyncEngine, att_exit_error, error2);
       ae_release_loop();
     }
   }
   else {
-    AE_DEBUG2("error (class: %s) occurred with rb_protect(), releasing...", rb_obj_classname(error));
+    AE_DEBUG2("error %s occurred with rb_protect(), releasing...", rb_obj_classname(error));
     /*
      * error could return Fixnum 8 when AE thread is killed with Thread#kill:
      *   https://github.com/ibc/AsyncEngine/issues/4
