@@ -9,7 +9,7 @@ require "fileutils"
 
 
 def sys cmd
-  puts "system command in #{File.expand_path(File.dirname(__FILE__))}:  #{cmd}"
+  puts "DBG: system command in #{File.expand_path(File.dirname(__FILE__))}:  #{cmd}"
   unless ret = xsystem(cmd)
     abort "system command `#{cmd}' failed, please report to https://github.com/ibc/AsyncEngine/issues"
   end
@@ -63,6 +63,7 @@ end
 
 Dir.chdir(libuv_dir) do
   sys "CFLAGS='#{cflags}' make"
+  puts "DBG: in #{File.expand_path(File.dirname(__FILE__))}:  FileUtils.mv \"uv.a\", \"../libuv.a\""
   FileUtils.mv "uv.a", "../libuv.a"
 end
 

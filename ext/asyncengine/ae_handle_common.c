@@ -10,7 +10,7 @@ static ID method_call;
 static ID method_handle_error;
 static ID method_raise;
 
-// C variable holding current proc number.
+// C variable holding next proc number identifier.
 static long proc_long_id;
 
 
@@ -187,6 +187,8 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
   VALUE ret, error;
   int error_tag;
 
+  AE_ASSERT(AE_status != AE_STOPPED);
+
   if (param)
     ret = rb_protect(function, (VALUE)param, &error_tag);
   else
@@ -237,6 +239,8 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
 VALUE ae_take_gvl_and_run_with_error_handler(void* function)
 {
   AE_TRACE();
+
+  AE_ASSERT(AE_status != AE_STOPPED);
 
   return rb_thread_call_with_gvl(ae_run_with_error_handler, function);
 }
