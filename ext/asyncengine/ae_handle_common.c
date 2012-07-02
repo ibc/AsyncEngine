@@ -213,13 +213,16 @@ VALUE ae_run_with_error_handler(void* function, VALUE param)
     error = rb_errinfo();
     rb_set_errinfo(Qnil);
 
-    // NOTE: This function should never been called when releasing.
-    if (AE_status == AE_RELEASING)
-      AE_ABORT("error (class: %s) rescued while in RELEASING status", rb_obj_classname(error));
-
-    AE_DEBUG("error (class: %s) rescued, passing it to the error handler", rb_obj_classname(error));
-    ae_handle_error(error);
-    return Qnil;
+    // NOTE: While in RELEASING status ignore errors in user's provided callback/method.
+    if (AE_status == AE_RELEASING) {
+      AE_DEBUG2("error (class: %s) rescued while in RELEASING status, ignoring it", rb_obj_classname(error));
+      return Qnil;
+    }
+    else {
+      AE_DEBUG("error (class: %s) rescued, passing it to the error handler", rb_obj_classname(error));
+      ae_handle_error(error);
+      return Qnil;
+    }
   }
   else
     return ret;

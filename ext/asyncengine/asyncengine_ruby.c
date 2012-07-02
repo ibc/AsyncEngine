@@ -43,7 +43,7 @@ static void ae_ubf(void);
 static void ae_ubf_uv_async_callback(uv_async_t* handle, int status);
 static void ae_release_loop(void);
 static int destroy_handle(VALUE key, VALUE handle, VALUE in);
-static VALUE destroy_handle_with_rb_protect(VALUE handle);
+static VALUE call_handle_destroy(VALUE handle);
 static int ae_is_running_thread(void);
 static VALUE ae_handle_error_with_rb_protect(VALUE error);
 
@@ -317,22 +317,14 @@ static
 int destroy_handle(VALUE key, VALUE handle, VALUE in)
 {
   AE_TRACE();
-  VALUE error;
-  int error_tag;
 
-  rb_protect(destroy_handle_with_rb_protect, handle, &error_tag);
-  if (error_tag) {
-    error = rb_errinfo();
-    rb_set_errinfo(Qnil);
-    AE_DEBUG2("error (class: %s) rescued with rb_protect() while destroying the handle", rb_obj_classname(error));  // TODO: for testing
-  }
-
+  ae_run_with_error_handler(call_handle_destroy, handle);
   return 0;
 }
 
 
 static
-VALUE destroy_handle_with_rb_protect(VALUE handle)
+VALUE call_handle_destroy(VALUE handle)
 {
   AE_TRACE();
 
