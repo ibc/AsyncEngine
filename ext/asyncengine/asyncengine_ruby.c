@@ -121,7 +121,9 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   }
 
   // Acquire the barrier lock.
+  //AE_WARN("--- pre  rb_barrier_wait(AE_barrier)");  // TODO: debugging for https://github.com/ibc/AsyncEngine/issues/30
   rb_barrier_wait(AE_barrier);
+  //AE_WARN("--- post rb_barrier_wait(AE_barrier)");  // TODO: debugging for https://github.com/ibc/AsyncEngine/issues/30
 
   /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
