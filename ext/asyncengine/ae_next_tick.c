@@ -57,11 +57,11 @@ VALUE AsyncEngine_next_tick(int argc, VALUE *argv, VALUE self)
   VALUE proc;
   int r;
 
-  AE_ASSERT(ae_next_tick_uv_idle != NULL);
-
   AE_CHECK_STATUS();
   AE_RB_CHECK_NUM_ARGS(0,1);
   AE_RB_ENSURE_BLOCK_OR_PROC(1, proc);
+
+  AE_ASSERT(ae_next_tick_uv_idle != NULL);
 
   rb_ary_push(rb_ivar_get(mAsyncEngine, att_next_tick_procs), proc);
   if (! uv_is_active((uv_handle_t *)ae_next_tick_uv_idle)) {
