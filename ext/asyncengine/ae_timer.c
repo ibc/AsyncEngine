@@ -287,10 +287,6 @@ VALUE AsyncEngineTimer_restart(int argc, VALUE *argv, VALUE self)
     cdata->delay = delay;
   }
 
-  r = uv_timer_stop(cdata->_uv_handle);
-  if (r != 0)
-    ae_raise_last_uv_error();
-
   r = uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, 0);
   if (r != 0)
     ae_raise_last_uv_error();
@@ -335,10 +331,6 @@ VALUE AsyncEnginePeriodicTimer_restart(int argc, VALUE *argv, VALUE self)
     else
       cdata->delay = interval;
   }
-
-  r = uv_timer_stop(cdata->_uv_handle);
-  if (r != 0)
-    ae_raise_last_uv_error();
 
   r = uv_timer_start(cdata->_uv_handle, _uv_timer_callback, cdata->delay, cdata->interval);
   if (r != 0)
