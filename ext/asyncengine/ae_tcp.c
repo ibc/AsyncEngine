@@ -760,7 +760,6 @@ static
 VALUE AsyncEngineTcpSocket_close(VALUE self)
 {
   AE_TRACE2();
-
   VALUE error = Qnil;
 
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
@@ -790,12 +789,10 @@ static
 VALUE AsyncEngineTcpSocket_close_gracefully(int argc, VALUE *argv, VALUE self)
 {
   AE_TRACE2();
-
   uv_shutdown_t *shutdown_req;
 
-  AE_RB_CHECK_NUM_ARGS(0,1);
-
   GET_CDATA_FROM_SELF_AND_CHECK_UV_HANDLE_IS_OPEN;
+  AE_RB_CHECK_NUM_ARGS(0,1);
 
   // Avoid this method to be called twice.
   if (cdata->flags & SHUTDOWN_REQUESTED)
