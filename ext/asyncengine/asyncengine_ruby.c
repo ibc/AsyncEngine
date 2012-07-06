@@ -14,8 +14,8 @@ static VALUE mProcess;
 static VALUE mKernel;
 
 static VALUE AE_thread;
-static VALUE AE_pid;
-static VALUE AE_barrier;
+static int AE_pid;
+static VALUE AE_mutex;
 
 static ID att_handles;
 static ID att_procs;
@@ -29,7 +29,6 @@ static ID method_destroy;
 static ID method_clear;
 static ID method_next_tick;
 static ID method_call_from_other_thread;
-static ID method_pid;
 static ID method_raise;
 static ID method_call;
 
@@ -108,7 +107,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   AE_RB_CHECK_NUM_ARGS(0,1);
   AE_RB_ENSURE_BLOCK_OR_PROC(1, proc);
 
-  if (AE_status == AE_RUNNING && (rb_funcall2(mProcess, method_pid, 0, NULL) != AE_pid))
+  if (AE_status == AE_RUNNING && getpid() != AE_pid)
     rb_raise(eAsyncEngineError, "cannot run AsyncEngine from a forked process while already running");
 
   // If already running pass the Proc to the reactor and return true.
@@ -120,17 +119,29 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
     return Qtrue;
   }
 
-  // Acquire the barrier lock.
-  //AE_WARN("--- pre  rb_barrier_wait(AE_barrier)");  // TODO: debugging for https://github.com/ibc/AsyncEngine/issues/30
-  rb_barrier_wait(AE_barrier);
-  //AE_WARN("--- post rb_barrier_wait(AE_barrier)");  // TODO: debugging for https://github.com/ibc/AsyncEngine/issues/30
+  // Acquire the mutex.
+  AE_DEBUG("pre rb_mutex_lock(AE_mutex)");
+  rb_mutex_lock(AE_mutex);
+  AE_DEBUG("post rb_mutex_lock(AE_mutex)");
+
+  // Ensure AE_status is AE_STOPPED (for multi-thread exotic cases).
+  if (AE_status == AE_RELEASING) {
+    AE_WARN("AE_mutex locked while in RELEASING status, returning");
+    rb_mutex_unlock(AE_mutex);
+    return Qnil;
+  }
+  else if (AE_status == AE_RUNNING) {
+    AE_WARN("AE_mutex locked while in RUNNING status, returning");
+    rb_mutex_unlock(AE_mutex);
+    return Qnil;
+  }
 
   /* Set the UV loop. */
   AE_uv_loop = uv_default_loop();
 
   // Mark current thread and PID.
   AE_thread = rb_thread_current();
-  AE_pid = rb_funcall2(mProcess, method_pid, 0, NULL);
+  AE_pid = getpid();
 
   // Get the VALUEs for @_handles and @_procs (faster).
   AE_handles = rb_ivar_get(mAsyncEngine, att_handles);
@@ -169,7 +180,7 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   // Unset the AE_uv_loop, AE_thread and AE_pid.
   AE_uv_loop = NULL;
   AE_thread = Qnil;
-  AE_pid = Qnil;
+  AE_pid = -1;
 
   // Get the captured error in @_exit_error (if any) and clean @_exit_error.
   captured_error = rb_ivar_get(mAsyncEngine, att_exit_error);
@@ -178,8 +189,10 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
   // Now yes, set the status to AE_STOPPED.
   AE_status = AE_STOPPED;
 
-  // Release the barrier lock.
-  rb_barrier_release(AE_barrier);
+  // Release the mutex.
+  AE_DEBUG("pre rb_mutex_unlock(AE_mutex)");
+  rb_mutex_unlock(AE_mutex);
+  AE_DEBUG("post rb_mutex_unlock(AE_mutex)");
 
   /*
    * Run the procs within @_on_exit_procs in order by passing the captured error
@@ -480,8 +493,6 @@ void Init_asyncengine_ext()
   method_clear = rb_intern("clear");
   method_next_tick = rb_intern("next_tick");
   method_call_from_other_thread = rb_intern("call_from_other_thread");
-  method_pid = rb_intern("pid");
-  method_pid = rb_intern("pid");
   method_raise = rb_intern("raise");
   method_call = rb_intern("call");
 
@@ -501,9 +512,9 @@ void Init_asyncengine_ext()
   AE_UV_ERRORS = generate_AE_UV_ERRORS_hash();
   rb_const_set(mAsyncEngine, rb_intern("UV_ERRORS"), AE_UV_ERRORS);
 
-  AE_barrier = rb_barrier_new();
-  rb_gc_register_address(&AE_barrier);
-
+  AE_mutex = rb_mutex_new();
+  rb_gc_register_address(&AE_mutex);
   AE_uv_loop = NULL;
   AE_status = AE_STOPPED;
+  AE_pid = -1;
 }
