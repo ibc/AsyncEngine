@@ -126,12 +126,12 @@ VALUE AsyncEngine_run(int argc, VALUE *argv, VALUE self)
 
   // Ensure AE_status is AE_STOPPED (for multi-thread exotic cases).
   if (AE_status == AE_RELEASING) {
-    AE_WARN("AE_mutex locked while in RELEASING status, returning");
+    AE_DEBUG2("AE_mutex locked while in RELEASING status, returning");
     rb_mutex_unlock(AE_mutex);
     return Qnil;
   }
   else if (AE_status == AE_RUNNING) {
-    AE_WARN("AE_mutex locked while in RUNNING status, returning");
+    AE_DEBUG2("AE_mutex locked while in RUNNING status, returning");
     rb_mutex_unlock(AE_mutex);
     return Qnil;
   }
