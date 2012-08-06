@@ -27,4 +27,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob "{#{files}}"
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/asyncengine/extconf.rb"]
+
+  spec.add_development_dependency "rake", "~> 0.9.2"
+  spec.add_development_dependency "makerakeworkwell", "~> 1.0.1"
 end
