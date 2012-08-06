@@ -5,6 +5,7 @@ rvm:
 
 before_install:
   - sudo apt-get install libev-dev
+  - gem install makerakeworkwell
 
 after_script:
   - rake test
