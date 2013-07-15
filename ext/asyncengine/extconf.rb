@@ -62,9 +62,9 @@ unless File.directory?(libuv_dir)
 end
 
 Dir.chdir(libuv_dir) do
-  sys "CFLAGS='#{cflags}' make"
-  puts "DBG: in #{File.expand_path(File.dirname(__FILE__))}:  FileUtils.mv \"uv.a\", \"../libuv.a\""
-  FileUtils.mv "uv.a", "../libuv.a"
+  sys "sh autogen.sh && ./configure && CFLAGS='#{cflags}' make"
+  puts "DBG: in #{File.expand_path(File.dirname(__FILE__))}:  FileUtils.mv \".libs/libuv.a\", \"../libuv.a\""
+  FileUtils.mv ".libs/libuv.a", "../libuv.a"
 end
 
 have_library("uv") or raise "have_library('uv') returns false"

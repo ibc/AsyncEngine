@@ -5,6 +5,7 @@ NOTES
 BORRAME
 *.sh
 not_git/
+Gemfile.lock
 
 ext/asyncengine/libuv/
 ext/asyncengine/Makefile
